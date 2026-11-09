@@ -143,6 +143,16 @@ class SystemTrayApp:
                 ('hIconSm', wintypes.HICON)
             ]
 
+        # Cargar icono personalizado de VortexCore Hub
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "vortex_icon.ico"))
+        hicon = 0
+        if os.path.isfile(icon_path):
+            user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+            user32.LoadImageW.restype = wintypes.HANDLE
+            hicon = user32.LoadImageW(0, icon_path, 1, 0, 0, 0x00000010 | 0x00000040) # IMAGE_ICON, LR_LOADFROMFILE | LR_DEFAULTSIZE
+        if not hicon:
+            hicon = user32.LoadIconW(0, 32512)
+
         wndclass = WNDCLASSEXW()
         wndclass.cbSize = ctypes.sizeof(WNDCLASSEXW)
         wndclass.style = 0
@@ -150,12 +160,12 @@ class SystemTrayApp:
         wndclass.cbClsExtra = 0
         wndclass.cbWndExtra = 0
         wndclass.hInstance = hinstance
-        wndclass.hIcon = user32.LoadIconW(0, 32512) # IDI_APPLICATION
+        wndclass.hIcon = hicon
         wndclass.hCursor = 0
         wndclass.hbrBackground = 0
         wndclass.lpszMenuName = None
         wndclass.lpszClassName = class_name
-        wndclass.hIconSm = 0
+        wndclass.hIconSm = hicon
 
         user32.RegisterClassExW(ctypes.byref(wndclass))
 
@@ -164,14 +174,14 @@ class SystemTrayApp:
             0, 0, 0, 0, 0, 0, hinstance, 0
         )
 
-        # Crear icono en la bandeja del sistema
+        # Crear icono en la bandeja del sistema con el logo oficial
         self.nid = NOTIFYICONDATAW()
         self.nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
         self.nid.hWnd = self.hwnd
         self.nid.uID = 1
         self.nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
         self.nid.uCallbackMessage = WM_TRAYICON
-        self.nid.hIcon = user32.LoadIconW(0, 32512)
+        self.nid.hIcon = hicon
         self.nid.szTip = "VortexCore Hub // Por Faundezz21"
 
         shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(self.nid))
