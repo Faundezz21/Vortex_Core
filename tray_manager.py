@@ -16,6 +16,17 @@ from ctypes import wintypes
 user32 = ctypes.windll.user32
 shell32 = ctypes.windll.shell32
 kernel32 = ctypes.windll.kernel32
+uxtheme = ctypes.windll.uxtheme
+dwmapi = ctypes.windll.dwmapi
+
+# Inicializar Modo Oscuro nativo de Windows 11 para la aplicación y sus menús
+try:
+    fn_set_app_mode = ctypes.cast(uxtheme[135], ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int))
+    fn_set_app_mode(2)  # ForceDark
+    fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
+    fn_flush_themes()
+except Exception:
+    pass
 
 NIM_ADD = 0
 NIM_MODIFY = 1
@@ -174,6 +185,15 @@ class SystemTrayApp:
             0, 0, 0, 0, 0, 0, hinstance, 0
         )
 
+        # Aplicar tema oscuro nativo de Windows 11 al HWND de la bandeja
+        try:
+            fn_allow_dark = ctypes.cast(uxtheme[133], ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, ctypes.c_bool))
+            fn_allow_dark(self.hwnd, True)
+            uxtheme.SetWindowTheme(self.hwnd, "DarkMode_Explorer", None)
+            dwmapi.DwmSetWindowAttribute(self.hwnd, 20, ctypes.byref(ctypes.c_int(1)), 4)
+        except Exception:
+            pass
+
         # Crear icono en la bandeja del sistema con el logo oficial
         self.nid = NOTIFYICONDATAW()
         self.nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
@@ -196,29 +216,41 @@ class SystemTrayApp:
         shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
 
     def _show_context_menu(self):
+        try:
+            fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
+            fn_flush_themes()
+        except Exception:
+            pass
+
         menu = user32.CreatePopupMenu()
 
-        user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "🌀 Abrir VortexCore Hub")
+        user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Abrir VortexCore Hub")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-        user32.AppendMenuW(menu, MF_STRING, CMD_ECO, "🍃 Modo ECO SILENT (60% CPU)")
-        user32.AppendMenuW(menu, MF_STRING, CMD_BALANCED, "⚖️ Modo STANDARD BALANCE")
-        user32.AppendMenuW(menu, MF_STRING, CMD_TURBO, "🚀 Modo TURBO GAMING (100% CPU)")
+
+        curr_prof = getattr(self.manager, "current_profile", "DEFAULT").upper()
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "ECO" else MF_UNCHECKED) | MF_STRING, CMD_ECO, "Modo ECO SILENT (60% CPU)")
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof in ("DEFAULT", "BALANCED") else MF_UNCHECKED) | MF_STRING, CMD_BALANCED, "Modo STANDARD BALANCE")
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "PERFORMANCE" else MF_UNCHECKED) | MF_STRING, CMD_TURBO, "Modo TURBO GAMING (100% CPU)")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-        user32.AppendMenuW(menu, MF_STRING, CMD_FAN_MAX, "🌪️ Turbina 100% (HP Overdrive)")
-        user32.AppendMenuW(menu, MF_STRING, CMD_FAN_AUTO, "🔄 Ventiladores: Automático")
-        user32.AppendMenuW(menu, MF_STRING, CMD_PURGE_RAM, "🧹 Purgar Memoria RAM")
+
+        fan_mode = str(getattr(self.manager, "fan_mode", "auto")).lower()
+        is_turbo = "max" in fan_mode or "turbo" in fan_mode
+        user32.AppendMenuW(menu, (MF_CHECKED if is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_MAX, "Turbina 100% (HP Overdrive)")
+        user32.AppendMenuW(menu, (MF_CHECKED if not is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_AUTO, "Ventiladores: Curva Automática")
+        user32.AppendMenuW(menu, MF_STRING, CMD_PURGE_RAM, "Purgar Memoria RAM en Standby")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
         autostart_state = MF_CHECKED if is_autostart_enabled() else MF_UNCHECKED
-        user32.AppendMenuW(menu, autostart_state | MF_STRING, CMD_AUTOSTART, "⚙️ Iniciar con Windows")
+        user32.AppendMenuW(menu, autostart_state | MF_STRING, CMD_AUTOSTART, "Iniciar con Windows al encender")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-        user32.AppendMenuW(menu, MF_STRING, CMD_EXIT, "❌ Salir de VortexCore")
+        user32.AppendMenuW(menu, MF_STRING, CMD_EXIT, "Salir de VortexCore")
 
         pt = wintypes.POINT()
         user32.GetCursorPos(ctypes.byref(pt))
 
         user32.SetForegroundWindow(self.hwnd)
         user32.TrackPopupMenu(menu, TPM_RIGHTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, self.hwnd, 0)
+        user32.PostMessageW(self.hwnd, 0, 0, 0)
         user32.DestroyMenu(menu)
 
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
