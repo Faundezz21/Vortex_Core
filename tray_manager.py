@@ -285,8 +285,13 @@ class SystemTrayApp:
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
         if msg == WM_TRAYICON:
             if lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
-                if self.on_open:
-                    self.on_open()
+                import time
+                now = time.time()
+                # Debounce de clics: ignora pulsaciones repetidas o ráfagas de doble-clic
+                if now - getattr(self, "_last_click_time", 0) > 0.7:
+                    self._last_click_time = now
+                    if self.on_open:
+                        self.on_open()
             elif lparam == WM_RBUTTONUP:
                 self._show_context_menu()
             return 0

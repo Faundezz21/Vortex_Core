@@ -791,33 +791,57 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         pass
 
 
+_launch_lock = threading.Lock()
+_last_launch_time = 0.0
+
+
 def focus_existing_window() -> bool:
     """Busca la ventana de VortexCore Hub en Windows y la trae al frente."""
     try:
         import ctypes
         from ctypes import wintypes
         user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
         found_hwnd = None
 
         def enum_proc(hwnd, lparam):
             nonlocal found_hwnd
-            if user32.IsWindowVisible(hwnd):
-                length = user32.GetWindowTextLengthW(hwnd)
-                if length > 0:
-                    buff = ctypes.create_unicode_buffer(length + 1)
-                    user32.GetWindowTextW(hwnd, buff, length + 1)
-                    if "VortexCore" in buff.value:
-                        found_hwnd = hwnd
-                        return False
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buff = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buff, length + 1)
+                val = buff.value
+                if "VortexCore" in val:
+                    found_hwnd = hwnd
+                    return False
             return True
 
         EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
         user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
 
         if found_hwnd:
-            # SW_RESTORE = 9, SW_SHOW = 5
-            user32.ShowWindow(found_hwnd, 9)
-            user32.SetForegroundWindow(found_hwnd)
+            # Si estaba minimizada, restaurar
+            if user32.IsIconic(found_hwnd):
+                user32.ShowWindow(found_hwnd, 9)  # SW_RESTORE
+            else:
+                user32.ShowWindow(found_hwnd, 5)  # SW_SHOW
+
+            # Forzar foco al frente (Foreground) superando restricciones de foco en Windows
+            fore_hwnd = user32.GetForegroundWindow()
+            if fore_hwnd != found_hwnd:
+                fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None)
+                cur_thread = kernel32.GetCurrentThreadId()
+                if fore_thread != cur_thread:
+                    user32.AttachThreadInput(cur_thread, fore_thread, True)
+                    user32.BringWindowToTop(found_hwnd)
+                    user32.SetForegroundWindow(found_hwnd)
+                    user32.AttachThreadInput(cur_thread, fore_thread, False)
+                else:
+                    user32.BringWindowToTop(found_hwnd)
+                    user32.SetForegroundWindow(found_hwnd)
+            else:
+                user32.BringWindowToTop(found_hwnd)
+                user32.SetForegroundWindow(found_hwnd)
             return True
     except Exception:
         pass
@@ -850,7 +874,27 @@ def launch_native_window():
 
 
 def launch_or_focus_window():
-    if not focus_existing_window():
+    """
+    Garantiza una ÚNICA ventana abierta. Si el usuario hace doble clic o
+    múltiples clics seguidos, solo se restaura o enfoca la ventana existente,
+    impidiendo la apertura de procesos duplicados.
+    """
+    global _last_launch_time
+    with _launch_lock:
+        # 1. Si la ventana ya existe, enfocarla de inmediato
+        if focus_existing_window():
+            return
+
+        now = time.time()
+        # 2. Si se solicitó abrir hace menos de 2.2 segundos, esperar a que aparezca la ventana en vez de lanzar otra
+        if now - _last_launch_time < 2.2:
+            for _ in range(6):
+                time.sleep(0.25)
+                if focus_existing_window():
+                    return
+            return
+
+        _last_launch_time = now
         launch_native_window()
 
 
@@ -903,7 +947,7 @@ if __name__ == "__main__":
     # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
     is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])
     if not is_minimized:
-        launch_native_window()
+        launch_or_focus_window()
 
     try:
         while True:
