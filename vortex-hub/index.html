@@ -591,89 +591,218 @@
           </div>
         </section>
 
-        <!-- PESTAÑA 3: VENTILACIÓN & CURVAS WMI -->
+        <!-- PESTAÑA 3: EDITAR MODO MANUAL (CPU / GPU / SYS + CURVA DE VENTILADORES) -->
         <section class="tab-view" id="tab-cooling">
-          <div class="settings-stack">
-            
-            <div class="glass-card cooling-hero">
-              <div class="hero-status">
-                <span class="hero-label" id="cooling-hero-label">INTERFAZ FIRMWARE ACPI (HP BIOS WMI)</span>
-                <h2 id="cooling-status-hero">Curva Automática de Fábrica</h2>
-                <p id="cooling-hero-desc">Llamada directa mediante Opcode 0x27 en `root\wmi:hpqBIntM` con firma de seguridad "SECU". Compatible nativamente con HP Victus y OMEN.</p>
-              </div>
-              <div class="hero-actions">
-                <button class="hero-btn max" onclick="triggerFan('max')">🌀 FORZAR TURBINA 100%</button>
-                <button class="hero-btn auto" onclick="triggerFan('auto')">🔄 MODO AUTOMÁTICO</button>
+          <div class="ac-manual-editor-wrap">
+
+            <!-- BARRA SUPERIOR DE EDITAR MODO MANUAL -->
+            <div class="ac-me-topbar">
+              <button class="ac-me-back-btn" onclick="switchTab('tab-overview')">
+                <span class="ac-back-chevron">‹</span>
+                <h2>Editar modo manual</h2>
+              </button>
+
+              <div class="ac-me-profile-controls">
+                <select class="ac-me-profile-select" id="manual-profile-select" onchange="loadManualPreset(this.value)">
+                  <option value="mode1">Manual mode 1</option>
+                  <option value="mode2">Manual mode 2 (eSports Max)</option>
+                  <option value="mode3">Manual mode 3 (Baja Temperatura)</option>
+                </select>
+                <button class="ac-me-dots-btn" onclick="triggerFan('max')" title="Forzar Turbina 100% ahora">•••</button>
               </div>
             </div>
 
-            <!-- SIMULADOR Y VISUALIZADOR DE CURVA DE VENTILACIÓN -->
-            <div class="glass-card fan-curve-panel">
-              <div class="panel-header">
-                <div>
-                  <h3>Curva Térmica de Respuesta de Ventiladores</h3>
-                  <small class="panel-subtitle">Relación entre temperatura del silicio (°C) y velocidad de giro de los ventiladores (%)</small>
-                </div>
-                <div class="curve-mode-pill">Modo: HP BIOS Dinámico</div>
+            <!-- BANNER INFORMATIVO ÁMBAR (ESTADO ENCHUFADO / BATERÍA) -->
+            <div class="ac-me-info-banner">
+              <div class="ac-me-banner-text">
+                <p>Los modos manuales nuevos están vinculados al estado de uso energético del dispositivo en cada momento: enchufado a la corriente o utilizando la batería. Si crea un modo manual mientras el dispositivo está enchufado a la corriente, este solo se aplicará cuando esté enchufado a la corriente; si crea un modo manual mientras se está utilizando la batería, solo se aplicará cuando esté utilizando la batería.</p>
+                <p class="ac-me-banner-sub">Para consultar el modo asociado a su perfil manual actual, compruebe el icono junto al nombre del perfil.</p>
               </div>
+              <div class="ac-me-power-badge" id="manual-power-state-badge">
+                <span class="ac-plug-icon">🔌</span>
+                <span id="manual-power-state-text">Enchufado</span>
+              </div>
+            </div>
 
-              <!-- GRÁFICA INTERACTIVA DE CURVA -->
-              <div class="curve-visual-box">
-                <svg class="curve-svg" viewBox="0 0 500 180" id="curve-svg">
-                  <!-- Ejes y cuadrícula -->
-                  <line x1="40" y1="20" x2="40" y2="150" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-                  <line x1="40" y1="150" x2="480" y2="150" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+            <!-- SELECTOR DE SUB-PESTAÑAS: [ CPU ] | [ GPU ] | [ SYS ] -->
+            <div class="ac-me-subtabs">
+              <button class="ac-me-subtab active" data-subtab="cpu" onclick="switchManualSubtab('cpu')">CPU</button>
+              <button class="ac-me-subtab" data-subtab="gpu" onclick="switchManualSubtab('gpu')">GPU</button>
+              <button class="ac-me-subtab" data-subtab="sys" onclick="switchManualSubtab('sys')">SYS</button>
+            </div>
+
+            <!-- CUERPO PRINCIPAL DIVIDIDO: SLIDERS (IZQUIERDA) + CURVA FAN INTERACTIVA (DERECHA) -->
+            <div class="ac-me-main-split">
+              
+              <!-- COLUMNA IZQUIERDA: SLIDERS SEGÚN SUB-PESTAÑA ACTIVA -->
+              <div class="ac-me-left-pane">
+                
+                <!-- SUB-VISTA 1: CPU (SPL, SPPT, FPPT) -->
+                <div class="ac-me-subview active" id="manual-subview-cpu">
                   
-                  <text x="15" y="30" fill="#64748b" font-size="10">100%</text>
-                  <text x="20" y="90" fill="#64748b" font-size="10">50%</text>
-                  <text x="25" y="150" fill="#64748b" font-size="10">0%</text>
+                  <!-- SPL -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">SPL <i class="ac-info-i" title="Sustained Power Limit (PL1): Potencia continua sostenida del procesador">i</i></span>
+                      <strong class="ac-me-val" id="val-cpu-spl">35 W</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="15" max="65" value="35" step="1" class="ac-tactical-range" id="slider-cpu-spl" oninput="onManualSliderInput('cpu-spl', this.value, ' W')">
+                    </div>
+                  </div>
 
-                  <text x="40" y="168" fill="#64748b" font-size="10">30°C</text>
-                  <text x="150" y="168" fill="#64748b" font-size="10">50°C</text>
-                  <text x="260" y="168" fill="#64748b" font-size="10">70°C</text>
-                  <text x="370" y="168" fill="#64748b" font-size="10">85°C</text>
-                  <text x="460" y="168" fill="#64748b" font-size="10">95°C</text>
+                  <!-- SPPT -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">SPPT <i class="ac-info-i" title="Slow Package Power Tracking (PL2): Potencia de ráfaga a medio plazo">i</i></span>
+                      <strong class="ac-me-val" id="val-cpu-sppt">45 W</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="20" max="80" value="45" step="1" class="ac-tactical-range" id="slider-cpu-sppt" oninput="onManualSliderInput('cpu-sppt', this.value, ' W')">
+                    </div>
+                  </div>
 
-                  <!-- Línea de Curva -->
-                  <path d="M 40 140 Q 150 135 260 100 T 370 45 L 480 30" fill="none" stroke="#00f0ff" stroke-width="3" filter="drop-shadow(0 0 6px #00f0ff)"/>
+                  <!-- FPPT -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">FPPT <i class="ac-info-i" title="Fast Package Power Tracking (PL3): Potencia pico instantánea máxima">i</i></span>
+                      <strong class="ac-me-val" id="val-cpu-fppt">60 W</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="25" max="100" value="60" step="1" class="ac-tactical-range" id="slider-cpu-fppt" oninput="onManualSliderInput('cpu-fppt', this.value, ' W')">
+                    </div>
+                  </div>
 
-                  <!-- Puntos de control -->
-                  <circle cx="40" cy="140" r="5" fill="#fff" stroke="#00f0ff" stroke-width="2"/>
-                  <circle cx="150" cy="135" r="5" fill="#fff" stroke="#00f0ff" stroke-width="2"/>
-                  <circle cx="260" cy="100" r="5" fill="#fff" stroke="#00f0ff" stroke-width="2"/>
-                  <circle cx="370" cy="45" r="5" fill="#fff" stroke="#00f0ff" stroke-width="2"/>
-                  <circle cx="480" cy="30" r="5" fill="#fff" stroke="#00f0ff" stroke-width="2"/>
-                </svg>
+                </div>
+
+                <!-- SUB-VISTA 2: GPU (Base Clock Offset, Memory Clock Offset, Dynamic Boost, Thermal Target, TGP) -->
+                <div class="ac-me-subview" id="manual-subview-gpu">
+                  
+                  <!-- Base Clock Offset -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">Base Clock Offset <i class="ac-info-i" title="Desplazamiento de frecuencia del núcleo gráfico en MHz">i</i></span>
+                      <strong class="ac-me-val" id="val-gpu-base">50 MHz</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="0" max="200" value="50" step="5" class="ac-tactical-range" id="slider-gpu-base" oninput="onManualSliderInput('gpu-base', this.value, ' MHz')">
+                    </div>
+                  </div>
+
+                  <!-- Memory Clock Offset -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">Memory Clock Offset <i class="ac-info-i" title="Desplazamiento de frecuencia de la memoria VRAM GDDR6 en MHz">i</i></span>
+                      <strong class="ac-me-val" id="val-gpu-mem">100 MHz</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="0" max="300" value="100" step="10" class="ac-tactical-range" id="slider-gpu-mem" oninput="onManualSliderInput('gpu-mem', this.value, ' MHz')">
+                    </div>
+                  </div>
+
+                  <!-- Dynamic Boost -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">Dynamic Boost <i class="ac-info-i" title="Potencia adicional dinámica transferida a la GPU bajo carga gráfica">i</i></span>
+                      <strong class="ac-me-val" id="val-gpu-boost">25 W</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="5" max="25" value="25" step="5" class="ac-tactical-range" id="slider-gpu-boost" oninput="onManualSliderInput('gpu-boost', this.value, ' W')">
+                    </div>
+                  </div>
+
+                  <!-- Thermal Target -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">Thermal Target <i class="ac-info-i" title="Límite térmico objetivo del núcleo GPU antes de regular frecuencias">i</i></span>
+                      <strong class="ac-me-val" id="val-gpu-temp">87 °C</strong>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="75" max="87" value="87" step="1" class="ac-tactical-range" id="slider-gpu-temp" oninput="onManualSliderInput('gpu-temp', this.value, ' °C')">
+                    </div>
+                  </div>
+
+                  <!-- TGP con marcas escalonadas (55, 70, 80, 105, 115) -->
+                  <div class="ac-me-slider-block">
+                    <div class="ac-me-slider-head">
+                      <span class="ac-me-label">TGP <i class="ac-info-i" title="Total Graphics Power: Potencia gráfica total asignada a la GPU">i</i></span>
+                    </div>
+                    <div class="ac-me-tgp-ticks">
+                      <span>55</span>
+                      <span>70</span>
+                      <span>80</span>
+                      <span>105</span>
+                      <span class="active" id="val-gpu-tgp">115</span>
+                    </div>
+                    <div class="ac-me-range-wrap">
+                      <input type="range" min="55" max="115" value="115" step="5" class="ac-tactical-range" id="slider-gpu-tgp" oninput="onManualSliderInput('gpu-tgp', this.value, '')">
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- SUB-VISTA 3: SYS (Control directo WMI, Cooldown y Seguridad Térmica) -->
+                <div class="ac-me-subview" id="manual-subview-sys">
+                  <div class="ac-me-sys-card">
+                    <span class="hero-label" id="cooling-hero-label">INTERFAZ FIRMWARE ACPI (BIOS WMI)</span>
+                    <h4 id="cooling-status-hero">Curva Automática / Manual</h4>
+                    <p id="cooling-hero-desc">Control directo de ventiladores, temporizador de enfriamiento rápido y protección contra sobrecalentamiento.</p>
+                    <div class="ac-me-sys-btns">
+                      <button class="clean-btn primary" onclick="triggerFan('max')">🌀 Forzar Turbina 100%</button>
+                      <button class="clean-btn" onclick="triggerFan('auto')">🔄 Retornar a BIOS Auto</button>
+                    </div>
+                  </div>
+
+                  <div class="ac-me-sys-card">
+                    <h4>Temporizador de Enfriamiento Rápido (Auto-Cooldown)</h4>
+                    <div class="timer-selector" style="margin-top:8px;">
+                      <button class="clean-btn mini" onclick="setTimer(5)">5 Min</button>
+                      <button class="clean-btn mini" onclick="setTimer(15)">15 Min</button>
+                      <button class="clean-btn mini" onclick="setTimer(30)">30 Min</button>
+                      <button class="clean-btn danger mini" onclick="cancelTimer()">Cancelar</button>
+                    </div>
+                    <div class="timer-live-label" id="timer-live-label">Temporizador inactivo.</div>
+                  </div>
+
+                  <div class="ac-me-sys-card ac-me-sys-row">
+                    <div>
+                      <h4>Auto-Turbina de Seguridad (&gt; 75 °C)</h4>
+                      <p>Activa el 100% de ventilación automáticamente si CPU o GPU superan los 75 °C.</p>
+                    </div>
+                    <button class="toggle-pill active" id="btn-auto-turbo" onclick="toggleAutoTurboSafety()">PROTECCIÓN: ACTIVA</button>
+                  </div>
+                </div>
+
               </div>
 
-              <div class="curve-legend-info">
-                <span>🟢 30°C - 50°C: Zona Silenciosa (2400 RPM)</span>
-                <span>🟡 50°C - 75°C: Enfriamiento Activo (3600 RPM)</span>
-                <span>🔴 &gt; 75°C: Disipación Agresiva (5400+ RPM)</span>
+              <!-- COLUMNA DERECHA: GRÁFICO INTERACTIVO DE CURVA DE VENTILADOR (8 PUNTOS ARRASTRABLES) -->
+              <div class="ac-me-right-pane">
+                <div class="ac-me-fan-header">
+                  <h3>Fan <span id="manual-fan-target-label">(CPU)</span></h3>
+                  <button class="ac-me-undo-btn" onclick="undoManualFanCurve()">Deshacer</button>
+                </div>
+                <div class="ac-me-axis-title">Velocidad %</div>
+
+                <div class="ac-me-chart-box">
+                  <svg class="ac-me-curve-svg" viewBox="0 0 540 280" id="manual-curve-svg">
+                    <!-- Cuadrícula de fondo (10 filas: 10% a 100%, 9 columnas: 30°C a 110°C) -->
+                    <g id="manual-curve-grid"></g>
+                    <!-- Polilínea de la curva -->
+                    <polyline id="manual-curve-line" fill="none" stroke="#ffffff" stroke-width="1.8" points=""/>
+                    <!-- Nodos cuadrados interactivos arrastrables -->
+                    <g id="manual-curve-nodes"></g>
+                  </svg>
+                </div>
               </div>
+
             </div>
 
-            <!-- TEMPORIZADOR DE COOLDOWN -->
-            <div class="glass-card timer-panel">
-              <h3>Temporizador de Enfriamiento Rápido (Auto-Cooldown)</h3>
-              <p>Fuerza los ventiladores a 100% durante el tiempo seleccionado y regresa automáticamente al modo silencioso al concluir:</p>
-              <div class="timer-selector">
-                <button class="clean-btn" onclick="setTimer(5)">5 Minutos</button>
-                <button class="clean-btn" onclick="setTimer(15)">15 Minutos</button>
-                <button class="clean-btn" onclick="setTimer(30)">30 Minutos</button>
-                <button class="clean-btn danger" onclick="cancelTimer()">Cancelar</button>
-              </div>
-              <div class="timer-live-label" id="timer-live-label">Temporizador inactivo.</div>
-            </div>
-
-            <!-- PROTECCIÓN DE SEGURIDAD -->
-            <div class="glass-card setting-row">
-              <div class="setting-info">
-                <h3>Auto-Turbina de Seguridad (&gt; 75°C)</h3>
-                <p>Activa automáticamente el modo turbina al 100% si el procesador o gráfica superan los 75°C de manera sostenida para prevenir degradación del silicio.</p>
-              </div>
-              <div class="setting-controls">
-                <button class="toggle-pill active" id="btn-auto-turbo" onclick="toggleAutoTurboSafety()">PROTECCIÓN: ACTIVA</button>
+            <!-- BARRA INFERIOR DE ACCIONES: RESTABLECER | GUARDAR | APLICAR -->
+            <div class="ac-me-bottom-bar">
+              <button class="ac-me-footer-btn reset" onclick="resetManualModeDefaults()">Restablecer valores predeterminados</button>
+              <div class="ac-me-footer-right">
+                <button class="ac-me-footer-btn save" onclick="saveManualModeConfig()">Guardar</button>
+                <button class="ac-me-footer-btn apply" onclick="applyManualModeConfig()">Aplicar</button>
               </div>
             </div>
 

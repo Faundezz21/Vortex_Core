@@ -19,7 +19,7 @@ let autostartEnabled = false;
 const tabTitles = {
   "tab-overview": { title: "Inicio", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
   "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
-  "tab-cooling": { title: "Ventilación & Curvas Térmicas", sub: "GESTIÓN DE FIRMWARE & CONTROL DIRECTO" },
+  "tab-cooling": { title: "Editar modo manual", sub: "SPL / SPPT / FPPT • GPU OFFSET & TGP • CURVA DE VENTILADORES" },
   "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
   "tab-booster": { title: "Memoria RAM & Game Boost", sub: "OPTIMIZACIÓN DE WORKING SET • PROCESOS • LATENCIA" },
   "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" },
@@ -408,8 +408,16 @@ function updateBatteryDevices(devices) {
     else if (dev.type === "mouse") icon = "🖱️";
     else if (dev.type === "keyboard") icon = "⌨️";
     else if (dev.type === "gamepad") icon = "🎮";
-    else if (dev.type === "laptop") icon = dev.plugged ? "⚡" : "💻";
-    else if (dev.type === "desktop") icon = "🖥️";
+    else if (dev.type === "laptop") {
+      icon = dev.plugged ? "⚡" : "💻";
+      const pwrTxt = document.getElementById("manual-power-state-text");
+      if (pwrTxt) pwrTxt.textContent = dev.plugged ? "Enchufado" : "En Batería";
+    }
+    else if (dev.type === "desktop") {
+      icon = "🖥️";
+      const pwrTxt = document.getElementById("manual-power-state-text");
+      if (pwrTxt) pwrTxt.textContent = "Enchufado";
+    }
 
     const pct = dev.percent !== null && dev.percent !== undefined ? dev.percent : 85;
     const colorClass = pct > 60 ? "green" : pct >= 20 ? "orange" : "red";
@@ -1703,10 +1711,268 @@ function escapeHtml(str) {
 }
 
 // -------------------------------------------------------------
+// 13. EDITAR MODO MANUAL (CPU: SPL/SPPT/FPPT | GPU: CLOCKS/BOOST/TGP | CURVA FAN 8 PUNTOS)
+// -------------------------------------------------------------
+let activeManualSubtab = "cpu";
+const manualCurveTemps = [30, 49, 57, 62, 70, 80, 90, 100];
+let manualCurves = {
+  cpu: [10, 16, 23, 29, 34, 39, 55, 67],
+  gpu: [8, 14, 23, 30, 40, 45, 63, 73]
+};
+let manualCurveHistory = [];
+let draggingNodeIdx = null;
+
+function updateRangeFill(inputEl) {
+  if (!inputEl) return;
+  const min = parseFloat(inputEl.min) || 0;
+  const max = parseFloat(inputEl.max) || 100;
+  const val = parseFloat(inputEl.value) || 0;
+  const pct = Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100));
+  inputEl.style.background = `linear-gradient(90deg, #f59e0b ${pct}%, rgba(255, 255, 255, 0.16) ${pct}%)`;
+}
+
+function initAllManualSliders() {
+  document.querySelectorAll(".ac-tactical-range").forEach(slider => {
+    updateRangeFill(slider);
+  });
+}
+
+function switchManualSubtab(sub) {
+  activeManualSubtab = sub;
+  document.querySelectorAll(".ac-me-subtab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.subtab === sub);
+  });
+  document.querySelectorAll(".ac-me-subview").forEach(view => {
+    view.classList.remove("active");
+  });
+  const targetView = document.getElementById(`manual-subview-${sub}`);
+  if (targetView) targetView.classList.add("active");
+
+  const fanLabel = document.getElementById("manual-fan-target-label");
+  if (fanLabel) {
+    fanLabel.textContent = sub === "gpu" ? "(GPU)" : "(CPU)";
+  }
+  renderManualFanCurve();
+}
+
+function onManualSliderInput(key, val, unit) {
+  const valEl = document.getElementById(`val-${key}`);
+  if (valEl) {
+    valEl.textContent = `${val}${unit}`;
+  }
+  const sliderEl = document.getElementById(`slider-${key}`);
+  if (sliderEl) {
+    updateRangeFill(sliderEl);
+  }
+}
+
+function initManualFanCurve() {
+  const gridGroup = document.getElementById("manual-curve-grid");
+  const svg = document.getElementById("manual-curve-svg");
+  if (!gridGroup || !svg) return;
+
+  // Coordenadas del área del gráfico: X de 42 a 502 (ancho 460), Y de 16 a 236 (alto 220)
+  const xStart = 42, xEnd = 502, yTop = 16, yBottom = 236;
+  const width = xEnd - xStart;
+  const height = yBottom - yTop;
+
+  let gridHtml = "";
+  // 10 líneas horizontales (10% a 100%)
+  for (let i = 0; i <= 10; i++) {
+    const pct = 100 - i * 10;
+    const y = yTop + (i / 10) * height;
+    gridHtml += `<line x1="${xStart}" y1="${y}" x2="${xEnd}" y2="${y}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+    if (pct >= 10) {
+      gridHtml += `<text x="${xStart - 10}" y="${y + 3}" fill="#a1a1aa" font-size="9.5" text-anchor="end">${pct}</text>`;
+    }
+  }
+
+  // 9 columnas verticales (30°C a 110°C cada 10°C)
+  for (let t = 30; t <= 110; t += 10) {
+    const x = xStart + ((t - 30) / 80) * width;
+    gridHtml += `<line x1="${x}" y1="${yTop}" x2="${x}" y2="${yBottom}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+    const label = t === 110 ? "110   °C" : `${t}`;
+    gridHtml += `<text x="${x}" y="${yBottom + 18}" fill="#a1a1aa" font-size="9.5" text-anchor="middle">${label}</text>`;
+  }
+
+  gridGroup.innerHTML = gridHtml;
+
+  // Eventos de arrastre en el SVG
+  svg.addEventListener("pointermove", (e) => {
+    if (draggingNodeIdx === null) return;
+    const rect = svg.getBoundingClientRect();
+    const scaleY = 280 / rect.height;
+    const mouseY = (e.clientY - rect.top) * scaleY;
+    const rawPct = Math.round(((yBottom - mouseY) / height) * 100);
+    const clampedPct = Math.min(100, Math.max(5, rawPct));
+
+    const curveKey = activeManualSubtab === "gpu" ? "gpu" : "cpu";
+    manualCurves[curveKey][draggingNodeIdx] = clampedPct;
+    renderManualFanCurve();
+  });
+
+  window.addEventListener("pointerup", () => {
+    draggingNodeIdx = null;
+  });
+
+  renderManualFanCurve();
+}
+
+function renderManualFanCurve() {
+  const lineEl = document.getElementById("manual-curve-line");
+  const nodesGroup = document.getElementById("manual-curve-nodes");
+  if (!lineEl || !nodesGroup) return;
+
+  const xStart = 42, xEnd = 502, yTop = 16, yBottom = 236;
+  const width = xEnd - xStart;
+  const height = yBottom - yTop;
+
+  const curveKey = activeManualSubtab === "gpu" ? "gpu" : "cpu";
+  const pts = manualCurves[curveKey];
+
+  const coords = pts.map((pct, i) => {
+    const temp = manualCurveTemps[i];
+    const x = xStart + ((temp - 30) / 80) * width;
+    const y = yBottom - (pct / 100) * height;
+    return { x, y, pct, temp };
+  });
+
+  lineEl.setAttribute("points", coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" "));
+
+  nodesGroup.innerHTML = coords.map((c, idx) => `
+    <g>
+      <rect x="${(c.x - 4.5).toFixed(1)}" y="${(c.y - 4.5).toFixed(1)}" width="9" height="9"
+            class="curve-node-rect ${draggingNodeIdx === idx ? 'dragging' : ''}"
+            onpointerdown="startDragManualNode(event, ${idx})">
+        <title>${c.temp} °C → ${c.pct}% Velocidad Fan</title>
+      </rect>
+    </g>
+  `).join("");
+}
+
+function startDragManualNode(e, idx) {
+  e.preventDefault();
+  const curveKey = activeManualSubtab === "gpu" ? "gpu" : "cpu";
+  manualCurveHistory.push({
+    key: curveKey,
+    values: [...manualCurves[curveKey]]
+  });
+  if (manualCurveHistory.length > 20) manualCurveHistory.shift();
+  draggingNodeIdx = idx;
+}
+
+function undoManualFanCurve() {
+  if (manualCurveHistory.length === 0) {
+    logConsole("ℹ️ No hay cambios recientes en la curva de ventiladores para deshacer.");
+    return;
+  }
+  const last = manualCurveHistory.pop();
+  manualCurves[last.key] = last.values;
+  renderManualFanCurve();
+  logConsole("↩️ Último ajuste de curva de ventilador deshecho.");
+}
+
+function setSliderValueAndFill(id, val, unit) {
+  const s = document.getElementById(`slider-${id}`);
+  if (s) {
+    s.value = val;
+    onManualSliderInput(id, val, unit);
+  }
+}
+
+function loadManualPreset(preset) {
+  if (preset === "mode1") {
+    setSliderValueAndFill("cpu-spl", 35, " W");
+    setSliderValueAndFill("cpu-sppt", 45, " W");
+    setSliderValueAndFill("cpu-fppt", 60, " W");
+    setSliderValueAndFill("gpu-base", 50, " MHz");
+    setSliderValueAndFill("gpu-mem", 100, " MHz");
+    setSliderValueAndFill("gpu-boost", 25, " W");
+    setSliderValueAndFill("gpu-temp", 87, " °C");
+    setSliderValueAndFill("gpu-tgp", 115, "");
+    manualCurves.cpu = [10, 16, 23, 29, 34, 39, 55, 67];
+    manualCurves.gpu = [8, 14, 23, 30, 40, 45, 63, 73];
+  } else if (preset === "mode2") {
+    setSliderValueAndFill("cpu-spl", 55, " W");
+    setSliderValueAndFill("cpu-sppt", 70, " W");
+    setSliderValueAndFill("cpu-fppt", 90, " W");
+    setSliderValueAndFill("gpu-base", 120, " MHz");
+    setSliderValueAndFill("gpu-mem", 200, " MHz");
+    setSliderValueAndFill("gpu-boost", 25, " W");
+    setSliderValueAndFill("gpu-temp", 87, " °C");
+    setSliderValueAndFill("gpu-tgp", 115, "");
+    manualCurves.cpu = [25, 35, 50, 65, 78, 90, 100, 100];
+    manualCurves.gpu = [25, 35, 50, 65, 80, 92, 100, 100];
+  } else if (preset === "mode3") {
+    setSliderValueAndFill("cpu-spl", 25, " W");
+    setSliderValueAndFill("cpu-sppt", 32, " W");
+    setSliderValueAndFill("cpu-fppt", 40, " W");
+    setSliderValueAndFill("gpu-base", 0, " MHz");
+    setSliderValueAndFill("gpu-mem", 0, " MHz");
+    setSliderValueAndFill("gpu-boost", 10, " W");
+    setSliderValueAndFill("gpu-temp", 78, " °C");
+    setSliderValueAndFill("gpu-tgp", 80, "");
+    manualCurves.cpu = [15, 22, 30, 38, 45, 55, 65, 75];
+    manualCurves.gpu = [15, 22, 30, 38, 45, 55, 65, 75];
+  }
+  renderManualFanCurve();
+  logConsole(`🎛️ Perfil manual "${preset}" cargado en el editor.`);
+}
+
+function resetManualModeDefaults() {
+  const sel = document.getElementById("manual-profile-select");
+  if (sel) sel.value = "mode1";
+  loadManualPreset("mode1");
+  logConsole("🔄 Valores predeterminados de fábrica restablecidos en el Modo Manual.");
+}
+
+function saveManualModeConfig() {
+  logConsole("💾 Configuración del perfil manual guardada correctamente.");
+}
+
+async function applyManualModeConfig() {
+  const spl = parseInt(document.getElementById("slider-cpu-spl")?.value || 35, 10);
+  const sppt = parseInt(document.getElementById("slider-cpu-sppt")?.value || 45, 10);
+  const fppt = parseInt(document.getElementById("slider-cpu-fppt")?.value || 60, 10);
+  const gpuBase = parseInt(document.getElementById("slider-gpu-base")?.value || 50, 10);
+  const gpuMem = parseInt(document.getElementById("slider-gpu-mem")?.value || 100, 10);
+  const gpuBoost = parseInt(document.getElementById("slider-gpu-boost")?.value || 25, 10);
+  const gpuTemp = parseInt(document.getElementById("slider-gpu-temp")?.value || 87, 10);
+  const gpuTgp = parseInt(document.getElementById("slider-gpu-tgp")?.value || 115, 10);
+
+  logConsole(`⚡ Aplicando Modo Manual: SPL ${spl}W | SPPT ${sppt}W | FPPT ${fppt}W | GPU +${gpuBase}MHz (${gpuTgp}W)...`);
+  try {
+    const res = await fetch(`${API_BASE}/api/manual_mode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        spl, sppt, fppt,
+        gpu_base: gpuBase,
+        gpu_mem: gpuMem,
+        gpu_boost: gpuBoost,
+        gpu_temp: gpuTemp,
+        gpu_tgp: gpuTgp,
+        fan_curve: manualCurves.cpu
+      })
+    });
+    if (res.ok) {
+      document.querySelectorAll(".profile-card").forEach(c => {
+        c.classList.toggle("active", c.dataset.prof === "MANUAL");
+      });
+      logConsole(`✅ Modo Manual aplicado con éxito (SPL ${spl}W, FPPT ${fppt}W, TGP ${gpuTgp}W y Curva Fan activa).`);
+    }
+  } catch (err) {
+    logConsole(`Error aplicando modo manual: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8 listo. Conectando telemetría de silicio...");
+  logConsole("VortexCore Hub v7.8.4 listo. Conectando telemetría de silicio...");
+  initAllManualSliders();
+  initManualFanCurve();
   updateTelemetry();
   checkAutostart();
   refreshTopProcesses();

@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.4)'
+        description: 'Etiqueta de la versión (ej. v7.8.5)'
         required: true
-        default: 'v7.8.4'
+        default: 'v7.8.5'
       release_name:
         description: 'Título del Release'
         required: true
-        default: 'VortexCore Hub v7.8.4 // Tactical Armoury Edition'
+        default: 'VortexCore Hub v7.8.5 // Tactical Armoury & Manual Mode Edition'
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -73,10 +73,10 @@ jobs:
       - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.4-Portable.zip" -Force
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.5-Portable.zip" -Force
           $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
-          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.4-Portable.zip -Algorithm SHA256).Hash
-          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.4-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.5-Portable.zip -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.5-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
           Write-Host "SHA256 Setup: $setupHash"
           Write-Host "SHA256 Portable: $zipHash"
 
@@ -84,24 +84,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.4 // Tactical Armoury Edition' }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.5 // Tactical Armoury & Manual Mode Edition' }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8.4-Portable.zip
+            dist/VortexCoreHub-v7.8.5-Portable.zip
             dist/checksums-sha256.txt
           body: |
-            # 🌀 VortexCore Hub v7.8.4 // Tactical Armoury Edition
+            # 🌀 VortexCore Hub v7.8.5 // Tactical Armoury & Manual Mode Edition
             
             **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
-            *Centro de control táctico de hardware, telemetría en vivo estilo Armoury/TUF, detección instantánea de mandos 2.4GHz/BT y suite de inicio/debloat.*
+            *Centro de control táctico de hardware, Modo Manual avanzado (CPU SPL/SPPT/FPPT + GPU Clock/Boost/TGP + Curva de 8 Puntos), detección instantánea de mandos 2.4GHz/BT y suite de inicio/debloat.*
 
             ---
 
             ### 📦 Descargas Oficiales
             * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.4-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.4-Portable.zip).
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.5-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.5-Portable.zip).
             * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
 
             > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.

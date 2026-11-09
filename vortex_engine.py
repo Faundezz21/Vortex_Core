@@ -1288,6 +1288,27 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             prof = data.get("profile", "DEFAULT")
             manager.set_profile(prof)
             self._send_json({"status": "ok", "profile": prof})
+        elif self.path == "/api/manual_mode":
+            spl = int(data.get("spl", 35))
+            sppt = int(data.get("sppt", 45))
+            fppt = int(data.get("fppt", 60))
+            gpu_tgp = int(data.get("gpu_tgp", 115))
+            fan_curve = data.get("fan_curve", [])
+            manager.current_profile = "MANUAL"
+            # Mapear SPL (15W..65W) a límite de procesador en Windows
+            cpu_pct = min(100, max(55, int(50 + ((spl - 15) / 50.0) * 50)))
+            manager.set_cpu_limit(cpu_pct)
+            manager.set_turbo(2 if fppt >= 45 else 0)
+            # Evaluar curva manual respecto a temperatura actual
+            c_temp = manager.telemetry.get("cpu_temp", 50)
+            if isinstance(fan_curve, list) and len(fan_curve) >= 6:
+                high_curve = any(int(v) >= 80 for v in fan_curve[4:]) and c_temp >= 65
+                manager.set_fan("max" if high_curve else "auto")
+            self._send_json({
+                "status": "ok",
+                "profile": "MANUAL",
+                "applied": {"spl": spl, "sppt": sppt, "fppt": fppt, "gpu_tgp": gpu_tgp, "cpu_pct": cpu_pct}
+            })
         elif self.path == "/api/fan":
             mode = data.get("mode", "auto")
             manager.set_fan(mode)

@@ -5,7 +5,7 @@
 ; ==============================================================================
 
 #define MyAppName "VortexCore Hub"
-#define MyAppVersion "7.8.4"
+#define MyAppVersion "7.8.5"
 #define MyAppPublisher "Faundezz21"
 #define MyAppURL "https://github.com/Faundezz21/VortexCore-Hub"
 #define MyAppExeName "VortexCoreHub.exe"
