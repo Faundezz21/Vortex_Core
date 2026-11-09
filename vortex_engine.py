@@ -1442,8 +1442,16 @@ def focus_existing_window() -> bool:
                 buff = ctypes.create_unicode_buffer(length + 1)
                 user32.GetWindowTextW(hwnd, buff, length + 1)
                 val = buff.value
-                # Filtrar estrictamente la ventana real de la suite y descartar helpers internos de tray
-                if ("VortexCore Hub" in val or "Clean Hardware Suite" in val) and "Tray" not in val and "VCH_" not in val:
+                val_low = val.lower()
+                # Filtrar estrictamente la ventana nativa de la suite ("VortexCore Hub // Clean Hardware Suite")
+                # y JAMÁS confundirla con una pestaña del navegador abierta en GitHub, Descargas o el Instalador
+                is_suite_title = ("vortexcore hub // clean hardware suite" in val_low) or (
+                    "clean hardware suite" in val_low and "vortexcore" in val_low
+                )
+                is_excluded = any(bad in val_low for bad in (
+                    "github", "release ", "faundezz21", "tray", "vch_", "setup", "instalador", "downloads", "descargas"
+                ))
+                if is_suite_title and not is_excluded:
                     rect = wintypes.RECT()
                     user32.GetWindowRect(hwnd, ctypes.byref(rect))
                     w = rect.right - rect.left
@@ -1503,7 +1511,9 @@ def launch_native_window():
         edge_exe,
         f"--app={url}",
         f"--user-data-dir={user_data}",
-        "--app-id=VortexCoreHub",
+        "--new-window",
+        "--no-first-run",
+        "--no-default-browser-check",
         "--window-size=1260,820",
         "--disable-extensions",
         "--disable-background-networking"

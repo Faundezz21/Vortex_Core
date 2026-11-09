@@ -19,7 +19,7 @@ let autostartEnabled = false;
 const tabTitles = {
   "tab-overview": { title: "Inicio", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
   "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
-  "tab-cooling": { title: "Editar modo manual", sub: "SPL / SPPT / FPPT • GPU OFFSET & TGP • CURVA DE VENTILADORES" },
+  "tab-cooling": { title: "Laboratorio de Tuning Manual", sub: "SPL / SPPT / FPPT • GPU OFFSET & TGP • CURVA DE VENTILADORES" },
   "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
   "tab-booster": { title: "Memoria RAM & Game Boost", sub: "OPTIMIZACIÓN DE WORKING SET • PROCESOS • LATENCIA" },
   "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" },
@@ -1728,7 +1728,7 @@ function updateRangeFill(inputEl) {
   const max = parseFloat(inputEl.max) || 100;
   const val = parseFloat(inputEl.value) || 0;
   const pct = Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100));
-  inputEl.style.background = `linear-gradient(90deg, #f59e0b ${pct}%, rgba(255, 255, 255, 0.16) ${pct}%)`;
+  inputEl.style.background = `linear-gradient(90deg, #0088ff 0%, #00f0ff ${pct}%, rgba(255, 255, 255, 0.14) ${pct}%)`;
 }
 
 function initAllManualSliders() {
