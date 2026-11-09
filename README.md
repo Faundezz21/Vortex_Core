@@ -77,6 +77,60 @@ VortexCore Hub está programado respetando la **Aislamiento de Núcleo (HVCI)** 
 
 ---
 
+## 📘 Manual Rápido para Principiantes (Paso a Paso en 2 Minutos)
+
+¿No tienes conocimientos avanzados de informática? No te preocupes. Sigue estos sencillos pasos para usar VortexCore Hub como un profesional:
+
+### 1. ¿Cómo abrir la aplicación?
+* **Paso 1**: Ve a tu **Escritorio**.
+* **Paso 2**: Haz doble clic en el icono **VortexCore Hub** (el icono de la turbina cian).
+* **Paso 3**: Windows te preguntará si deseas permitir que la app haga cambios en tu dispositivo ➔ Haz clic en **Sí** (esto es necesario para poder controlar los ventiladores de tu laptop).
+* **¡Listo!** El panel se abrirá automáticamente en tu pantalla.
+
+> 💡 **Nota**: Si haces clic varias veces por error, no te preocupes: VortexCore Hub cuenta con **Guardia de Instancia Única**, por lo que nunca abrirá ventanas duplicadas ni ralentizará tu PC.
+
+---
+
+### 2. ¿Cómo anclarlo a la Barra de Tareas para tenerlo siempre a mano?
+* **Opción fácil**: Simplemente arrastra el icono de **VortexCore Hub** desde tu Escritorio hasta la barra de tareas de Windows (abajo en la pantalla) y suéltalo allí.
+* **Opción alternativa**: Abre la aplicación, haz clic derecho sobre su icono en la barra de tareas y selecciona **"Anclar a la barra de tareas"**.
+
+---
+
+### 3. ¿Cómo controlar los ventiladores y el rendimiento para jugar o estudiar?
+Dentro de la aplicación o haciendo clic derecho en el icono de la turbina junto al reloj de Windows:
+* **Para estudiar o ver películas en silencio**: Selecciona **ECO SILENT** (los ventiladores bajan al mínimo y la batería dura más).
+* **Para el día a día**: Selecciona **STANDARD BALANCE** (Windows gestiona la temperatura de forma automática).
+* **Para jugar partidas pesadas (CS2, Valorant, Call of Duty, Cyberpunk)**: Selecciona **TURBO GAMING** o presiona el botón **🌀 Forzar Turbina 100%** (los ventiladores giran a más de 5400 RPM para mantener tu procesador y gráfica NVIDIA totalmente fríos).
+
+---
+
+### 4. ¿Cómo hacer que el Ecualizador cambie el sonido de Spotify y de tus Juegos?
+En Windows, ninguna app externa puede cambiar el sonido de Spotify o de tus juegos directamente a menos que uses el controlador de Windows o Equalizer APO:
+
+* **Opción A (La más fácil, sin instalar nada)**:
+  1. En VortexCore Hub, ve a la pestaña **Audio Suite & EQ**.
+  2. Haz clic en el botón **`⚙️ Abrir Propiedades y Mejoras de Audio`**.
+  3. Haz doble clic en tus auriculares o altavoces.
+  4. Ve a la pestaña **Mejoras (Enhancements)** y activa:
+     - **☑️ Loudness Equalization (Ecualización de Sonoridad)**: *¡El truco pro-player!* Amplifica los pasos de enemigos lejanos en juegos y nivela el volumen de Spotify.
+     - **☑️ Ecualizador**: Elige el estilo de música que te guste (*Rock, Pop, Graves*).
+  5. Haz clic en **Aceptar**. Ahora todo el audio de Windows, Spotify y tus juegos sonará con el nuevo perfil.
+
+* **Opción B (Para que las barras de VortexCore muevan el sonido de Spotify en vivo)**:
+  1. Instala el programa gratuito **Equalizer APO** (pesa solo 8 MB).
+  2. Durante la instalación, marca la casilla de tus auriculares (*Razer Barracuda X* o *Altavoces*).
+  3. Reinicia tu laptop.
+  4. Ahora, cada vez que muevas los sliders o presiones **"Bass Boost"** en VortexCore Hub, el sonido de Spotify y de tus juegos cambiará al instante en tiempo real.
+
+---
+
+### 5. ¿Cómo cerrar o dejar en segundo plano?
+* Si presionas la **X** de la ventana, VortexCore Hub seguirá activo protegiendo tus temperaturas y mostrando la batería de tus audífonos en la bandeja del sistema (al lado del reloj de Windows).
+* Para cerrarlo por completo: Haz **clic derecho** sobre el icono de la turbina junto al reloj y selecciona **❌ Salir de VortexCore**.
+
+---
+
 ## 🚀 Instalación y Puesta en Marcha
 
 ### Requisitos Previos
