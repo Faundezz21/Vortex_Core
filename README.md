@@ -1,15 +1,30 @@
 # 🌀 VortexCore Hub
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
-[![Frontend](https://img.shields.io/badge/Frontend-Tauri%20%7C%20HTML5%20CSS3-00F0FF?style=for-the-badge&logo=tauri)](https://tauri.app)
-[![Engine](https://img.shields.io/badge/Engine-Python%203.11%20Fast%20REST-3776AB?style=for-the-badge&logo=python)](https://python.org)
+[![Download Setup](https://img.shields.io/badge/Descargar-Vortex--core--hub--Setup.exe-00F0FF?style=for-the-badge&logo=windows)](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v7.8.0%20Oficial-00E676?style=for-the-badge&logo=github)](https://github.com/Faundezz21/VortexCore-Hub/releases)
 [![Hardware](https://img.shields.io/badge/Hardware-HP%20Victus%20%7C%20OMEN%20%7C%20Universal-FF4500?style=for-the-badge&logo=hp)](https://www.hp.com)
 [![Developer](https://img.shields.io/badge/Developer-Faundezz21-00F0FF?style=for-the-badge)](https://github.com/Faundezz21)
 [![License](https://img.shields.io/badge/License-MIT-00E676?style=for-the-badge)](LICENSE)
 
 > **VortexCore Hub** es un centro de control de hardware de alto rendimiento, ultra-ligero y táctico, desarrollado por **Faundezz21**. Diseñado para sustituir por completo programas pesados y con telemetría invasiva como *OMEN Gaming Hub*, *Armoury Crate* o *Lenovo Vantage*. 
 >
-> Ofrece control directo de refrigeración por **BIOS WMI de HP**, monitoreo térmico en tiempo real (500 ms), limitadores precisos de frecuencia de CPU, interruptores de Intel Turbo Boost, purga de memoria RAM en standby, monitoreo de batería de periféricos (auriculares Bluetooth y mandos) y una interfaz táctica con diales circulares SVG inspirada en las suites más avanzadas del mercado.
+> Ofrece control directo de refrigeración por **BIOS WMI de HP**, monitoreo térmico en tiempo real (500 ms), limitadores precisos de frecuencia de CPU, interruptores de Intel Turbo Boost, purga de memoria RAM en standby, monitoreo de batería de periféricos (auriculares Bluetooth y mandos), **Mezclador de Audio por Aplicación estilo EarTrumpet**, ecualizador táctico de 10 bandas y una interfaz táctica con diales circulares SVG inspirada en las suites más avanzadas del mercado.
+
+---
+
+## 📥 Descarga Oficial e Instalación (Sin Python Requerido)
+
+¡Ahora puedes instalar VortexCore Hub como cualquier programa profesional de Windows, sin necesidad de instalar Python, dependencias ni configurar terminales!
+
+1. Ve a la sección de **[Releases Oficiales](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)**.
+2. Descarga el archivo **`Vortex-core-hub-Setup.exe`**.
+3. Ejecuta el instalador con doble clic:
+   - Crea automáticamente el icono oficial en tu **Escritorio**.
+   - Añade el programa al **Menú Inicio**.
+   - Integra la suite en la **Bandeja del Sistema (System Tray junto al reloj)**.
+   - Incluye desinstalador limpio en el Panel de Control de Windows.
+4. *(Opcional)* Si prefieres una versión portable sin instalador, también puedes descargar **`VortexCoreHub-v7.8-Portable.zip`**.
 
 ---
 
@@ -63,6 +78,12 @@ VortexCore Hub está programado respetando la **Aislamiento de Núcleo (HVCI)** 
 - **Slider de CPU Throttling:** Permite fijar el tope de procesador entre el 50% y el 100% para eliminar el sobrecalentamiento.
 - **Interruptor de Intel Turbo Boost:** Desactiva Turbo Boost para mantener el equipo a menos de 45°C en silencio o actívalo en modo agresivo para máximos FPS.
 - **Gestión de Planes de Energía:** Cambio rápido entre planes Economizador, Equilibrado y Alto Rendimiento de Windows 11.
+
+### 7. Audio Suite, EarTrumpet & Ecualizador de 10 Bandas
+- **Mezclador de Volumen por Aplicación (Windows CoreAudio)**: Control individual de volumen y silenciado (Mute) para Spotify, Discord, navegadores y videojuegos en tiempo real.
+- **Ecualizador Paramétrico de 10 Bandas**: Perfiles calibrados para FPS Competitivo (resaltar pisadas 2kHz - 8kHz), Bass Boost inmersivo y Música Hi-Fi.
+- **Interruptor de Bypass Maestro**: Apaga el ecualizador con un clic para retornar al sonido 100% original de fábrica sin filtros.
+- **Integración con Equalizer APO**: Sincronización instantánea con el motor de audio global de Windows.
 
 ---
 

@@ -1,0 +1,110 @@
+name: Build & Release Official Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Etiqueta de la versión (ej. v7.8.0)'
+        required: true
+        default: 'v7.8.0'
+      release_name:
+        description: 'Título del Release'
+        required: true
+        default: 'VortexCore Hub v7.8.0 // Official Setup & Hardware Suite'
+      draft:
+        description: '¿Crear como borrador (Draft)?'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: '¿Marcar como versión preliminar (Prerelease)?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilar Instalador Standalone .exe (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Clonar Repositorio
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurar Entorno Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: 📦 Instalar Dependencias de Compilación
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: ⚙️ Compilar Binario Nativo con PyInstaller
+        run: |
+          pyinstaller vortex_core_hub.spec --noconfirm --clean
+
+      - name: 🛠️ Instalar Inno Setup y Compilar Instalador Oficial
+        run: |
+          choco install innosetup --no-progress
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: 🗜️ Generar Paquete Portátil (Portable ZIP)
+        shell: powershell
+        run: |
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8-Portable.zip" -Force
+
+      - name: 🚀 Publicar Release en GitHub con Setup.exe
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.0 // Official Setup & Hardware Suite' }}
+          draft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          files: |
+            dist/Vortex-core-hub-Setup.exe
+            dist/VortexCoreHub-v7.8-Portable.zip
+          body: |
+            # 🌀 VortexCore Hub v7.8.0 // Suite Oficial para Windows
+            
+            **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
+            *Centro de control táctico de hardware, ventilación WMI, audio por app y latencia ultra-baja.*
+
+            ---
+
+            ### 📦 Descargas Disponibles
+            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) (Instalador con asistente, accesos directos y desinstalador limpio).
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8-Portable.zip).
+
+            > 💡 **Nota Importante:** Esta versión viene **completamente empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y comenzará a funcionar.
+
+            ---
+
+            ### ✨ Novedades y Características Principales:
+            1. **🎛️ Mezclador de Volumen por Aplicación (EarTrumpet Suite)**:
+               * Control de volumen y silencio individual para Spotify, Discord, Navegadores y Juegos en tiempo real.
+               * Ecualizador paramétrico de 10 bandas con perfiles tácticos (FPS Pasos, Bass Boost, Hi-Fi).
+               * Interruptor maestro de **Bypass / Modo Normal** para restaurar el audio plano de fábrica con un clic.
+            2. **🌪️ Control Térmico y Turbina 100% (HP WMI BIOS)**:
+               * Overdrive directo a 5400+ RPM vía WMI Opcode 0x27 sin drivers vulnerables.
+               * Auto-Cooldown programable (5, 15 y 30 minutos).
+            3. **⚡ Modo Latencia Cero & Purga de RAM**:
+               * Resolución del temporizador del kernel de Windows fijada a **1.0 ms**.
+               * Purga de memoria en Standby (`EmptyWorkingSet`) para eliminar micro-stuttering en shooters.
+            4. **🛡️ System Tray Nativo en Modo Oscuro Fluent**:
+               * Menú contextual de alto contraste en la bandeja del sistema junto al reloj.
+               * Bloqueo de instancia única blindado (doble clic abre o restaura una sola ventana).
+
+            ---
+
+            ### 💻 Requisitos del Sistema:
+            * **Sistema Operativo**: Windows 11 o Windows 10 (64 bits).
+            * **Permisos**: Requiere permisos de Administrador para controlar ventiladores por WMI y purgar memoria RAM.

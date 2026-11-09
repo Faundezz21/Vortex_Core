@@ -192,13 +192,27 @@ def is_admin() -> bool:
         return False
 
 
+def get_app_dir() -> str:
+    """Retorna el directorio base de la aplicación (compatible con PyInstaller y script estándar)."""
+    if getattr(sys, 'frozen', False):
+        if hasattr(sys, '_MEIPASS'):
+            return sys._MEIPASS
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def request_admin_elevation():
     if not is_admin():
-        script = os.path.abspath(sys.argv[0])
         params = " ".join([f'"{arg}"' for arg in sys.argv[1:]])
-        ret = ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", sys.executable, f'"{script}" {params}', None, 1
-        )
+        if getattr(sys, 'frozen', False):
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, params, None, 1
+            )
+        else:
+            script = os.path.abspath(sys.argv[0])
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None, "runas", sys.executable, f'"{script}" {params}', None, 1
+            )
         if ret > 32:
             sys.exit(0)
 
@@ -215,7 +229,7 @@ class DefaultGUIDs:
 
 class VortexCoreManager:
     def __init__(self):
-        self.fan_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hp_fan_controller.ps1")
+        self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
         self.current_profile = "STANDARD"
         self.fan_mode = "AUTO"
 
@@ -663,7 +677,7 @@ manager = VortexCoreManager()
 
 class VortexHttpHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vortex-hub")
+        directory = os.path.join(get_app_dir(), "vortex-hub")
         super().__init__(*args, directory=directory, **kwargs)
 
     def do_GET(self):

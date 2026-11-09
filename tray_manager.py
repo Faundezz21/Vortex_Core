@@ -96,6 +96,15 @@ CMD_EXIT = 1009
 STARTUP_FILE = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\VortexCoreHub.vbs")
 
 
+def get_app_dir() -> str:
+    """Retorna el directorio base de la aplicación (compatible con PyInstaller y script estándar)."""
+    if getattr(sys, 'frozen', False):
+        if hasattr(sys, '_MEIPASS'):
+            return sys._MEIPASS
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
 def is_autostart_enabled() -> bool:
     return os.path.isfile(STARTUP_FILE)
 
@@ -103,14 +112,17 @@ def is_autostart_enabled() -> bool:
 def set_autostart(enable: bool) -> bool:
     try:
         if enable:
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "vortex_engine.py"))
-            pythonw = sys.executable.replace("python.exe", "pythonw.exe")
-            if not os.path.isfile(pythonw):
-                pythonw = sys.executable
-
-            # Script silencioso sin consola negra para inicio de Windows
-            content = f'Set WshShell = CreateObject("WScript.Shell")\n'
-            content += f'WshShell.Run """{pythonw}"" ""{script_path}"" --minimized", 0, False\n'
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable
+                content = f'Set WshShell = CreateObject("WScript.Shell")\n'
+                content += f'WshShell.Run """{exe_path}"" --minimized", 0, False\n'
+            else:
+                script_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_engine.py"))
+                pythonw = sys.executable.replace("python.exe", "pythonw.exe")
+                if not os.path.isfile(pythonw):
+                    pythonw = sys.executable
+                content = f'Set WshShell = CreateObject("WScript.Shell")\n'
+                content += f'WshShell.Run """{pythonw}"" ""{script_path}"" --minimized", 0, False\n'
             with open(STARTUP_FILE, "w", encoding="utf-8") as f:
                 f.write(content)
         else:
@@ -183,7 +195,7 @@ class SystemTrayApp:
             ]
 
         # Cargar icono personalizado de VortexCore Hub
-        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "vortex_icon.ico"))
+        icon_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_icon.ico"))
         hicon = 0
         if os.path.isfile(icon_path):
             user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]

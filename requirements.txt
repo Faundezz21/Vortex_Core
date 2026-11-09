@@ -1,0 +1,4 @@
+psutil>=5.9.0
+pycaw>=20260927
+comtypes>=1.4.0
+pyinstaller>=6.0.0
