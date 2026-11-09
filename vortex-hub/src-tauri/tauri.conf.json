@@ -1,0 +1,31 @@
+{
+  "productName": "VortexCore Hub",
+  "version": "1.0.0",
+  "identifier": "com.vortexcore.hub",
+  "build": {
+    "frontendDist": "../"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "VortexCore Hub // Hardware Suite",
+        "width": 980,
+        "height": 880,
+        "resizable": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}

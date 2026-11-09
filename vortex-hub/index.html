@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VortexCore Hub // Clean Hardware Suite</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- EFECTOS AMBIENTALES DE ILUMINACIÓN DE FONDO -->
+  <div class="ambient-glow glow-cyan"></div>
+  <div class="ambient-glow glow-orange"></div>
+  <div class="ambient-glow glow-blue"></div>
+
+  <div class="app-layout">
+    
+    <!-- SIDEBAR DE NAVEGACIÓN TÁCTICO -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-badge">
+          <svg viewBox="0 0 24 24" class="brand-icon"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/></svg>
+        </div>
+        <div class="brand-text">
+          <h2>VORTEX<span>CORE</span></h2>
+          <span class="version-label">v7.8 • Por Faundezz21</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="tab-overview">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          <span>Panel Principal</span>
+        </button>
+        <button class="nav-item" data-tab="tab-tuning">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+          <span>Tuning de CPU</span>
+        </button>
+        <button class="nav-item" data-tab="tab-cooling">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>
+          <span>Ventilación & Turbina</span>
+        </button>
+        <button class="nav-item" data-tab="tab-booster">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M21 6H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm3-3a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5z"/></svg>
+          <span>Memoria & Boost</span>
+        </button>
+      </nav>
+
+      <!-- SECCIÓN DE DISPOSITIVOS & BATERÍA EN EL SIDEBAR -->
+      <div class="sidebar-devices-section">
+        <div class="sds-header">
+          <span class="sds-title">BATERÍA & PERIFÉRICOS</span>
+          <span class="sds-count" id="dev-count-badge">--</span>
+        </div>
+        <div class="sds-list" id="sidebar-devices-list">
+          <!-- Renderizado dinámicamente con app.js -->
+          <div class="dev-item-loading">Detectando dispositivos...</div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="system-pill">
+          <span class="pulse-indicator"></span>
+          <span>ADMINISTRADOR ACTIVO</span>
+        </div>
+        <div class="developer-credit-box">
+          <span class="dev-credit-tag">DESARROLLADO POR</span>
+          <span class="dev-credit-name">Faundezz21</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <main class="main-content">
+      
+      <!-- CABECERA SUPERIOR -->
+      <header class="content-header">
+        <div class="header-titles">
+          <h1 id="page-title">Centro de Control</h1>
+          <p id="page-sub">Telemetría de silicio y administración térmica de Windows 11</p>
+        </div>
+        <div class="quick-status">
+          <div class="profile-chip" id="profile-chip">MODO: STANDARD</div>
+          <div class="fan-chip" id="fan-chip">
+            <span class="fan-mini-icon" id="fan-mini-icon">🌀</span>
+            <span id="fan-chip-text">FANS: AUTO</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- VISTAS / PESTAÑAS -->
+      <div class="views-wrapper">
+        
+        <!-- PESTAÑA 1: PANEL PRINCIPAL (DASHBOARD) -->
+        <section class="tab-view active" id="tab-overview">
+          
+          <!-- TARJETAS DE SENSORES CON DIALES CIRCULARES -->
+          <div class="metrics-row">
+            
+            <!-- CPU INTEL -->
+            <div class="metric-card card-cpu">
+              <div class="mc-head">
+                <span class="mc-label">PROCESADOR INTEL</span>
+                <span class="mc-badge cyan">CORE i7</span>
+              </div>
+              <div class="mc-dial-box">
+                <div class="gauge-ring-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-fill cyan" id="cpu-gauge-circle" cx="60" cy="60" r="50"></circle>
+                  </svg>
+                  <div class="gauge-label-content">
+                    <span class="gauge-value" id="cpu-temp-text">--</span>
+                    <span class="gauge-unit">°C</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mc-meta">
+                <div class="meta-item"><span>Reloj:</span> <b id="cpu-freq-text">0.00 GHz</b></div>
+                <div class="meta-item"><span>Carga:</span> <b id="cpu-load-text">0%</b></div>
+              </div>
+            </div>
+
+            <!-- GPU NVIDIA -->
+            <div class="metric-card card-gpu">
+              <div class="mc-head">
+                <span class="mc-label">NVIDIA GEFORCE</span>
+                <span class="mc-badge orange">RTX 4060</span>
+              </div>
+              <div class="mc-dial-box">
+                <div class="gauge-ring-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-fill orange" id="gpu-gauge-circle" cx="60" cy="60" r="50"></circle>
+                  </svg>
+                  <div class="gauge-label-content">
+                    <span class="gauge-value orange" id="gpu-temp-text">--</span>
+                    <span class="gauge-unit">°C</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mc-meta">
+                <div class="meta-item"><span>Uso GPU:</span> <b id="gpu-load-text">0%</b></div>
+                <div class="meta-item"><span>Consumo:</span> <b id="gpu-power-text">0.0 W</b></div>
+              </div>
+            </div>
+
+            <!-- MEMORIA RAM (DETECCIÓN DINÁMICA DE HARDWARE) -->
+            <div class="metric-card card-ram">
+              <div class="mc-head">
+                <span class="mc-label">MEMORIA RAM</span>
+                <span class="mc-badge green" id="ram-badge">32 GB DDR5</span>
+              </div>
+              <div class="mc-dial-box">
+                <div class="gauge-ring-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-fill green" id="ram-gauge-circle" cx="60" cy="60" r="50"></circle>
+                  </svg>
+                  <div class="gauge-label-content">
+                    <span class="gauge-value green" id="ram-pct-text">0</span>
+                    <span class="gauge-unit">%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mc-meta">
+                <div class="meta-item"><span>En Uso:</span> <b id="ram-used-text">0.0 GB</b></div>
+                <div class="meta-item"><span>Libre:</span> <b id="ram-free-text">0.0 GB</b></div>
+              </div>
+              <div class="ram-subtext">
+                <small>Total SO: <span id="ram-total-text">31.6</span> GB • Físico: <span id="ram-installed-text">32</span> GB</small>
+                <button class="ram-mini-purge-btn" onclick="purgeMemory()" title="Vaciar caché en standby">⚡ Purgar</button>
+              </div>
+            </div>
+
+            <!-- VENTILADORES HP WMI -->
+            <div class="metric-card card-fan">
+              <div class="mc-head">
+                <span class="mc-label">VENTILADORES HP</span>
+                <span class="mc-badge blue" id="fan-badge-mode">AUTO</span>
+              </div>
+              <div class="mc-dial-box">
+                <div class="gauge-ring-wrap">
+                  <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-track" cx="60" cy="60" r="50"></circle>
+                    <circle class="gauge-fill blue" id="fan-gauge-circle" cx="60" cy="60" r="50"></circle>
+                  </svg>
+                  <div class="gauge-label-content">
+                    <span class="gauge-value blue" id="fan1-rpm-text">--</span>
+                    <span class="gauge-unit">RPM</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mc-meta">
+                <div class="meta-item"><span>Fan 2 (GPU):</span> <b id="fan2-rpm-text">-- RPM</b></div>
+                <div class="meta-item"><span>Turbina:</span> <b id="fan-curve-text">Automática</b></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SEGUNDA FILA: GRÁFICO HISTÓRICO Y ACCESO A TURBINA -->
+          <div class="dashboard-split">
+            
+            <!-- GRÁFICA TÉRMICA EN VIVO -->
+            <div class="glass-panel chart-container">
+              <div class="panel-header">
+                <div>
+                  <h3>Telemetría Térmica en Vivo (30 Segundos)</h3>
+                  <small class="panel-subtitle">Monitorización comparativa en tiempo real de CPU y GPU</small>
+                </div>
+                <div class="chart-legend">
+                  <span class="leg cyan">● CPU Intel</span>
+                  <span class="leg orange">● GPU RTX 4060</span>
+                </div>
+              </div>
+              <div class="canvas-box">
+                <canvas id="live-chart" width="560" height="150"></canvas>
+              </div>
+            </div>
+
+            <!-- CONTROL RÁPIDO DE TURBINA HP -->
+            <div class="glass-panel fan-quick-panel">
+              <div class="panel-header">
+                <h3>Turbina HP BIOS WMI</h3>
+              </div>
+              <div class="quick-fan-actions">
+                <button class="fan-action-btn max" id="btn-quick-max" onclick="triggerFan('max')">
+                  <div class="fab-icon fan-rotate-icon">🌀</div>
+                  <div class="fab-info">
+                    <strong>MODO TURBINA 100%</strong>
+                    <small>Fuerza 5400+ RPM vía Opcode 0x27</small>
+                  </div>
+                </button>
+                <button class="fan-action-btn auto" id="btn-quick-auto" onclick="triggerFan('auto')">
+                  <div class="fab-icon">🔄</div>
+                  <div class="fab-info">
+                    <strong>CURVA AUTOMÁTICA</strong>
+                    <small>Retorno seguro a BIOS de fábrica</small>
+                  </div>
+                </button>
+              </div>
+              <div class="ram-quick-stat">
+                <span>Disponibilidad Inmediata de RAM:</span>
+                <strong id="ram-free-summary">-- GB Libres</strong>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- PERFILES DE HARDWARE TÁCTICOS -->
+          <div class="glass-panel profiles-panel">
+            <div class="panel-header">
+              <h3>Perfiles Térmicos y de Rendimiento</h3>
+              <small class="panel-subtitle">Ajuste coordinado de CPU Throttle, Turbo Boost y Curva de Ventiladores</small>
+            </div>
+            <div class="profiles-grid">
+              
+              <div class="profile-card" data-prof="ECO" onclick="applyProfile('ECO')">
+                <div class="pc-badge">60% CPU</div>
+                <div class="pc-icon">🍃</div>
+                <h4>ECO SILENT</h4>
+                <p>Silencio absoluto para trabajo y batería. Turbo Boost apagado y ventiladores mínimos.</p>
+              </div>
+
+              <div class="profile-card" data-prof="SILENT" onclick="applyProfile('SILENT')">
+                <div class="pc-badge">80% CPU</div>
+                <div class="pc-icon">🌙</div>
+                <h4>MODO OFICINA</h4>
+                <p>Nivel térmico frío para streaming y multitarea. CPU hasta 80% sin calentamiento.</p>
+              </div>
+
+              <div class="profile-card active" data-prof="DEFAULT" onclick="applyProfile('DEFAULT')">
+                <div class="pc-badge active">100% BALANCED</div>
+                <div class="pc-icon">⚖️</div>
+                <h4>STANDARD BALANCE</h4>
+                <p>Rendimiento nativo equilibrado de Windows 11 con gestión térmica automática.</p>
+              </div>
+
+              <div class="profile-card" data-prof="PERFORMANCE" onclick="applyProfile('PERFORMANCE')">
+                <div class="pc-badge turbo">TURBO 100%</div>
+                <div class="pc-icon">🚀</div>
+                <h4>TURBO GAMING</h4>
+                <p>Frecuencia de CPU desatada con Turbo Boost agresivo y ventiladores forzados al 100%.</p>
+              </div>
+
+            </div>
+          </div>
+
+        </section>
+
+        <!-- PESTAÑA 2: TUNING DE CPU & ENERGÍA -->
+        <section class="tab-view" id="tab-tuning">
+          <div class="settings-stack">
+            
+            <!-- SLIDER THROTTLE DE CPU -->
+            <div class="glass-panel setting-row">
+              <div class="setting-info">
+                <h3>Límite Máximo de Procesador (CPU Throttling)</h3>
+                <p>Controla el porcentaje máximo de frecuencia para evitar sobrecalentamiento y thermal throttling durante partidas prolongadas.</p>
+                <div class="throttle-feedback">Estado actual: <b id="throttle-val-text">100%</b></div>
+              </div>
+              <div class="setting-controls slider-box">
+                <input type="range" min="50" max="100" value="100" step="5" class="clean-slider" id="cpu-limit-slider" oninput="updateSliderLabel(this.value)">
+                <div class="slider-marks">
+                  <span>50%</span>
+                  <span>75%</span>
+                  <span>90%</span>
+                  <span>100%</span>
+                </div>
+                <button class="clean-btn primary" onclick="applyCpuLimit()">Aplicar Límite</button>
+              </div>
+            </div>
+
+            <!-- INTEL TURBO BOOST -->
+            <div class="glass-panel setting-row">
+              <div class="setting-info">
+                <h3>Modo Intel Turbo Boost</h3>
+                <p>Permite elevar las frecuencias más allá del reloj base para ráfagas de cálculo de alta exigencia.</p>
+              </div>
+              <div class="setting-controls">
+                <div class="toggle-group">
+                  <button class="clean-btn" id="tb-off" onclick="setTurbo(0)">Desactivado (Frío)</button>
+                  <button class="clean-btn primary active" id="tb-on" onclick="setTurbo(2)">Agresivo (Máx FPS)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PLANES DE ENERGÍA DE WINDOWS -->
+            <div class="glass-panel setting-row">
+              <div class="setting-info">
+                <h3>Planes de Energía del Sistema Operativo</h3>
+                <p>Conmuta el esquema energético activo de Windows 11 sin necesidad del panel de control tradicional.</p>
+              </div>
+              <div class="setting-controls">
+                <div class="scheme-btns">
+                  <button class="clean-btn" onclick="setScheme('saver')">🍃 Economizador</button>
+                  <button class="clean-btn" onclick="setScheme('balanced')">⚖️ Equilibrado</button>
+                  <button class="clean-btn primary" onclick="setScheme('high')">⚡ Alto Rendimiento</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- PESTAÑA 3: VENTILACIÓN & TURBINA WMI -->
+        <section class="tab-view" id="tab-cooling">
+          <div class="settings-stack">
+            
+            <div class="glass-panel cooling-hero">
+              <div class="hero-status">
+                <span class="hero-label">INTERFAZ FIRMWARE ACPI (HP BIOS WMI)</span>
+                <h2 id="cooling-status-hero">Curva Automática de Fábrica</h2>
+                <p>Comunicación directa mediante Opcode 0x27 en `root\wmi:hpqBIntM` con autenticación "SECU". Compatible con Victus y Omen.</p>
+              </div>
+              <div class="hero-actions">
+                <button class="hero-btn max" onclick="triggerFan('max')">🌀 ACTIVAR TURBINA 100%</button>
+                <button class="hero-btn auto" onclick="triggerFan('auto')">🔄 MODO AUTOMÁTICO</button>
+              </div>
+            </div>
+
+            <!-- TEMPORIZADOR DE COOLDOWN -->
+            <div class="glass-panel timer-panel">
+              <h3>Temporizador de Enfriamiento (Auto-Cooldown)</h3>
+              <p>Fuerza los ventiladores a máxima potencia durante el tiempo seleccionado y regresa automáticamente al modo silencioso al concluir:</p>
+              <div class="timer-selector">
+                <button class="clean-btn" onclick="setTimer(5)">5 Minutos</button>
+                <button class="clean-btn" onclick="setTimer(15)">15 Minutos</button>
+                <button class="clean-btn" onclick="setTimer(30)">30 Minutos</button>
+                <button class="clean-btn danger" onclick="cancelTimer()">Cancelar</button>
+              </div>
+              <div class="timer-live-label" id="timer-live-label">Temporizador inactivo.</div>
+            </div>
+
+            <!-- AUTO-TURBO TÉRMICO DE SEGURIDAD -->
+            <div class="glass-panel setting-row">
+              <div class="setting-info">
+                <h3>Auto-Turbina de Seguridad (> 75°C)</h3>
+                <p>Activa automáticamente el modo turbina al 100% si el procesador o gráfica superan los 75°C continuos.</p>
+              </div>
+              <div class="setting-controls">
+                <button class="toggle-pill active" id="btn-auto-turbo" onclick="toggleAutoTurboSafety()">PROTECCIÓN: ACTIVA</button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- PESTAÑA 4: MEMORIA RAM & BOOSTER -->
+        <section class="tab-view" id="tab-booster">
+          <div class="settings-stack">
+            
+            <!-- PURGA DE MEMORIA RAM -->
+            <div class="glass-panel booster-item">
+              <div class="bi-info">
+                <h3>Purga y Vaciado de Memoria RAM en Standby</h3>
+                <p>Ejecuta la API de Windows `EmptyWorkingSet` en todos los procesos accesibles para liberar memoria en caché retenida y prevenir caídas de FPS o stuttering.</p>
+                <div class="ram-deep-details">
+                  <span>Memoria Instalada: <b id="ram-installed-deep">32 GB</b></span>
+                  <span>En Uso por Apps: <b id="ram-used-deep">-- GB</b></span>
+                  <span>Disponible para Juegos: <b id="ram-avail-deep">-- GB</b></span>
+                  <span>Caché Standby: <b id="ram-cached-deep">-- GB</b></span>
+                </div>
+              </div>
+              <div class="bi-action">
+                <button class="clean-btn primary pulse-glow" id="btn-purge" onclick="purgeMemory()">🧹 Purgar Memoria en Standby</button>
+              </div>
+            </div>
+
+            <!-- LATENCIA CERO -->
+            <div class="glass-panel booster-item">
+              <div class="bi-info">
+                <h3>Modo Latencia Cero (Windows System Timer 1ms)</h3>
+                <p>Establece la resolución del temporizador del kernel de Windows de 15.6ms a 1.0ms para una respuesta instantánea en shooters y títulos competitivos.</p>
+              </div>
+              <div class="bi-action">
+                <button class="toggle-pill active" id="btn-latency" onclick="toggleLatency()">LATENCIA 1ms: ON</button>
+              </div>
+            </div>
+
+            <!-- ESPECIFICACIONES DE GPU -->
+            <div class="glass-panel gpu-info-panel">
+              <h3>Especificaciones de la GPU Dedicada</h3>
+              <div class="gpu-grid">
+                <div class="gg-col"><span>Modelo:</span> <strong>NVIDIA GeForce RTX 4060 Laptop</strong></div>
+                <div class="gg-col"><span>VRAM:</span> <strong>8 GB GDDR6</strong></div>
+                <div class="gg-col"><span>Potencia Actual:</span> <strong id="gpu-pwr-summary">-- W</strong></div>
+                <div class="gg-col"><span>Bus Status:</span> <strong>PCIe Gen4 x8 Active</strong></div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+
+      <!-- CONSOLA INFERIOR DISCRETA -->
+      <footer class="app-console-bar">
+        <span class="console-label">LOG DEL MOTOR:</span>
+        <span class="console-text" id="console-text">VortexCore Hub iniciado. Telemetría a 500ms lista.</span>
+      </footer>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

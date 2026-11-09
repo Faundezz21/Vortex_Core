@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Entornos virtuales
+venv/
+env/
+.env
+
+# Editores e IDEs
+.vscode/
+.idea/
+
+# Rust / Tauri build artifacts
+vortex-hub/src-tauri/target/
+
+# Paquetes y binarios compilados
+*.exe
+*.msi
+*.zip
