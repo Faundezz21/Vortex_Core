@@ -75,6 +75,32 @@ function logConsole(msg) {
   if (el) el.textContent = `[${new Date().toLocaleTimeString()}]: ${msg}`;
 }
 
+// -------------------------------------------------------------
+// SISTEMA DE NOTIFICACIONES TOAST FLOTANTES HUD
+// -------------------------------------------------------------
+function showToast({ icon = "⚡", title = "VortexCore Hub", message = "", type = "info", duration = 3400 }) {
+  const container = document.getElementById("vortex-toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `vortex-toast toast-${type}`;
+  toast.innerHTML = `
+    <div class="vortex-toast-icon">${icon}</div>
+    <div class="vortex-toast-body">
+      <span class="vortex-toast-title">${title}</span>
+      <span class="vortex-toast-msg">${message}</span>
+    </div>
+  `;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast-leave");
+    setTimeout(() => {
+      if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 320);
+  }, duration);
+}
+
 // Actualizar reloj de la cabecera
 function updateClock() {
   const clockEl = document.getElementById("clock-display");
@@ -310,6 +336,14 @@ async function updateTelemetry() {
       if (coolingStatusHero) coolingStatusHero.textContent = "Curva Automática de Fábrica (BIOS)";
     }
 
+    // Indicador en vivo en el panel de curva de ventilador
+    const trackerText = document.getElementById("live-curve-tracker-text");
+    if (trackerText) {
+      const activeTemp = activeManualSubtab === "gpu" ? gTemp : cTemp;
+      const targetLabel = activeManualSubtab === "gpu" ? "GPU" : "CPU";
+      trackerText.textContent = `Temp ${targetLabel}: ${activeTemp}°C ➔ Fan en ${fanPct}% (${f1} RPM)`;
+    }
+
     const profChip = document.getElementById("profile-chip");
     if (profChip && d.current_profile) {
       profChip.textContent = `MODO: ${d.current_profile.toUpperCase()}`;
@@ -505,6 +539,21 @@ async function triggerFan(mode) {
     });
     if (res.ok) {
       logConsole(mode === "max" ? "🚀 Turbina forzada al 100% (5400+ RPM vía BIOS)." : "🔄 Retorno a curva térmica automática de HP BIOS.");
+      if (mode === "max") {
+        showToast({
+          icon: "🌀",
+          title: "Turbina 100% Forzada",
+          message: "Ventiladores acelerados a máxima potencia (5400+ RPM vía WMI BIOS).",
+          type: "warning"
+        });
+      } else {
+        showToast({
+          icon: "🔄",
+          title: "Ventilación Automática",
+          message: "Retorno a la curva térmica inteligente del BIOS de fábrica.",
+          type: "info"
+        });
+      }
       updateTelemetry();
     }
   } catch (err) {
@@ -521,7 +570,16 @@ async function applyProfile(name) {
     if (c.dataset.prof === name) c.classList.add("active");
   });
 
-  logConsole(`Aplicando perfil coordinado [${name}] en Windows 11...`);
+  const profNames = {
+    DEFAULT: "Estándar OS",
+    ECO: "Sigilo Eco",
+    SILENT: "Balance Pro",
+    PERFORMANCE: "Vortex Overdrive",
+    MANUAL: "Tuning Manual"
+  };
+  const profName = profNames[name] || name;
+
+  logConsole(`Aplicando perfil coordinado [${profName}] en Windows 11...`);
   try {
     const res = await fetch(`${API_BASE}/api/profile`, {
       method: "POST",
@@ -529,7 +587,13 @@ async function applyProfile(name) {
       body: JSON.stringify({ profile: name })
     });
     if (res.ok) {
-      logConsole(`Perfil [${name}] aplicado con éxito (CPU Limits + Turbo Boost + Fans).`);
+      logConsole(`Perfil [${profName}] aplicado con éxito (CPU Limits + Turbo Boost + Fans).`);
+      showToast({
+        icon: name === "PERFORMANCE" ? "🚀" : name === "ECO" ? "🍃" : "⚡",
+        title: `Perfil ${profName} Activado`,
+        message: "Límites energéticos y curvas de silicio calibrados en Windows.",
+        type: "success"
+      });
       updateTelemetry();
     }
   } catch (err) {
@@ -666,6 +730,12 @@ async function purgeMemory() {
       const data = await res.json();
       const freed = (data.cleaned && data.cleaned.freed_mb) ? data.cleaned.freed_mb : 450;
       logConsole(`✨ Memoria optimizada con éxito: ${freed} MB recuperados para videojuegos.`);
+      showToast({
+        icon: "⚡",
+        title: "Memoria RAM Optimizada",
+        message: `¡Excelente! Se liberaron ${freed} MB de memoria en espera para tus juegos y programas.`,
+        type: "success"
+      });
       if (textEl) textEl.textContent = `✨ ¡${freed} MB Liberados!`;
       if (iconEl) iconEl.textContent = "✅";
       if (miniText) miniText.textContent = `+${freed} MB`;
@@ -1880,7 +1950,81 @@ function setSliderValueAndFill(id, val, unit) {
   }
 }
 
-function loadManualPreset(preset) {
+function selectPresetCard(preset) {
+  document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
+  const card = document.getElementById(`pcard-${preset}`);
+  if (card) card.classList.add("active");
+
+  const sel = document.getElementById("manual-profile-select");
+  if (sel) sel.value = preset;
+
+  loadManualPreset(preset);
+
+  const presetNames = {
+    mode1: "Balance Pro",
+    mode2: "eSports Extremo",
+    mode3: "Silencio Frío"
+  };
+  showToast({
+    icon: preset === "mode2" ? "🚀" : preset === "mode3" ? "🍃" : "⚖️",
+    title: `Preset ${presetNames[preset] || preset} Seleccionado`,
+    message: "Valores óptimos cargados en los deslizadores. Pulsa 'Aplicar' para fijarlos.",
+    type: "info"
+  });
+}
+
+function applyQuickCurve(type) {
+  const curveKey = activeManualSubtab === "gpu" ? "gpu" : "cpu";
+  manualCurveHistory.push({
+    key: curveKey,
+    values: [...manualCurves[curveKey]]
+  });
+  if (manualCurveHistory.length > 20) manualCurveHistory.shift();
+
+  if (type === "quiet") {
+    manualCurves[curveKey] = [10, 15, 20, 26, 32, 42, 58, 70];
+    showToast({ icon: "🍃", title: "Curva Silenciosa", message: `Curva acústica de bajo ruido configurada para la ${curveKey.toUpperCase()}.`, type: "info" });
+  } else if (type === "balanced") {
+    manualCurves[curveKey] = [15, 22, 30, 38, 48, 60, 75, 88];
+    showToast({ icon: "⚖️", title: "Curva Balanceada", message: `Curva equilibrada cargada para la ${curveKey.toUpperCase()}.`, type: "info" });
+  } else if (type === "aggressive") {
+    manualCurves[curveKey] = [25, 38, 52, 65, 80, 92, 100, 100];
+    showToast({ icon: "🔥", title: "Curva Fría Extrema", message: `Máxima disipación de calor cargada para la ${curveKey.toUpperCase()}.`, type: "warning" });
+  }
+  renderManualFanCurve();
+}
+
+function loadManualPreset(preset, ignoreSaved = false) {
+  // Sincronizar tarjetas visuales
+  document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
+  const activeCard = document.getElementById(`pcard-${preset}`);
+  if (activeCard) activeCard.classList.add("active");
+
+  const sel = document.getElementById("manual-profile-select");
+  if (sel && sel.value !== preset) sel.value = preset;
+
+  if (!ignoreSaved) {
+    try {
+      const savedMap = JSON.parse(localStorage.getItem("vortex_manual_presets_v1") || "{}");
+      if (savedMap[preset]) {
+        const p = savedMap[preset];
+        setSliderValueAndFill("cpu-spl", p.spl ?? 35, " W");
+        setSliderValueAndFill("cpu-sppt", p.sppt ?? 45, " W");
+        setSliderValueAndFill("cpu-fppt", p.fppt ?? 60, " W");
+        setSliderValueAndFill("gpu-base", p.gpuBase ?? 50, " MHz");
+        setSliderValueAndFill("gpu-mem", p.gpuMem ?? 100, " MHz");
+        setSliderValueAndFill("gpu-boost", p.gpuBoost ?? 25, " W");
+        setSliderValueAndFill("gpu-temp", p.gpuTemp ?? 87, " °C");
+        setSliderValueAndFill("gpu-tgp", p.gpuTgp ?? 115, "");
+        if (Array.isArray(p.cpuCurve) && p.cpuCurve.length === 8) manualCurves.cpu = [...p.cpuCurve];
+        if (Array.isArray(p.gpuCurve) && p.gpuCurve.length === 8) manualCurves.gpu = [...p.gpuCurve];
+        renderManualFanCurve();
+        logConsole(`🎛️ Perfil personalizado "${preset}" cargado desde memoria.`);
+        return;
+      }
+    } catch (e) {}
+  }
+
   if (preset === "mode1") {
     setSliderValueAndFill("cpu-spl", 35, " W");
     setSliderValueAndFill("cpu-sppt", 45, " W");
@@ -1921,13 +2065,56 @@ function loadManualPreset(preset) {
 
 function resetManualModeDefaults() {
   const sel = document.getElementById("manual-profile-select");
-  if (sel) sel.value = "mode1";
-  loadManualPreset("mode1");
+  const cur = sel ? sel.value : "mode1";
+  try {
+    const savedMap = JSON.parse(localStorage.getItem("vortex_manual_presets_v1") || "{}");
+    delete savedMap[cur];
+    localStorage.setItem("vortex_manual_presets_v1", JSON.stringify(savedMap));
+  } catch (e) {}
+  loadManualPreset(cur, true);
   logConsole("🔄 Valores predeterminados de fábrica restablecidos en el Modo Manual.");
+  showToast({
+    icon: "🔄",
+    title: "Valores Predeterminados",
+    message: "Ajustes de fábrica restablecidos correctamente.",
+    type: "info"
+  });
 }
 
 function saveManualModeConfig() {
-  logConsole("💾 Configuración del perfil manual guardada correctamente.");
+  const sel = document.getElementById("manual-profile-select");
+  const cur = sel ? sel.value : "mode1";
+  const cfg = {
+    spl: parseInt(document.getElementById("slider-cpu-spl")?.value || 35, 10),
+    sppt: parseInt(document.getElementById("slider-cpu-sppt")?.value || 45, 10),
+    fppt: parseInt(document.getElementById("slider-cpu-fppt")?.value || 60, 10),
+    gpuBase: parseInt(document.getElementById("slider-gpu-base")?.value || 50, 10),
+    gpuMem: parseInt(document.getElementById("slider-gpu-mem")?.value || 100, 10),
+    gpuBoost: parseInt(document.getElementById("slider-gpu-boost")?.value || 25, 10),
+    gpuTemp: parseInt(document.getElementById("slider-gpu-temp")?.value || 87, 10),
+    gpuTgp: parseInt(document.getElementById("slider-gpu-tgp")?.value || 115, 10),
+    cpuCurve: [...manualCurves.cpu],
+    gpuCurve: [...manualCurves.gpu]
+  };
+  try {
+    const savedMap = JSON.parse(localStorage.getItem("vortex_manual_presets_v1") || "{}");
+    savedMap[cur] = cfg;
+    localStorage.setItem("vortex_manual_presets_v1", JSON.stringify(savedMap));
+  } catch (e) {}
+
+  const saveBtn = document.querySelector(".ac-me-footer-btn.save");
+  if (saveBtn) {
+    const oldText = saveBtn.textContent;
+    saveBtn.textContent = "✓ Guardado";
+    setTimeout(() => { saveBtn.textContent = oldText; }, 1600);
+  }
+  logConsole(`💾 Configuración del perfil "${cur}" guardada permanentemente.`);
+  showToast({
+    icon: "💾",
+    title: "Perfil Guardado",
+    message: `La calibración personalizada de "${cur}" se guardó en memoria permanente.`,
+    type: "success"
+  });
 }
 
 async function applyManualModeConfig() {
@@ -1939,6 +2126,9 @@ async function applyManualModeConfig() {
   const gpuBoost = parseInt(document.getElementById("slider-gpu-boost")?.value || 25, 10);
   const gpuTemp = parseInt(document.getElementById("slider-gpu-temp")?.value || 87, 10);
   const gpuTgp = parseInt(document.getElementById("slider-gpu-tgp")?.value || 115, 10);
+
+  const applyBtn = document.querySelector(".ac-me-footer-btn.apply");
+  if (applyBtn) applyBtn.textContent = "⚡ Aplicando...";
 
   logConsole(`⚡ Aplicando Modo Manual: SPL ${spl}W | SPPT ${sppt}W | FPPT ${fppt}W | GPU +${gpuBase}MHz (${gpuTgp}W)...`);
   try {
@@ -1952,16 +2142,30 @@ async function applyManualModeConfig() {
         gpu_boost: gpuBoost,
         gpu_temp: gpuTemp,
         gpu_tgp: gpuTgp,
-        fan_curve: manualCurves.cpu
+        fan_curve: manualCurves.cpu,
+        gpu_fan_curve: manualCurves.gpu
       })
     });
     if (res.ok) {
       document.querySelectorAll(".profile-card").forEach(c => {
         c.classList.toggle("active", c.dataset.prof === "MANUAL");
       });
+      const pChip = document.getElementById("profile-chip");
+      if (pChip) pChip.textContent = "MANUAL";
+      if (applyBtn) {
+        applyBtn.textContent = "✓ Aplicado";
+        setTimeout(() => { applyBtn.textContent = "Aplicar"; }, 1800);
+      }
       logConsole(`✅ Modo Manual aplicado con éxito (SPL ${spl}W, FPPT ${fppt}W, TGP ${gpuTgp}W y Curva Fan activa).`);
+      showToast({
+        icon: "✅",
+        title: "Modo Manual Activado",
+        message: `SPL ${spl}W • TGP ${gpuTgp}W • Curva de refrigeración vinculada en tiempo real.`,
+        type: "success"
+      });
     }
   } catch (err) {
+    if (applyBtn) applyBtn.textContent = "Aplicar";
     logConsole(`Error aplicando modo manual: ${err.message}`);
   }
 }
@@ -1970,9 +2174,10 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8.4 listo. Conectando telemetría de silicio...");
+  logConsole("VortexCore Hub v7.8.6 listo. Conectando telemetría de silicio...");
   initAllManualSliders();
   initManualFanCurve();
+  loadManualPreset("mode1");
   updateTelemetry();
   checkAutostart();
   refreshTopProcesses();

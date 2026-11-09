@@ -23,6 +23,10 @@ def run_command(cmd, desc):
     return True
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     root_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(root_dir)
 
@@ -33,7 +37,7 @@ def main():
     # 1. Asegurar PyInstaller
     try:
         import PyInstaller
-        print("[✓] PyInstaller detectado.")
+        print("[OK] PyInstaller detectado.")
     except ImportError:
         print("[!] PyInstaller no encontrado. Instalando en entorno local...")
         if not run_command([sys.executable, "-m", "pip", "install", "pyinstaller"], "Instalando PyInstaller"):
@@ -54,7 +58,7 @@ def main():
         print("[-] Error: El directorio compilado dist/VortexCoreHub no se generó.")
         return
 
-    print("\n[✓] Binario standalone compilado exitosamente en: dist/VortexCoreHub/")
+    print("\n[OK] Binario standalone compilado exitosamente en: dist/VortexCoreHub/")
 
     # 3. Generar versión portable .zip
     zip_path = os.path.join(root_dir, "dist", "VortexCoreHub-v7.8.6-Portable.zip")
@@ -65,7 +69,7 @@ def main():
                 full_path = os.path.join(folder, file)
                 rel_path = os.path.relpath(full_path, output_dir)
                 z.write(full_path, arcname=rel_path)
-    print(f"[✓] Paquete portátil generado: {zip_path}")
+    print(f"[OK] Paquete portátil generado: {zip_path}")
 
     # 4. Buscar Inno Setup Compiler (ISCC)
     iscc_paths = [
@@ -77,7 +81,7 @@ def main():
     iscc = next((p for p in iscc_paths if p and os.path.isfile(p)), None)
 
     if iscc:
-        print(f"\n[✓] Inno Setup encontrado en: {iscc}")
+        print(f"\n[OK] Inno Setup encontrado en: {iscc}")
         iss_file = os.path.join(root_dir, "installer.iss")
         if run_command([iscc, iss_file], "Compilando Instalador Oficial Setup.exe"):
             setup_exe = os.path.join(root_dir, "dist", "Vortex-core-hub-Setup.exe")

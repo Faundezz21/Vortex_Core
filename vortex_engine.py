@@ -1114,8 +1114,42 @@ class VortexCoreManager:
                 if tick % 4 == 0:
                     self.telemetry["battery_devices"] = self._get_battery_devices()
 
-                # Si no es HP, estimar tacómetro en base al silicio y perfil activo
-                if not getattr(self, "system_specs", {}).get("is_hp", True):
+                # Si está activo el Laboratorio de Tuning Manual, interpolar la curva de 8 puntos en vivo
+                manual_cfg = getattr(self, "manual_config", None)
+                if self.current_profile == "MANUAL" and manual_cfg:
+                    curve_temps = [30, 49, 57, 62, 70, 80, 90, 100]
+                    cpu_curve = manual_cfg.get("fan_curve") or [10, 16, 23, 29, 34, 39, 55, 67]
+                    gpu_curve = manual_cfg.get("gpu_fan_curve") or cpu_curve
+                    c_t = self.telemetry.get("cpu_temp", 48)
+                    g_t = self.telemetry.get("gpu_temp", 45)
+
+                    def _interp_curve(temp_val, curve_pts):
+                        if not curve_pts or len(curve_pts) < 8:
+                            return 45
+                        if temp_val <= curve_temps[0]:
+                            return int(curve_pts[0])
+                        if temp_val >= curve_temps[-1]:
+                            return int(curve_pts[-1])
+                        for idx in range(len(curve_temps) - 1):
+                            t0, t1 = curve_temps[idx], curve_temps[idx + 1]
+                            if t0 <= temp_val <= t1:
+                                ratio = (temp_val - t0) / float(max(1, t1 - t0))
+                                return int(curve_pts[idx] + ratio * (curve_pts[idx + 1] - curve_pts[idx]))
+                        return 50
+
+                    target_cpu_fan_pct = _interp_curve(c_t, cpu_curve)
+                    target_gpu_fan_pct = _interp_curve(g_t, gpu_curve)
+                    self.telemetry["fan1_rpm"] = int(1400 + (target_cpu_fan_pct / 100.0) * 4000)
+                    self.telemetry["fan2_rpm"] = int(1400 + (target_gpu_fan_pct / 100.0) * 3800)
+
+                    # Conmutar turbina física WMI cada 3s si la curva exige >= 75% en la temperatura actual
+                    if tick % 6 == 0:
+                        want_max = max(target_cpu_fan_pct, target_gpu_fan_pct) >= 75
+                        if want_max and "TURBO" not in self.fan_mode:
+                            self.set_fan("max")
+                        elif not want_max and "TURBO" in self.fan_mode:
+                            self.set_fan("auto")
+                elif not getattr(self, "system_specs", {}).get("is_hp", True):
                     c_temp = self.telemetry.get("cpu_temp", 48)
                     if "TURBO" in self.fan_mode or self.current_profile == "PERFORMANCE":
                         base_rpm = 4900
@@ -1292,22 +1326,68 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             spl = int(data.get("spl", 35))
             sppt = int(data.get("sppt", 45))
             fppt = int(data.get("fppt", 60))
+            gpu_base = int(data.get("gpu_base", 50))
+            gpu_mem = int(data.get("gpu_mem", 100))
+            gpu_boost = int(data.get("gpu_boost", 25))
+            gpu_temp = int(data.get("gpu_temp", 87))
             gpu_tgp = int(data.get("gpu_tgp", 115))
-            fan_curve = data.get("fan_curve", [])
+            fan_curve = data.get("fan_curve", [10, 16, 23, 29, 34, 39, 55, 67])
+            gpu_fan_curve = data.get("gpu_fan_curve", fan_curve)
+
             manager.current_profile = "MANUAL"
-            # Mapear SPL (15W..65W) a límite de procesador en Windows
+            manager.manual_config = {
+                "spl": spl, "sppt": sppt, "fppt": fppt,
+                "gpu_base": gpu_base, "gpu_mem": gpu_mem,
+                "gpu_boost": gpu_boost, "gpu_temp": gpu_temp,
+                "gpu_tgp": gpu_tgp,
+                "fan_curve": fan_curve,
+                "gpu_fan_curve": gpu_fan_curve
+            }
+
+            # 1. CPU: Mapear SPL (15W..65W) a límite de procesador en Windows (PROCTHROTTLEMAX)
             cpu_pct = min(100, max(55, int(50 + ((spl - 15) / 50.0) * 50)))
             manager.set_cpu_limit(cpu_pct)
-            manager.set_turbo(2 if fppt >= 45 else 0)
-            # Evaluar curva manual respecto a temperatura actual
+
+            # 2. CPU: Mapear SPPT/FPPT a modo Turbo Boost (0=Off <42W, 3=Eficiente 42..64W, 2=Agresivo >=65W)
+            if fppt < 42:
+                manager.set_turbo(0)
+                manager.set_scheme("saver")
+            elif fppt < 65:
+                manager.set_turbo(3)
+                manager.set_scheme("balanced")
+            else:
+                manager.set_turbo(2)
+                manager.set_scheme("high")
+
+            # 3. GPU NVIDIA: Aplicar límite TGP (Watts) y Thermal Target (°C) mediante nvidia-smi
+            try:
+                subprocess.Popen(
+                    ["nvidia-smi", "-pl", str(gpu_tgp)],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW
+                )
+                subprocess.Popen(
+                    ["nvidia-smi", "-gtt", str(gpu_temp)],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW
+                )
+            except Exception:
+                pass
+
+            # 4. Ventiladores: Evaluar curva de 8 puntos de inmediato
             c_temp = manager.telemetry.get("cpu_temp", 50)
             if isinstance(fan_curve, list) and len(fan_curve) >= 6:
-                high_curve = any(int(v) >= 80 for v in fan_curve[4:]) and c_temp >= 65
+                high_curve = any(int(v) >= 75 for v in fan_curve[4:]) and c_temp >= 60
                 manager.set_fan("max" if high_curve else "auto")
+
             self._send_json({
                 "status": "ok",
                 "profile": "MANUAL",
-                "applied": {"spl": spl, "sppt": sppt, "fppt": fppt, "gpu_tgp": gpu_tgp, "cpu_pct": cpu_pct}
+                "applied": {
+                    "spl": spl, "sppt": sppt, "fppt": fppt,
+                    "gpu_base": gpu_base, "gpu_mem": gpu_mem,
+                    "gpu_tgp": gpu_tgp, "cpu_pct": cpu_pct
+                }
             })
         elif self.path == "/api/fan":
             mode = data.get("mode", "auto")

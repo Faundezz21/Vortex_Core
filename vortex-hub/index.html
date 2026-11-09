@@ -460,27 +460,32 @@
                 <div class="ac-modes-bar">
                   <button class="profile-card ac-mode-item" data-prof="DEFAULT" onclick="applyProfile('DEFAULT')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                    <span>Estándar OS</span>
+                    <span class="ac-mode-title">Estándar OS</span>
+                    <span class="ac-mode-sub">Windows Default</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="ECO" onclick="applyProfile('ECO')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66l.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/></svg>
-                    <span>Sigilo Eco</span>
+                    <span class="ac-mode-title">Sigilo Eco</span>
+                    <span class="ac-mode-sub">Silencio & Ahorro</span>
                   </button>
 
                   <button class="profile-card ac-mode-item active" data-prof="SILENT" onclick="applyProfile('SILENT')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M12 16a3 3 0 0 1-3-3c0-1.12.61-2.1 1.5-2.61l9.71-5.62-5.53 9.58c-.5.98-1.51 1.65-2.68 1.65zm0-13a9 9 0 0 0-9 9c0 2.22.81 4.25 2.14 5.82l1.42-1.42A6.96 6.96 0 0 1 5 12a7 7 0 0 1 11.95-4.95l1.42-1.42A8.96 8.96 0 0 0 12 3zm7.86 3.18l-1.42 1.42A6.96 6.96 0 0 1 19 12c0 1.73-.63 3.31-1.67 4.53l1.42 1.42A8.96 8.96 0 0 0 21 12c0-2.22-.81-4.25-2.14-5.82z"/></svg>
-                    <span>Balance Pro</span>
+                    <span class="ac-mode-title">Balance Pro</span>
+                    <span class="ac-mode-sub">Juegos & Diario</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="PERFORMANCE" onclick="applyProfile('PERFORMANCE')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M12 2.5s4.5 2.04 4.5 10.5c0 2.49-1.04 5.57-1.6 7H9.1c-.56-1.43-1.6-4.51-1.6-7C7.5 4.54 12 2.5 12 2.5zm2 8.5a2 2 0 1 0-4 0 2 2 0 0 0 4 0zm-6.5 9l-2-2.5C5.5 15 7 13.5 7 13.5s.22 2.94 1.5 6.5h-1zm9 0c1.28-3.56 1.5-6.5 1.5-6.5s1.5 1.5 1.5 4l-2 2.5h-1z"/></svg>
-                    <span>Vortex Overdrive</span>
+                    <span class="ac-mode-title">Vortex Overdrive</span>
+                    <span class="ac-mode-sub">Máximos FPS</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="MANUAL" onclick="switchTab('tab-cooling')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                    <span>Tuning Manual</span>
+                    <span class="ac-mode-title">Tuning Manual</span>
+                    <span class="ac-mode-sub">Curva & Silicio</span>
                   </button>
                 </div>
               </div>
@@ -615,11 +620,39 @@
             <div class="ac-me-info-banner">
               <div class="ac-me-banner-text">
                 <p><strong>Arquitectura Energética Adaptativa VortexCore:</strong> Los límites de potencia del procesador (SPL/SPPT/FPPT), offsets de reloj de GPU y curvas de ventilación quedan vinculados automáticamente a la fuente de alimentación activa del equipo (Corriente Alterna o Batería).</p>
-                <p class="ac-me-banner-sub">Selecciona un perfil predefinido en la esquina superior derecha o personaliza cada nodo térmico antes de pulsar <em>Aplicar</em>.</p>
+                <p class="ac-me-banner-sub">Selecciona un perfil predefinido en las tarjetas rápidas o personaliza cada parámetro con los deslizadores y pulsa <em>Aplicar</em>.</p>
               </div>
               <div class="ac-me-power-badge" id="manual-power-state-badge">
                 <span class="ac-plug-icon">⚡</span>
                 <span id="manual-power-state-text">Corriente CA</span>
+              </div>
+            </div>
+
+            <!-- TARJETAS DE ACCESO RÁPIDO A PRESETS (1-CLICK TUNING INTUITIVO) -->
+            <div class="ac-me-quick-presets">
+              <div class="preset-card active" id="pcard-mode1" onclick="selectPresetCard('mode1')">
+                <div class="pc-badge">RECOMENDADO</div>
+                <div class="pc-head">
+                  <span class="pc-icon">⚖️</span>
+                  <strong>Perfil Balance Pro</strong>
+                </div>
+                <p>35W SPL • Curva silenciosa automática • Rendimiento térmico óptimo diario.</p>
+              </div>
+              <div class="preset-card" id="pcard-mode2" onclick="selectPresetCard('mode2')">
+                <div class="pc-badge extreme">MÁX FPS</div>
+                <div class="pc-head">
+                  <span class="pc-icon">🚀</span>
+                  <strong>eSports Extremo</strong>
+                </div>
+                <p>55W SPL • +120MHz GPU • Dynamic Boost activado • Ventilación de alta tasa.</p>
+              </div>
+              <div class="preset-card" id="pcard-mode3" onclick="selectPresetCard('mode3')">
+                <div class="pc-badge cool">SILENCIO TOTAL</div>
+                <div class="pc-head">
+                  <span class="pc-icon">🍃</span>
+                  <strong>Silencio Frío</strong>
+                </div>
+                <p>25W SPL • Frecuencias eficientes • Mínimo nivel de ruido acústico.</p>
               </div>
             </div>
 
@@ -642,34 +675,37 @@
                   <!-- SPL -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">SPL <i class="ac-info-i" title="Sustained Power Limit (PL1): Potencia continua sostenida del procesador">i</i></span>
+                      <span class="ac-me-label">SPL (Potencia Continua Sostenida) <i class="ac-info-i" title="Sustained Power Limit (PL1): Límite de potencia a largo plazo para gaming continuo">i</i></span>
                       <strong class="ac-me-val" id="val-cpu-spl">35 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="15" max="65" value="35" step="1" class="ac-tactical-range" id="slider-cpu-spl" oninput="onManualSliderInput('cpu-spl', this.value, ' W')">
                     </div>
+                    <span class="ac-slider-desc">Controla la temperatura prolongada en juegos pesados (Recomendado: 35W – 45W).</span>
                   </div>
 
                   <!-- SPPT -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">SPPT <i class="ac-info-i" title="Slow Package Power Tracking (PL2): Potencia de ráfaga a medio plazo">i</i></span>
+                      <span class="ac-me-label">SPPT (Ráfaga Intermedia) <i class="ac-info-i" title="Slow Package Power Tracking (PL2): Potencia para transiciones y cargas medias">i</i></span>
                       <strong class="ac-me-val" id="val-cpu-sppt">45 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="20" max="80" value="45" step="1" class="ac-tactical-range" id="slider-cpu-sppt" oninput="onManualSliderInput('cpu-sppt', this.value, ' W')">
                     </div>
+                    <span class="ac-slider-desc">Potencia disponible durante transiciones o pantallas de carga rápida (Recomendado: 45W – 60W).</span>
                   </div>
 
                   <!-- FPPT -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">FPPT <i class="ac-info-i" title="Fast Package Power Tracking (PL3): Potencia pico instantánea máxima">i</i></span>
+                      <span class="ac-me-label">FPPT (Pico Máximo Instantáneo) <i class="ac-info-i" title="Fast Package Power Tracking (PL3): Potencia de reloj pico para respuesta inmediata">i</i></span>
                       <strong class="ac-me-val" id="val-cpu-fppt">60 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="25" max="100" value="60" step="1" class="ac-tactical-range" id="slider-cpu-fppt" oninput="onManualSliderInput('cpu-fppt', this.value, ' W')">
                     </div>
+                    <span class="ac-slider-desc">Impulso ultra-rápido para evitar micro-tirones o caídas de framerate instantáneas.</span>
                   </div>
 
                 </div>
@@ -680,62 +716,67 @@
                   <!-- Base Clock Offset -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">Base Clock Offset <i class="ac-info-i" title="Desplazamiento de frecuencia del núcleo gráfico en MHz">i</i></span>
+                      <span class="ac-me-label">Base Clock Offset (Overclock Núcleo) <i class="ac-info-i" title="Aumento de frecuencia directa para los núcleos de la gráfica en MHz">i</i></span>
                       <strong class="ac-me-val" id="val-gpu-base">50 MHz</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="0" max="200" value="50" step="5" class="ac-tactical-range" id="slider-gpu-base" oninput="onManualSliderInput('gpu-base', this.value, ' MHz')">
                     </div>
+                    <span class="ac-slider-desc">Eleva los FPS en juegos 3D. Rango seguro: +50 a +120 MHz.</span>
                   </div>
 
                   <!-- Memory Clock Offset -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">Memory Clock Offset <i class="ac-info-i" title="Desplazamiento de frecuencia de la memoria VRAM GDDR6 en MHz">i</i></span>
+                      <span class="ac-me-label">Memory Clock Offset (Velocidad VRAM) <i class="ac-info-i" title="Desplazamiento de velocidad para la memoria de video GDDR6 en MHz">i</i></span>
                       <strong class="ac-me-val" id="val-gpu-mem">100 MHz</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="0" max="300" value="100" step="10" class="ac-tactical-range" id="slider-gpu-mem" oninput="onManualSliderInput('gpu-mem', this.value, ' MHz')">
                     </div>
+                    <span class="ac-slider-desc">Aumenta el ancho de banda para texturas de alta resolución en ultra.</span>
                   </div>
 
                   <!-- Dynamic Boost -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">Dynamic Boost <i class="ac-info-i" title="Potencia adicional dinámica transferida a la GPU bajo carga gráfica">i</i></span>
+                      <span class="ac-me-label">Dynamic Boost (Potencia Inteligente) <i class="ac-info-i" title="Vataje adicional derivado a la GPU cuando el procesador está relajado">i</i></span>
                       <strong class="ac-me-val" id="val-gpu-boost">25 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="5" max="25" value="25" step="5" class="ac-tactical-range" id="slider-gpu-boost" oninput="onManualSliderInput('gpu-boost', this.value, ' W')">
                     </div>
+                    <span class="ac-slider-desc">Asigna hasta 25W extras a la tarjeta gráfica durante escenas complejas de juego.</span>
                   </div>
 
                   <!-- Thermal Target -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">Thermal Target <i class="ac-info-i" title="Límite térmico objetivo del núcleo GPU antes de regular frecuencias">i</i></span>
+                      <span class="ac-me-label">Thermal Target (Límite Térmico GPU) <i class="ac-info-i" title="Temperatura límite del núcleo gráfico antes de regular su frecuencia">i</i></span>
                       <strong class="ac-me-val" id="val-gpu-temp">87 °C</strong>
                     </div>
                     <div class="ac-me-range-wrap">
                       <input type="range" min="75" max="87" value="87" step="1" class="ac-tactical-range" id="slider-gpu-temp" oninput="onManualSliderInput('gpu-temp', this.value, ' °C')">
                     </div>
+                    <span class="ac-slider-desc">Seguridad del silicio de la GPU (Recomendado estándar: 87°C).</span>
                   </div>
 
                   <!-- TGP con marcas escalonadas (55, 70, 80, 105, 115) -->
                   <div class="ac-me-slider-block">
                     <div class="ac-me-slider-head">
-                      <span class="ac-me-label">TGP <i class="ac-info-i" title="Total Graphics Power: Potencia gráfica total asignada a la GPU">i</i></span>
+                      <span class="ac-me-label">TGP (Total Graphics Power) <i class="ac-info-i" title="Vataje eléctrico máximo total que la GPU puede consumir en Watts">i</i></span>
                     </div>
                     <div class="ac-me-tgp-ticks">
-                      <span>55</span>
-                      <span>70</span>
-                      <span>80</span>
-                      <span>105</span>
-                      <span class="active" id="val-gpu-tgp">115</span>
+                      <span>55W</span>
+                      <span>70W</span>
+                      <span>80W</span>
+                      <span>105W</span>
+                      <span class="active" id="val-gpu-tgp">115W</span>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="55" max="115" value="115" step="5" class="ac-tactical-range" id="slider-gpu-tgp" oninput="onManualSliderInput('gpu-tgp', this.value, '')">
+                      <input type="range" min="55" max="115" value="115" step="5" class="ac-tactical-range" id="slider-gpu-tgp" oninput="onManualSliderInput('gpu-tgp', this.value, 'W')">
                     </div>
+                    <span class="ac-slider-desc">Límite de vataje total entregado al módulo gráfico por el firmware del equipo.</span>
                   </div>
 
                 </div>
@@ -777,10 +818,21 @@
               <!-- COLUMNA DERECHA: GRÁFICO INTERACTIVO DE CURVA DE VENTILADOR (8 PUNTOS ARRASTRABLES) -->
               <div class="ac-me-right-pane">
                 <div class="ac-me-fan-header">
-                  <h3>Fan <span id="manual-fan-target-label">(CPU)</span></h3>
-                  <button class="ac-me-undo-btn" onclick="undoManualFanCurve()">Deshacer</button>
+                  <div class="ac-me-fh-titles">
+                    <h3>Fan <span id="manual-fan-target-label">(CPU)</span></h3>
+                    <div class="live-fan-indicator" id="live-fan-indicator">
+                      <span class="lfi-dot"></span>
+                      <span id="live-curve-tracker-text">Temp actual: --°C ➔ Fan en --%</span>
+                    </div>
+                  </div>
+                  <div class="ac-me-curve-actions">
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('quiet')" title="Curva silenciosa de bajo ruido">🍃 Silencio</button>
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('balanced')" title="Curva equilibrada">⚖️ Balance</button>
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('aggressive')" title="Curva agresiva de alta ventilación">🔥 Frío</button>
+                    <button class="ac-me-undo-btn" onclick="undoManualFanCurve()" title="Deshacer último movimiento">Deshacer</button>
+                  </div>
                 </div>
-                <div class="ac-me-axis-title">Velocidad %</div>
+                <div class="ac-me-axis-title">Velocidad del Ventilador (%) vs Temperatura (°C) — Arrastra cualquier nodo para ajustar</div>
 
                 <div class="ac-me-chart-box">
                   <svg class="ac-me-curve-svg" viewBox="0 0 540 280" id="manual-curve-svg">
@@ -1283,6 +1335,9 @@
 
     </main>
   </div>
+
+  <!-- CONTENEDOR DE NOTIFICACIONES TOAST FLOTANTES HUD -->
+  <div class="vortex-toast-container" id="vortex-toast-container"></div>
 
   <script src="app.js"></script>
 </body>
