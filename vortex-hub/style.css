@@ -2023,3 +2023,74 @@ body {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* REPRODUCTOR DE PRUEBA EN VIVO */
+.audio-live-test-card {
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.08) 0%, rgba(14, 19, 28, 0.95) 100%);
+  border-color: rgba(0, 255, 170, 0.25);
+}
+
+.altc-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.altc-titles h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.altc-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.test-audio-status {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.test-audio-status.playing {
+  color: var(--accent-green);
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(0, 255, 170, 0.5);
+}
+
+/* GUÍA Y RUTEO DE AUDIO GLOBAL */
+.audio-system-routing-card {
+  padding: 18px 22px;
+}
+
+.asrc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.asrc-item {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 9px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.asrc-item strong {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.asrc-item p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}

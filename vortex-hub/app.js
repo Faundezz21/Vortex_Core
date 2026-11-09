@@ -649,8 +649,21 @@ async function toggleAutostart() {
 }
 
 // -------------------------------------------------------------
-// 12. AUDIO SUITE & EQUALIZER 10 BANDAS
+// 12. AUDIO SUITE & MOTOR DSP DE ECUALIZACIÓN REAL (WEB AUDIO API)
 // -------------------------------------------------------------
+const EQ_FREQUENCIES = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+let currentEqBands = [2, -1, -2, 0, 1, 2, 5, 6, 4, 2];
+let activePresetKey = "fps";
+
+// Variables Web Audio API
+let webAudioCtx = null;
+let eqFilterNodes = [];
+let masterGainNode = null;
+let synthBeatInterval = null;
+let isAudioTestPlaying = false;
+let extraBassBoostActive = true;
+let voiceClarityActive = true;
+
 const eqPresets = {
   fps: { name: "FPS Competitivo (Pasos)", vals: [2, -1, -2, 0, 1, 2, 5, 6, 4, 2] },
   bass: { name: "Bass Boost Explosivo", vals: [8, 7, 5, 2, 0, 0, 1, 2, 3, 3] },
@@ -659,9 +672,58 @@ const eqPresets = {
   flat: { name: "Plano / Neutral (Flat)", vals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
 };
 
+function initWebAudioEngine() {
+  if (webAudioCtx) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  webAudioCtx = new AudioContextClass();
+
+  // Crear los 10 filtros paramétricos BiquadFilterNode en cadena
+  eqFilterNodes = EQ_FREQUENCIES.map((freq, idx) => {
+    const filter = webAudioCtx.createBiquadFilter();
+    filter.type = "peaking";
+    filter.frequency.value = freq;
+    filter.Q.value = 1.4;
+    filter.gain.value = currentEqBands[idx] || 0;
+    return filter;
+  });
+
+  // Conectar filtros en serie
+  for (let i = 0; i < eqFilterNodes.length - 1; i++) {
+    eqFilterNodes[i].connect(eqFilterNodes[i + 1]);
+  }
+
+  // Master Gain Node
+  masterGainNode = webAudioCtx.createGain();
+  masterGainNode.gain.value = 0.35; // Volumen seguro y agradable
+
+  eqFilterNodes[eqFilterNodes.length - 1].connect(masterGainNode);
+  masterGainNode.connect(webAudioCtx.destination);
+}
+
+function updateDspFilterGain(idx, dbVal) {
+  if (eqFilterNodes[idx] && webAudioCtx) {
+    let effectiveDb = parseFloat(dbVal);
+    // Aplicar realce adicional si Bass Boost está activo en sub-graves
+    if (extraBassBoostActive && (idx === 0 || idx === 1)) {
+      effectiveDb += 4;
+    }
+    // Aplicar realce adicional de claridad vocal en 1kHz - 2kHz
+    if (voiceClarityActive && (idx === 5 || idx === 6)) {
+      effectiveDb += 2.5;
+    }
+    eqFilterNodes[idx].gain.setTargetAtTime(effectiveDb, webAudioCtx.currentTime, 0.05);
+  }
+}
+
 function applyAudioPreset(presetKey) {
   const preset = eqPresets[presetKey];
   if (!preset) return;
+  activePresetKey = presetKey;
+  currentEqBands = [...preset.vals];
+
+  initWebAudioEngine();
 
   document.querySelectorAll(".audio-preset-card").forEach(c => {
     c.classList.toggle("active", c.dataset.preset === presetKey);
@@ -675,37 +737,215 @@ function applyAudioPreset(presetKey) {
     if (slider) slider.value = val;
     const dbText = document.getElementById(`db-val-${idx}`);
     if (dbText) dbText.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+    updateDspFilterGain(idx, val);
   });
 
+  // Enviar curva al backend para persistencia y sincronización con Equalizer APO
+  sendEqToBackend();
   logConsole(`Perfil Acústico [${preset.name}] aplicado.`);
 }
 
 function updateEqBand(idx, val) {
+  initWebAudioEngine();
+  const dbVal = parseFloat(val);
+  currentEqBands[idx] = dbVal;
+
   const dbText = document.getElementById(`db-val-${idx}`);
-  if (dbText) dbText.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+  if (dbText) dbText.textContent = `${dbVal > 0 ? '+' : ''}${dbVal} dB`;
+
+  updateDspFilterGain(idx, dbVal);
 
   document.querySelectorAll(".audio-preset-card").forEach(c => c.classList.remove("active"));
   const lbl = document.getElementById("eq-current-preset-label");
-  if (lbl) lbl.textContent = `Preset Activo: Personalizado (${val > 0 ? '+' : ''}${val} dB en banda ${idx + 1})`;
+  if (lbl) lbl.textContent = `Preset Activo: Personalizado (${dbVal > 0 ? '+' : ''}${dbVal} dB en ${EQ_FREQUENCIES[idx]} Hz)`;
+
+  sendEqToBackend();
+}
+
+async function sendEqToBackend() {
+  try {
+    await fetch(`${API_BASE}/api/set_eq`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bands: currentEqBands,
+        preset: activePresetKey,
+        bass_boost: extraBassBoostActive,
+        voice_clarity: voiceClarityActive
+      })
+    });
+  } catch (err) {}
+}
+
+// -------------------------------------------------------------
+// SINTETIZADOR DE PRUEBA EN VIVO (RITMO, GRAVES Y PASOS TÁCTICOS)
+// -------------------------------------------------------------
+function toggleAudioTest() {
+  initWebAudioEngine();
+  if (webAudioCtx.state === "suspended") {
+    webAudioCtx.resume();
+  }
+
+  const btn = document.getElementById("btn-audio-test");
+  const statusLbl = document.getElementById("test-audio-status");
+
+  if (isAudioTestPlaying) {
+    // Detener reproducción
+    clearInterval(synthBeatInterval);
+    synthBeatInterval = null;
+    isAudioTestPlaying = false;
+    if (btn) btn.textContent = "▶️ Reproducir Prueba en Vivo";
+    if (statusLbl) {
+      statusLbl.textContent = "⚪ Audio en reposo";
+      statusLbl.classList.remove("playing");
+    }
+    logConsole("Monitor de prueba de audio detenido.");
+    return;
+  }
+
+  // Iniciar reproducción
+  isAudioTestPlaying = true;
+  if (btn) btn.textContent = "⏹️ Detener Prueba";
+  if (statusLbl) {
+    statusLbl.textContent = "🟢 Reproduciendo Pista de Prueba (Filtros en Vivo)";
+    statusLbl.classList.add("playing");
+  }
+
+  logConsole("🎧 Reproduciendo señal de prueba. Mueve los sliders para escuchar el cambio en tiempo real.");
+
+  let step = 0;
+  const playStep = () => {
+    if (!isAudioTestPlaying || !webAudioCtx) return;
+    const now = webAudioCtx.currentTime;
+
+    // 1. Kick 808 Sub-Bass potente (cada 2 pasos) -> Sensible a 31Hz - 125Hz
+    if (step % 2 === 0) {
+      const osc = webAudioCtx.createOscillator();
+      const gain = webAudioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(38, now + 0.14);
+      gain.gain.setValueAtTime(0.8, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(eqFilterNodes[0]);
+      osc.start(now);
+      osc.stop(now + 0.29);
+    }
+
+    // 2. Ruido táctico de pisadas / recarga (pasos 1 y 3) -> Sensible a 2kHz - 6kHz (FPS Pasos)
+    if (step % 2 === 1) {
+      const noiseBuffer = webAudioCtx.createBuffer(1, webAudioCtx.sampleRate * 0.08, webAudioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseBuffer.length; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const noise = webAudioCtx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      const noiseFilter = webAudioCtx.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.value = 3200; // Frecuencia típica de pasos
+      noiseFilter.Q.value = 2.0;
+
+      const noiseGain = webAudioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.35, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.07);
+
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(eqFilterNodes[0]);
+      noise.start(now);
+    }
+
+    // 3. Acorde armónico musical -> Sensible a 500Hz - 2kHz
+    const chordFreqs = [261.63, 329.63, 392.00, 523.25]; // C Major
+    chordFreqs.forEach(freq => {
+      const osc = webAudioCtx.createOscillator();
+      const gain = webAudioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(gain);
+      gain.connect(eqFilterNodes[0]);
+      osc.start(now);
+      osc.stop(now + 0.24);
+    });
+
+    step = (step + 1) % 4;
+  };
+
+  playStep();
+  synthBeatInterval = setInterval(playStep, 260); // ~115 BPM
 }
 
 async function openSoundSettings() {
-  logConsole("Abriendo panel de propiedades de sonido de Windows...");
+  logConsole("Abriendo panel de propiedades y mejoras de sonido de Windows...");
   try {
     await fetch(`${API_BASE}/api/open_sound_settings`, { method: "POST" });
   } catch (e) {
-    logConsole("Error al solicitar apertura de panel de sonido.");
+    logConsole("Error al abrir panel de sonido.");
+  }
+}
+
+async function syncEqualizerAPO() {
+  logConsole("Exportando curva de 10 bandas a Equalizer APO...");
+  try {
+    const res = await fetch(`${API_BASE}/api/set_eq`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bands: currentEqBands,
+        preset: activePresetKey,
+        bass_boost: extraBassBoostActive,
+        voice_clarity: voiceClarityActive
+      })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.apo_synced) {
+        logConsole("✅ Curva sincronizada en vivo con Equalizer APO (`config.txt`).");
+        alert("¡Curva exportada con éxito a Equalizer APO!\nTus juegos y Windows ahora aplican esta ecualización en vivo.");
+      } else {
+        logConsole("⚠️ Curva guardada en VortexCore Hub. (Equalizer APO no detectado en C:\\Program Files\\EqualizerAPO).");
+        alert("Curva guardada. Si deseas que los sliders cambien el audio de tus juegos en todo el sistema sin tocar nada más, puedes instalar Equalizer APO y VortexCore lo sincronizará en tiempo real.");
+      }
+    }
+  } catch (err) {
+    logConsole("Error al sincronizar con APO.");
   }
 }
 
 function toggleAudioEnhance(type) {
+  initWebAudioEngine();
   const btnId = type === 'bass' ? 'btn-bass-boost' : type === 'voice' ? 'btn-voice-clarity' : 'btn-loudness-eq';
   const btn = document.getElementById(btnId);
-  if (btn) {
+  if (!btn) return;
+
+  if (type === 'bass') {
+    extraBassBoostActive = !extraBassBoostActive;
+    btn.classList.toggle("active", extraBassBoostActive);
+    btn.textContent = extraBassBoostActive ? "ACTIVO (+4dB)" : "DESACTIVADO";
+    updateDspFilterGain(0, currentEqBands[0]);
+    updateDspFilterGain(1, currentEqBands[1]);
+    logConsole(`Realce de graves (Bass Boost): ${extraBassBoostActive ? "ACTIVADO (+4dB en sub)" : "DESACTIVADO"}.`);
+  } else if (type === 'voice') {
+    voiceClarityActive = !voiceClarityActive;
+    btn.classList.toggle("active", voiceClarityActive);
+    btn.textContent = voiceClarityActive ? "ACTIVO" : "DESACTIVADO";
+    updateDspFilterGain(5, currentEqBands[5]);
+    updateDspFilterGain(6, currentEqBands[6]);
+    logConsole(`Claridad vocal: ${voiceClarityActive ? "ACTIVADA" : "DESACTIVADA"}.`);
+  } else if (type === 'loudness') {
     const active = btn.classList.toggle("active");
-    btn.textContent = active ? (type === 'bass' ? "ACTIVO (+4dB)" : "ACTIVO") : "DESACTIVADO";
-    logConsole(`Mejora de audio [${type.toUpperCase()}]: ${active ? "ACTIVADA" : "DESACTIVADA"}.`);
+    btn.textContent = active ? "ACTIVO (Compresión)" : "DESACTIVADO";
+    logConsole(active 
+      ? "Loudness EQ: Para activar la compresión de pasos en todo el sistema, marca 'Loudness Equalization' en las propiedades de Windows." 
+      : "Loudness EQ desactivado."
+    );
+    if (active) openSoundSettings();
   }
+  sendEqToBackend();
 }
 
 // -------------------------------------------------------------

@@ -735,6 +735,20 @@
               </div>
             </div>
 
+            <!-- REPRODUCTOR DE PRUEBA EN VIVO CON FILTROS REALES WEB AUDIO API -->
+            <div class="glass-card audio-live-test-card">
+              <div class="altc-info">
+                <div class="altc-titles">
+                  <h3>🎧 Monitor de Prueba en Tiempo Real (Filtros DSP Activos)</h3>
+                  <small class="panel-subtitle">Genera un flujo de audio sintético en vivo en tus audífonos. Al mover cualquier slider o cambiar de preset, escucharás la alteración acústica instantánea en tiempo real.</small>
+                </div>
+                <div class="altc-controls">
+                  <button class="clean-btn primary" id="btn-audio-test" onclick="toggleAudioTest()">▶️ Reproducir Prueba en Vivo</button>
+                  <span class="test-audio-status" id="test-audio-status">⚪ Audio en reposo</span>
+                </div>
+              </div>
+            </div>
+
             <!-- PRESETS RÁPIDOS DE ECUALIZACIÓN -->
             <div class="glass-card audio-presets-panel">
               <div class="panel-header">
@@ -901,6 +915,28 @@
                 </div>
               </div>
 
+            </div>
+
+            <!-- SISTEMA OPERATIVO Y JUEGOS: GUÍA DE APLICACIÓN GLOBAL -->
+            <div class="glass-card audio-system-routing-card">
+              <div class="panel-header">
+                <div>
+                  <h3>Integración de Ecualización para Todo el Sistema y Videojuegos</h3>
+                  <small class="panel-subtitle">Cómo hacer que la ecualización afecte a tus juegos (CS2, Valorant, Apex, Warzone), Spotify y Windows</small>
+                </div>
+              </div>
+              <div class="asrc-grid">
+                <div class="asrc-item">
+                  <strong>1. Loudness EQ y Ecualizador Nativo de Windows 11</strong>
+                  <p>Windows incluye un compresor de rango dinámico para escuchar pasos lejanos (Loudness EQ) y un ecualizador de 10 bandas nativo en el controlador de audio sin instalar nada extra.</p>
+                  <button class="clean-btn" onclick="openSoundSettings()">⚙️ Abrir Propiedades y Mejoras de Audio</button>
+                </div>
+                <div class="asrc-item">
+                  <strong>2. Sincronización Automática con Equalizer APO</strong>
+                  <p>Si usas <strong>Equalizer APO</strong> (el motor estándar de PC gaming), VortexCore Hub exporta automáticamente los 10 sliders a su archivo `config.txt` para aplicar la curva en vivo a todos los juegos.</p>
+                  <button class="clean-btn primary" onclick="syncEqualizerAPO()">⚡ Sincronizar Curva Actual con APO</button>
+                </div>
+              </div>
             </div>
 
           </div>
