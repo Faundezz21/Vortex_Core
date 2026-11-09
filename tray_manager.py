@@ -176,7 +176,7 @@ class SystemTrayApp:
         self._wndproc = wndproc
 
         hinstance = kernel32.GetModuleHandleW(None)
-        class_name = "VortexCoreHubTrayClass"
+        class_name = "VCH_TrayMsgClass"
 
         class WNDCLASSEXW(ctypes.Structure):
             _fields_ = [
@@ -221,7 +221,7 @@ class SystemTrayApp:
         user32.RegisterClassExW(ctypes.byref(wndclass))
 
         self.hwnd = user32.CreateWindowExW(
-            0, class_name, "VortexCoreHubTray", 0,
+            0, class_name, "VCH_TrayMsgWindow", 0,
             0, 0, 0, 0, 0, 0, hinstance, None
         )
 

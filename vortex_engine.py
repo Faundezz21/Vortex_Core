@@ -814,7 +814,7 @@ _last_launch_time = 0.0
 
 
 def focus_existing_window() -> bool:
-    """Busca la ventana de VortexCore Hub en Windows y la trae al frente."""
+    """Busca la ventana gráfica de VortexCore Hub en Windows y la trae al frente."""
     try:
         import ctypes
         from ctypes import wintypes
@@ -824,14 +824,23 @@ def focus_existing_window() -> bool:
 
         def enum_proc(hwnd, lparam):
             nonlocal found_hwnd
+            if not user32.IsWindow(hwnd):
+                return True
             length = user32.GetWindowTextLengthW(hwnd)
             if length > 0:
                 buff = ctypes.create_unicode_buffer(length + 1)
                 user32.GetWindowTextW(hwnd, buff, length + 1)
                 val = buff.value
-                if "VortexCore" in val:
-                    found_hwnd = hwnd
-                    return False
+                # Filtrar estrictamente la ventana real de la suite y descartar helpers internos de tray
+                if ("VortexCore Hub" in val or "Clean Hardware Suite" in val) and "Tray" not in val and "VCH_" not in val:
+                    rect = wintypes.RECT()
+                    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                    w = rect.right - rect.left
+                    h = rect.bottom - rect.top
+                    # Debe estar minimizada o tener dimensiones de ventana de navegador
+                    if user32.IsIconic(hwnd) or (w > 200 and h > 200):
+                        found_hwnd = hwnd
+                        return False
             return True
 
         EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)

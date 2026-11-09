@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.1)'
+        description: 'Etiqueta de la versión (ej. v7.8.2)'
         required: true
-        default: 'v7.8.1'
+        default: 'v7.8.2'
       release_name:
         description: 'Título del Release'
         required: true
-        default: 'VortexCore Hub v7.8.1 // Official Setup & Hardware Suite'
+        default: 'VortexCore Hub v7.8.2 // Official Setup & Hardware Suite'
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -73,10 +73,10 @@ jobs:
       - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.1-Portable.zip" -Force
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.2-Portable.zip" -Force
           $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
-          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.1-Portable.zip -Algorithm SHA256).Hash
-          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.1-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.2-Portable.zip -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.2-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
           Write-Host "SHA256 Setup: $setupHash"
           Write-Host "SHA256 Portable: $zipHash"
 
@@ -84,15 +84,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.1 // Official Setup & Hardware Suite' }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.2 // Official Setup & Hardware Suite' }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8.1-Portable.zip
+            dist/VortexCoreHub-v7.8.2-Portable.zip
             dist/checksums-sha256.txt
           body: |
-            # 🌀 VortexCore Hub v7.8.1 // Suite Oficial para Windows
+            # 🌀 VortexCore Hub v7.8.2 // Suite Oficial para Windows
             
             **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
             *Centro de control táctico de hardware, ventilación WMI, audio por app y latencia ultra-baja.*
@@ -101,7 +101,7 @@ jobs:
 
             ### 📦 Descargas Oficiales
             * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.1-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.1-Portable.zip).
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.2-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.2-Portable.zip).
             * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
 
             > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
@@ -117,7 +117,8 @@ jobs:
 
             ---
 
-            ### 🛠️ Correcciones y Mejoras en v7.8.1:
+            ### 🛠️ Correcciones y Mejoras en v7.8.2:
+            * **🪟 Corrección de Restauración de Ventana desde Tray**: Se aisló la ventana de mensajes interna del tray (`VCH_TrayMsgWindow`) para evitar que el doble clic en la bandeja la desenfoque o muestre una caja vacía en lugar de abrir y enfocar la suite gráfica principal.
             * **🎨 Ícono Oficial Integrado**: Ícono nativo de VortexCore embutido en el instalador `.exe`, accesos directos y panel de control.
             * **🛡️ Solución a Elevación 740**: Incorporación del flag `shellexec` en Inno Setup para garantizar lanzamiento suave tras finalizar la instalación.
             * **🎛️ Mezclador de Volumen por Aplicación (EarTrumpet Suite)**:

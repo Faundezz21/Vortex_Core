@@ -2,7 +2,7 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
 [![Download Setup](https://img.shields.io/badge/Descargar-Vortex--core--hub--Setup.exe-00F0FF?style=for-the-badge&logo=windows)](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)
-[![Release](https://img.shields.io/badge/Release-v7.8.1%20Oficial-00E676?style=for-the-badge&logo=github)](https://github.com/Faundezz21/VortexCore-Hub/releases)
+[![Release](https://img.shields.io/badge/Release-v7.8.2%20Oficial-00E676?style=for-the-badge&logo=github)](https://github.com/Faundezz21/VortexCore-Hub/releases)
 [![Hardware](https://img.shields.io/badge/Hardware-HP%20Victus%20%7C%20OMEN%20%7C%20Universal-FF4500?style=for-the-badge&logo=hp)](https://www.hp.com)
 [![Developer](https://img.shields.io/badge/Developer-Faundezz21-00F0FF?style=for-the-badge)](https://github.com/Faundezz21)
 [![License](https://img.shields.io/badge/License-MIT-00E676?style=for-the-badge)](LICENSE)
@@ -26,7 +26,7 @@
    - Integra la suite en la **Bandeja del Sistema (System Tray junto al reloj)**.
    - Opción para iniciar automáticamente con Windows minimizado.
    - Incluye desinstalador limpio en el Panel de Control de Windows.
-4. *(Opcional)* Si prefieres una versión portable sin instalador, también puedes descargar **`VortexCoreHub-v7.8.1-Portable.zip`**.
+4. *(Opcional)* Si prefieres una versión portable sin instalador, también puedes descargar **`VortexCoreHub-v7.8.2-Portable.zip`**.
 
 > 🛡️ **Nota sobre Windows Defender SmartScreen ("Windows protegió su PC / Editor desconocido"):**  
 > Al tratarse de software de código abierto recién publicado sin certificados comerciales corporativos de pago ($300 USD/año), Windows SmartScreen mostrará una ventana azul preventiva la primera vez:

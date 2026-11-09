@@ -57,7 +57,7 @@ def main():
     print("\n[✓] Binario standalone compilado exitosamente en: dist/VortexCoreHub/")
 
     # 3. Generar versión portable .zip
-    zip_path = os.path.join(root_dir, "dist", "VortexCoreHub-v7.8.1-Portable.zip")
+    zip_path = os.path.join(root_dir, "dist", "VortexCoreHub-v7.8.2-Portable.zip")
     print(f"[+] Creando paquete portátil: {zip_path}...")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for folder, _, files in os.walk(output_dir):
