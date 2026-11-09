@@ -17,7 +17,7 @@ let autostartEnabled = false;
 
 // Navegación en Sidebar
 const tabTitles = {
-  "tab-overview": { title: "Centro de Control", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
+  "tab-overview": { title: "Inicio", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
   "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
   "tab-cooling": { title: "Ventilación & Curvas Térmicas", sub: "GESTIÓN DE FIRMWARE & CONTROL DIRECTO" },
   "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
@@ -26,6 +26,11 @@ const tabTitles = {
   "tab-startup": { title: "Gestor de Inicio de Windows", sub: "APLICACIONES CON ARRANQUE AUTOMÁTICO • ACELERACIÓN DE INICIO" },
   "tab-debloat": { title: "Debloat & Limpieza de Windows", sub: "DESINSTALACIÓN SEGURA DE APLICACIONES BASURA • MICROSOFT EDGE BLINDADO" }
 };
+
+function switchTab(targetId) {
+  const btn = document.querySelector(`.nav-item[data-tab="${targetId}"]`);
+  if (btn) btn.click();
+}
 
 document.querySelectorAll(".nav-item").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -125,19 +130,22 @@ async function updateTelemetry() {
     if (d.system_specs) {
       const s = d.system_specs;
       const mTitle = document.getElementById("hero-model-title");
-      if (mTitle) mTitle.textContent = s.model || s.manufacturer;
+      if (mTitle) mTitle.textContent = (s.model || s.manufacturer).toUpperCase();
 
       const mSub = document.getElementById("hero-specs-sub");
       if (mSub) mSub.textContent = `${s.cpu} • ${s.gpu} • ${s.ram}`;
 
-      const cpuBrand = document.getElementById("cpu-brand-title");
-      if (cpuBrand) cpuBrand.textContent = s.cpu_short || "CPU";
+      const acCpuLine = document.getElementById("ac-cpu-line");
+      if (acCpuLine) acCpuLine.textContent = s.cpu || "Procesador Detectado";
 
-      const gpuBrand = document.getElementById("gpu-brand-title");
-      if (gpuBrand) gpuBrand.textContent = s.gpu_short || "GPU";
+      const acGpuLine = document.getElementById("ac-gpu-line");
+      if (acGpuLine) acGpuLine.textContent = `${s.gpu || "Gráficos Dedicados"} • ${s.ram || ""}`;
+
+      const mfgTag = document.getElementById("hsc-tag-mfg");
+      if (mfgTag) mfgTag.textContent = `${(s.manufacturer || "VORTEXCORE").toUpperCase()} GAMING SYSTEM`;
 
       const breadcrumb = document.getElementById("nav-breadcrumb-tag");
-      if (breadcrumb) breadcrumb.textContent = `${(s.model_short || s.manufacturer).toUpperCase()} • ${s.os.toUpperCase()}`;
+      if (breadcrumb) breadcrumb.textContent = `VORTEXCORE HUB • ${(s.model_short || s.manufacturer).toUpperCase()} • ${s.os.toUpperCase()}`;
 
       const fanSub = document.getElementById("hero-fan-sub");
       if (fanSub) {
@@ -160,45 +168,65 @@ async function updateTelemetry() {
     // 1. CPU
     const cTemp = d.cpu_temp > 0 ? d.cpu_temp : 48;
     const cpuTempEl = document.getElementById("cpu-temp-text");
-    if (cpuTempEl) cpuTempEl.textContent = `${cTemp}°`;
+    if (cpuTempEl) cpuTempEl.textContent = `${cTemp}`;
     
     const cpuFreqEl = document.getElementById("cpu-freq-text");
     if (cpuFreqEl) cpuFreqEl.textContent = `${d.cpu_freq || '3.80'} GHz`;
 
+    const cMhz = d.cpu_freq_mhz || Math.round(parseFloat(d.cpu_freq || 3.6) * 1000);
+    const acCpuFreqMhz = document.getElementById("ac-cpu-freq-mhz");
+    if (acCpuFreqMhz) acCpuFreqMhz.textContent = `${cMhz} MHz`;
+
+    const acCpuFreqBar = document.getElementById("ac-cpu-freq-bar");
+    if (acCpuFreqBar) acCpuFreqBar.style.width = `${Math.min(100, Math.max(12, Math.round((cMhz / 5200) * 100)))}%`;
+
+    const acCpuVolt = document.getElementById("ac-cpu-volt");
+    if (acCpuVolt && d.cpu_volt_mv) acCpuVolt.textContent = `${d.cpu_volt_mv} mV`;
+
     const cpuLoadEl = document.getElementById("cpu-load-text");
-    if (cpuLoadEl) cpuLoadEl.textContent = `${d.cpu_usage || 0}%`;
+    if (cpuLoadEl) cpuLoadEl.textContent = `${d.cpu_usage || 0} %`;
 
     const cpuBarEl = document.getElementById("cpu-progress-bar");
-    if (cpuBarEl) cpuBarEl.style.width = `${Math.min(100, Math.max(5, d.cpu_usage || 15))}%`;
+    if (cpuBarEl) cpuBarEl.style.width = `${Math.min(100, Math.max(4, d.cpu_usage || 8))}%`;
 
-    // Tacómetro CPU en base a temperatura (rango 30°C - 95°C)
     const cpuTachoPct = Math.min(100, Math.max(5, ((cTemp - 30) / (95 - 30)) * 100));
     setTachoProgress("cpu-tacho-fill", cpuTachoPct);
 
-    // 2. GPU NVIDIA RTX 4060
+    // 2. GPU
     const gTemp = d.gpu_temp > 0 ? d.gpu_temp : 42;
     const gpuTempEl = document.getElementById("gpu-temp-text");
-    if (gpuTempEl) gpuTempEl.textContent = `${gTemp}°`;
+    if (gpuTempEl) gpuTempEl.textContent = `${gTemp}`;
 
     const gpuLoadEl = document.getElementById("gpu-load-text");
-    if (gpuLoadEl) gpuLoadEl.textContent = `${d.gpu_usage || 0}%`;
+    if (gpuLoadEl) gpuLoadEl.textContent = `${d.gpu_usage || 0} %`;
 
     const gpuPowerEl = document.getElementById("gpu-power-text");
     if (gpuPowerEl) gpuPowerEl.textContent = `${d.gpu_power || 0} W`;
+
+    const gMhz = d.gpu_freq_mhz || 1650;
+    const acGpuFreqMhz = document.getElementById("ac-gpu-freq-mhz");
+    if (acGpuFreqMhz) acGpuFreqMhz.textContent = `${gMhz} MHz`;
+
+    const acGpuFreqBar = document.getElementById("ac-gpu-freq-bar");
+    if (acGpuFreqBar) acGpuFreqBar.style.width = `${Math.min(100, Math.max(10, Math.round((gMhz / 2600) * 100)))}%`;
+
+    const acGpuMemFreq = document.getElementById("ac-gpu-mem-freq");
+    if (acGpuMemFreq && d.gpu_mem_freq_mhz) acGpuMemFreq.textContent = `${d.gpu_mem_freq_mhz} MHz`;
+
+    const acGpuVolt = document.getElementById("ac-gpu-volt");
+    if (acGpuVolt && d.gpu_volt_mv) acGpuVolt.textContent = `${d.gpu_volt_mv} mV`;
 
     const gpuPwrSummary = document.getElementById("gpu-pwr-summary");
     if (gpuPwrSummary) gpuPwrSummary.textContent = `${d.gpu_power || 0} W`;
 
     const gpuBarEl = document.getElementById("gpu-progress-bar");
-    if (gpuBarEl) gpuBarEl.style.width = `${Math.min(100, Math.max(5, d.gpu_usage || 10))}%`;
+    if (gpuBarEl) gpuBarEl.style.width = `${Math.min(100, Math.max(4, d.gpu_usage || 5))}%`;
 
     const gpuTachoPct = Math.min(100, Math.max(5, ((gTemp - 30) / (90 - 30)) * 100));
     setTachoProgress("gpu-tacho-fill", gpuTachoPct);
 
-    // 3. MEMORIA RAM DDR5
-    const ramInst = d.ram_installed || 32;
-    const ramBadge = document.getElementById("ram-badge");
-    if (ramBadge) ramBadge.textContent = `${ramInst} GB DDR5`;
+    // 3. MEMORIA RAM & ALMACENAMIENTO
+    const ramInst = d.ram_installed || 16;
 
     const ramPctEl = document.getElementById("ram-pct-text");
     if (ramPctEl) ramPctEl.textContent = d.ram_pct || 0;
@@ -208,6 +236,19 @@ async function updateTelemetry() {
 
     const ramFreeEl = document.getElementById("ram-free-text");
     if (ramFreeEl) ramFreeEl.textContent = `${d.ram_free || 0} GB`;
+
+    const acRamRatio = document.getElementById("ac-ram-ratio");
+    if (acRamRatio) acRamRatio.textContent = `${d.ram_used || '7.5'} / ${d.ram_total || ramInst} GB`;
+
+    const acDiskText = document.getElementById("ac-disk-text");
+    if (acDiskText && d.disk_used_gb && d.disk_total_gb) {
+      acDiskText.textContent = `${d.disk_used_gb} / ${d.disk_total_gb} GB`;
+    }
+
+    const acDiskBar = document.getElementById("ac-disk-bar");
+    if (acDiskBar && d.disk_pct !== undefined) {
+      acDiskBar.style.width = `${Math.min(100, Math.max(5, d.disk_pct))}%`;
+    }
 
     const ramFreeSum = document.getElementById("ram-free-summary");
     if (ramFreeSum) ramFreeSum.textContent = `${d.ram_free || 0} GB Libres`;
@@ -227,7 +268,7 @@ async function updateTelemetry() {
     const rCachedDeep = document.getElementById("ram-cached-deep");
     if (rCachedDeep) rCachedDeep.textContent = `${d.ram_cached || '0.0'} GB`;
 
-    // 4. VENTILADORES HP WMI
+    // 4. VENTILADORES
     const f1 = d.fan1_rpm > 0 ? d.fan1_rpm : 2600;
     const f2 = d.fan2_rpm > 0 ? d.fan2_rpm : 2400;
 
@@ -238,31 +279,35 @@ async function updateTelemetry() {
     if (fan2El) fan2El.textContent = `${f2} RPM`;
 
     const fanPct = Math.min(100, Math.round((f1 / 5600) * 100));
+    const fan2Pct = Math.min(100, Math.round((f2 / 5600) * 100));
     setTachoProgress("fan-tacho-fill", fanPct);
 
     const fanBarEl = document.getElementById("fan-progress-bar");
     if (fanBarEl) fanBarEl.style.width = `${fanPct}%`;
 
+    const acFan2Bar = document.getElementById("ac-fan2-bar");
+    if (acFan2Bar) acFan2Bar.style.width = `${fan2Pct}%`;
+
+    const acFanDba = document.getElementById("ac-fan-dba");
+    if (acFanDba && d.fan_dba) acFanDba.textContent = `${d.fan_dba} dBA`;
+
     const isTurbo = (d.fan_mode && (d.fan_mode.includes("TURBO") || d.fan_mode.includes("MAX"))) || f1 >= 4800;
 
     const fanChip = document.getElementById("fan-chip");
     const fanChipText = document.getElementById("fan-chip-text");
-    const fanBadgeMode = document.getElementById("fan-badge-mode");
     const fanCurveText = document.getElementById("fan-curve-text");
     const coolingStatusHero = document.getElementById("cooling-status-hero");
 
     if (isTurbo) {
       if (fanChip) fanChip.classList.add("turbo-active");
-      if (fanChipText) fanChipText.textContent = "FANS: TURBO 100%";
-      if (fanBadgeMode) fanBadgeMode.textContent = "HP Turbina 100%";
-      if (fanCurveText) fanCurveText.textContent = "Overdrive Máximo";
+      if (fanChipText) fanChipText.textContent = "TURBO 100%";
+      if (fanCurveText) fanCurveText.textContent = "Overdrive 100%";
       if (coolingStatusHero) coolingStatusHero.textContent = "Modo Turbina al 100% (Overdrive Activo)";
     } else {
       if (fanChip) fanChip.classList.remove("turbo-active");
       if (fanChipText) fanChipText.textContent = "FANS: AUTO";
-      if (fanBadgeMode) fanBadgeMode.textContent = "HP Turbina Dual";
       if (fanCurveText) fanCurveText.textContent = "Automática (BIOS)";
-      if (coolingStatusHero) coolingStatusHero.textContent = "Curva Automática de Fábrica (HP BIOS)";
+      if (coolingStatusHero) coolingStatusHero.textContent = "Curva Automática de Fábrica (BIOS)";
     }
 
     const profChip = document.getElementById("profile-chip");
@@ -294,13 +339,13 @@ async function updateTelemetry() {
     const diagCpu = document.getElementById("diag-cpu-desc");
     if (diagCpu) {
       diagCpu.textContent = cTemp < 70 
-        ? `El procesador Intel Core i7 opera a una temperatura estable (${cTemp}°C). Sin Thermal Throttling.`
+        ? `El procesador opera a una temperatura estable (${cTemp}°C). Sin Thermal Throttling.`
         : `CPU operando a ${cTemp}°C bajo carga elevada. Límites de seguridad estables.`;
     }
 
     const diagGpu = document.getElementById("diag-gpu-desc");
     if (diagGpu) {
-      diagGpu.textContent = `La gráfica NVIDIA RTX 4060 mantiene un consumo de ${d.gpu_power || 4}W con ${gTemp}°C en núcleo.`;
+      diagGpu.textContent = `La gráfica dedicada mantiene un consumo de ${d.gpu_power || 4}W con ${gTemp}°C en núcleo.`;
     }
 
     // Protección térmica de seguridad
@@ -309,7 +354,7 @@ async function updateTelemetry() {
       triggerFan("max");
     }
 
-    // 6. DISPOSITIVOS Y BATERÍA EN SIDEBAR
+    // 6. DISPOSITIVOS Y BATERÍA EN \\\ DISPOSITIVOS
     if (d.battery_devices) {
       updateBatteryDevices(d.battery_devices);
     }
@@ -327,7 +372,7 @@ async function updateTelemetry() {
 }
 
 // -------------------------------------------------------------
-// 1.1 RENDERIZADO DE BATERÍA & DISPOSITIVOS EN EL SIDEBAR
+// 1.1 RENDERIZADO DE \\\ DISPOSITIVOS (2.4GHz, BLUETOOTH, MANDOS, BATERÍA)
 // -------------------------------------------------------------
 function updateBatteryDevices(devices) {
   const container = document.getElementById("sidebar-devices-list");
@@ -335,7 +380,15 @@ function updateBatteryDevices(devices) {
   if (!container) return;
 
   if (!devices || devices.length === 0) {
-    container.innerHTML = `<div class="dev-item-loading">Sin dispositivos vinculados</div>`;
+    container.innerHTML = `
+      <div class="ac-empty-devices">
+        <div class="ac-crosshair-plus">+</div>
+        <div class="ac-empty-text">
+          <strong>No hay dispositivos conectados</strong>
+          <p>Enciende tu mando 2.4GHz o Bluetooth para detectarlo automáticamente.</p>
+        </div>
+      </div>
+    `;
     if (countBadge) countBadge.textContent = "0";
     return;
   }
@@ -1451,8 +1504,10 @@ async function applySingleRecommendation(action) {
 }
 
 // -------------------------------------------------------------
-// 11. GESTOR DE APLICACIONES DE INICIO DE WINDOWS
+// 11. GESTOR DE APLICACIONES DE INICIO DE WINDOWS (NATIVO STARTUPAPPROVED)
 // -------------------------------------------------------------
+let startupAppsCache = [];
+
 async function loadStartupApps() {
   const container = document.getElementById("startup-apps-container");
   const countBadge = document.getElementById("startup-count-badge");
@@ -1465,39 +1520,63 @@ async function loadStartupApps() {
     if (!res.ok) throw new Error("Error al consultar aplicaciones de inicio");
     const data = await res.json();
     const apps = data.apps || [];
+    startupAppsCache = apps;
 
     if (countBadge) countBadge.textContent = `${apps.length} aplicaciones detectadas`;
 
     if (apps.length === 0) {
-      container.innerHTML = `<div class="dev-item-loading">No se detectaron aplicaciones de inicio de usuario.</div>`;
+      container.innerHTML = `<div class="dev-item-loading">No se detectaron aplicaciones de inicio registradas.</div>`;
       return;
     }
 
-    container.innerHTML = apps.map(app => `
-      <div class="startup-item-card ${app.enabled ? 'enabled' : 'disabled'}">
+    container.innerHTML = apps.map((app, idx) => `
+      <div class="startup-item-card ${app.enabled ? 'enabled' : 'disabled'}" id="startup-card-${idx}">
         <div class="sic-icon">🚀</div>
         <div class="sic-info">
           <div class="sic-header">
             <strong class="sic-name">${escapeHtml(app.name)}</strong>
             <span class="sic-scope-pill ${app.scope}">${app.scope === 'system' ? 'Sistema' : 'Usuario'}</span>
-            <span class="sic-impact-pill ${app.impact.toLowerCase()}">${app.impact}</span>
+            <span class="sic-impact-pill ${app.impact.toLowerCase()}" id="startup-impact-${idx}">${app.impact}</span>
           </div>
           <div class="sic-cmd" title="${escapeHtml(app.command)}">${escapeHtml(app.command)}</div>
         </div>
         <div class="sic-switch-box">
           <label class="switch-ui">
-            <input type="checkbox" ${app.enabled ? 'checked' : ''} onchange="toggleStartup('${escapeHtml(app.name)}', '${app.scope}', this.checked)">
+            <input type="checkbox" ${app.enabled ? 'checked' : ''} data-startup-idx="${idx}">
             <span class="slider-round"></span>
           </label>
         </div>
       </div>
     `).join("");
+
+    container.querySelectorAll("input[data-startup-idx]").forEach(chk => {
+      chk.addEventListener("change", async (e) => {
+        const idx = parseInt(e.target.dataset.startupIdx, 10);
+        const app = startupAppsCache[idx];
+        if (!app) return;
+        await toggleStartup(app.name, app.scope, e.target.checked, idx, e.target);
+      });
+    });
   } catch (err) {
     container.innerHTML = `<div class="dev-item-loading" style="color: var(--accent-red);">Error al cargar aplicaciones: ${err.message}</div>`;
   }
 }
 
-async function toggleStartup(name, scope, enable) {
+async function toggleStartup(name, scope, enable, idx, checkboxEl) {
+  const card = document.getElementById(`startup-card-${idx}`);
+  const impactEl = document.getElementById(`startup-impact-${idx}`);
+
+  // Feedback visual instantáneo
+  if (card) {
+    card.classList.toggle("enabled", enable);
+    card.classList.toggle("disabled", !enable);
+  }
+  if (impactEl) {
+    const newImpact = enable ? "Medio" : "Deshabilitado";
+    impactEl.textContent = newImpact;
+    impactEl.className = `sic-impact-pill ${newImpact.toLowerCase()}`;
+  }
+
   logConsole(`${enable ? 'Habilitando' : 'Deshabilitando'} inicio automático de: ${name}...`);
   try {
     const res = await fetch(`${API_BASE}/api/startup/toggle`, {
@@ -1505,11 +1584,16 @@ async function toggleStartup(name, scope, enable) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, scope, enabled: enable })
     });
-    if (res.ok) {
-      logConsole(`✅ Aplicación "${name}" ${enable ? 'habilitada' : 'deshabilitada'} con éxito.`);
-      setTimeout(loadStartupApps, 300);
+    const out = await res.json();
+    if (res.ok && out.status === "ok") {
+      logConsole(`✅ Aplicación "${name}" ${enable ? 'habilitada' : 'deshabilitada'} en el inicio de Windows.`);
+    } else {
+      if (checkboxEl) checkboxEl.checked = !enable;
+      logConsole(`⚠️ No se pudo cambiar "${name}". Ejecuta VortexCore Hub como Administrador.`);
+      setTimeout(loadStartupApps, 400);
     }
   } catch (err) {
+    if (checkboxEl) checkboxEl.checked = !enable;
     logConsole(`Error al cambiar estado de inicio: ${err.message}`);
   }
 }

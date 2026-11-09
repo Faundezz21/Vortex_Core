@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.3)'
+        description: 'Etiqueta de la versión (ej. v7.8.4)'
         required: true
-        default: 'v7.8.3'
+        default: 'v7.8.4'
       release_name:
         description: 'Título del Release'
         required: true
-        default: 'VortexCore Hub v7.8.3 // Multi-Hardware & Debloat Suite'
+        default: 'VortexCore Hub v7.8.4 // Tactical Armoury Edition'
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -73,10 +73,10 @@ jobs:
       - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.3-Portable.zip" -Force
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.4-Portable.zip" -Force
           $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
-          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.3-Portable.zip -Algorithm SHA256).Hash
-          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.3-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.4-Portable.zip -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.4-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
           Write-Host "SHA256 Setup: $setupHash"
           Write-Host "SHA256 Portable: $zipHash"
 
@@ -84,82 +84,45 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.3 // Multi-Hardware & Debloat Suite' }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.4 // Tactical Armoury Edition' }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8.3-Portable.zip
+            dist/VortexCoreHub-v7.8.4-Portable.zip
             dist/checksums-sha256.txt
           body: |
-            # 🌀 VortexCore Hub v7.8.3 // Suite Oficial Multi-Hardware para Windows
+            # 🌀 VortexCore Hub v7.8.4 // Tactical Armoury Edition
             
             **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
-            *Centro de control táctico de hardware, detección multi-fabricante, optimización de silicio y suite de inicio/debloat.*
+            *Centro de control táctico de hardware, telemetría en vivo estilo Armoury/TUF, detección instantánea de mandos 2.4GHz/BT y suite de inicio/debloat.*
 
             ---
 
             ### 📦 Descargas Oficiales
             * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.3-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.3-Portable.zip).
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.4-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.4-Portable.zip).
             * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
 
             > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
 
             ---
 
-            ### 🛡️ Nota sobre Windows Defender SmartScreen / Smart App Control ("Editor Desconocido")
-            Al tratarse de una versión reciente de código abierto compilada por la comunidad sin un certificado de pago empresarial de Microsoft:
-            * **SmartScreen clásico**: Haz clic en **"Más información"** (*More info*) ➔ **"Ejecutar de todas formas"** (*Run anyway*).
-            * **Control Inteligente de Aplicaciones (SAC en Windows 11)**: Si bloquea el archivo, haz **Clic derecho en el .exe ➔ Propiedades ➔ Marcar [☑ Desbloquear] ➔ Aceptar**.
-            > *El código fuente es 100% público, auditable y libre de cualquier malware o telemetría invasiva.*
-
-            ---
-
-            ### 🛠️ Novedades y Mejoras Principales en v7.8.3:
-            * **🌐 Detección Dinámica de Hardware Real**: Detección automática instantánea del fabricante (HP, ASUS, Lenovo, Dell, Acer, MSI, Custom PC), modelo de laptop/desktop, CPU (Intel / AMD Ryzen) y GPU (NVIDIA RTX / AMD Radeon / Intel Iris). Ya no muestra especificaciones fijas en otras computadoras.
-            * **🌡️ Gobernador Térmico Universal Multi-Marca**: Soporte térmico adaptable para laptops que no sean HP, regulando frecuencias, estados de throttling y planes de energía de silicio de forma nativa.
-            * **🔍 Hardware Intelligence Interactivo**:
-              * Botón para **Analizar Hardware en Vivo** (auditoría térmica, cuellos de botella de RAM y temporizadores).
-              * Botón para **Aplicar Optimizaciones Sugeridas** automáticamente con un solo clic.
-            * **⚡ Optimización y Liberación de Memoria RAM**: Textos amigables, visualización de memoria liberada en tiempo real y reducción de Standby Cache.
-            * **🔋 Batería y Periféricos Mejorados**: Detección robusta de batería por fabricante / modelo, PCs de escritorio con alimentación AC directa y mandos / auriculares Bluetooth activos (DualSense, Xbox, Redmi, AirPods, dongles 2.4G).
-            * **🚀 Gestor de Aplicaciones de Inicio**: Visualiza todos los programas que arrancan con Windows y habilítalos/deshabilítalos con interruptores tácticos.
-            * **🧹 Limpiador y Debloat de Windows (Microsoft Edge Blindado)**: Remueve paquetes basura UWP con telemetría (Noticias, El Tiempo, Sugerencias, Solitario, Feedback Hub, Clipchamp, Cortana) manteniendo **Microsoft Edge y WebView2 100% protegidos**.
-
-            ---
-
-            ### 📦 Descargas Oficiales
-            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.2-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.2-Portable.zip).
-            * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
-
-            > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
-
-            ---
-
-            ### 🛡️ Nota sobre Windows Defender SmartScreen ("Editor Desconocido")
-            Al tratarse de una versión reciente de código abierto compilada por la comunidad sin un certificado de pago empresarial de Microsoft:
-            1. Si Windows muestra la pantalla azul preventiva de SmartScreen:
-            2. Haz clic en el enlace **"Más información"** (*More info*).
-            3. Haz clic en el botón **"Ejecutar de todas formas"** (*Run anyway*).
-            > *El código fuente es 100% público, auditable y libre de cualquier malware o telemetría invasiva.*
-
-            ---
-
-            ### 🛠️ Correcciones y Mejoras en v7.8.2:
-            * **🪟 Corrección de Restauración de Ventana desde Tray**: Se aisló la ventana de mensajes interna del tray (`VCH_TrayMsgWindow`) para evitar que el doble clic en la bandeja la desenfoque o muestre una caja vacía en lugar de abrir y enfocar la suite gráfica principal.
-            * **🎨 Ícono Oficial Integrado**: Ícono nativo de VortexCore embutido en el instalador `.exe`, accesos directos y panel de control.
-            * **🛡️ Solución a Elevación 740**: Incorporación del flag `shellexec` en Inno Setup para garantizar lanzamiento suave tras finalizar la instalación.
-            * **🎛️ Mezclador de Volumen por Aplicación (EarTrumpet Suite)**:
-              * Control de volumen y silencio individual para Spotify, Discord, Navegadores y Juegos en tiempo real.
-              * Ecualizador de 10 bandas con perfiles tácticos y **Bypass Maestro (Modo Normal)** con un clic.
-            * **🌪️ Control Térmico y Turbina 100% (HP WMI BIOS)**: Overdrive directo a 5400+ RPM con Auto-Cooldown programable.
-            * **⚡ Modo Latencia Cero & Purga de RAM**: Temporizador a 1.0 ms y purga de memoria en Standby (`EmptyWorkingSet`).
-            * **🛡️ System Tray Nativo**: Menú contextual Fluent Dark Mode y bloqueo de ventana única en la bandeja del sistema.
+            ### 🛠️ Novedades y Mejoras Principales en v7.8.4:
+            * **🎨 Nuevo Diseño Táctico "Tactical Armoury" (VortexCore Hub)**:
+              * Interfaz oscura mate en negro carbón y ámbar táctico con barra lateral compacta y biseles diagonales (`\\\`).
+              * Showcase visual 3D del equipo detectado con emblema luminoso **VORTEX CORE HUB** y especificaciones reales de CPU y GPU.
+              * Cuadrícula táctica **Uso del sistema** (`CPU`, `GPU`, `Ventilador`, `Memoria`) con barras de frecuencia en MHz, uso, voltaje (mV), temperatura (°C), acústica (dBA) y almacenamiento total en GB.
+              * Barra inferior de **Modo operativo** con 5 modos directos: `Windows®`, `Silencio`, `Rendimiento`, `Turbo` y `Manual`.
+            * **🎮 Detección Instantánea de Mandos y Periféricos (2.4 GHz & Bluetooth en <25ms)**:
+              * Integración nativa con APIs Win32 en C (`XInputGetState`, `winmm.joyGetPosEx`, `CfgMgr32` y `MMDevices`) sin bloqueos de PowerShell.
+              * Detecta en tiempo real al encender cualquier mando Xbox, DualSense PS5/PS4, receptores inalámbricos USB 2.4 GHz y auriculares Bluetooth/Dongle.
+            * **🚀 Gestor Nativo de Inicio de Windows (`StartupApproved\Run`)**:
+              * Sincronización 100% real y bidireccional con el Administrador de Tareas de Windows 10/11 al habilitar o deshabilitar aplicaciones de arranque.
+            * **🧹 Limpiador y Debloat de Windows (Microsoft Edge 100% Protegido)**.
 
             ---
 
             ### 💻 Requisitos del Sistema:
             * **Sistema Operativo**: Windows 11 o Windows 10 (64 bits).
-            * **Permisos**: Requiere permisos de Administrador para controlar ventiladores por WMI y purgar memoria RAM.
+            * **Permisos**: Requiere permisos de Administrador para controlar ventiladores, inicio y memoria RAM.
