@@ -23,13 +23,13 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
 OutputBaseFilename=Vortex-core-hub-Setup
-SetupIconFile=vortex_icon.ico
+SetupIconFile={#SourcePath}\vortex_icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\vortex_icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName},0
 UninstallDisplayName={#MyAppName} v{#MyAppVersion}
 
 [Languages]
@@ -41,12 +41,12 @@ Name: "autostart"; Description: "Iniciar VortexCore Hub automáticamente al ence
 
 [Files]
 Source: "dist\VortexCoreHub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "vortex_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}\vortex_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\vortex_icon.ico"
+Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
 Name: "{autoprograms}\{#MyAppName}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\vortex_icon.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VortexCoreHub"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart

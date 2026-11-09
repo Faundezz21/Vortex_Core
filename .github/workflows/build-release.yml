@@ -68,7 +68,7 @@ jobs:
             $iscc = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
           Write-Host "Compilando installer.iss con $iscc"
-          & $iscc installer.iss
+          & $iscc "$PWD\installer.iss"
 
       - name: 🗜️ Generar Paquete Portátil (Portable ZIP)
         shell: powershell
