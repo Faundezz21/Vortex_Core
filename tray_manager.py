@@ -17,6 +17,45 @@ user32 = ctypes.windll.user32
 shell32 = ctypes.windll.shell32
 kernel32 = ctypes.windll.kernel32
 
+# Definición precisa de tipos Win64 para evitar desbordamientos y fallos en WNDPROC
+user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.DefWindowProcW.restype = ctypes.c_longlong
+
+user32.CreateWindowExW.argtypes = [
+    wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+    ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID
+]
+user32.CreateWindowExW.restype = wintypes.HWND
+
+user32.AppendMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.UINT, wintypes.LPCWSTR]
+user32.AppendMenuW.restype = wintypes.BOOL
+
+user32.TrackPopupMenu.argtypes = [
+    wintypes.HMENU, wintypes.UINT, ctypes.c_int, ctypes.c_int,
+    ctypes.c_int, wintypes.HWND, wintypes.LPCVOID
+]
+user32.TrackPopupMenu.restype = wintypes.BOOL
+
+user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+user32.SetForegroundWindow.restype = wintypes.BOOL
+
+user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.PostMessageW.restype = wintypes.BOOL
+
+user32.DestroyMenu.argtypes = [wintypes.HMENU]
+user32.DestroyMenu.restype = wintypes.BOOL
+
+# Habilitar soporte de Modo Oscuro nativo de Windows 11 (uxtheme)
+try:
+    uxtheme = ctypes.windll.uxtheme
+    fn_set_app_mode = ctypes.cast(uxtheme[135], ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int))
+    fn_set_app_mode(2)  # 2 = ForceDark
+    fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
+    fn_flush_themes()
+except Exception:
+    uxtheme = None
+
 NIM_ADD = 0
 NIM_MODIFY = 1
 NIM_DELETE = 2
@@ -120,8 +159,8 @@ class SystemTrayApp:
         self.nid = None
 
     def run(self):
-        # Registrar ventana oculta para recibir mensajes de la bandeja
-        wndproc = ctypes.WINFUNCTYPE(ctypes.c_long, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)(self._wnd_proc)
+        # Registrar ventana oculta para recibir mensajes de la bandeja (Win64 LRESULT)
+        wndproc = ctypes.WINFUNCTYPE(ctypes.c_longlong, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)(self._wnd_proc)
         self._wndproc = wndproc
 
         hinstance = kernel32.GetModuleHandleW(None)
@@ -171,8 +210,17 @@ class SystemTrayApp:
 
         self.hwnd = user32.CreateWindowExW(
             0, class_name, "VortexCoreHubTray", 0,
-            0, 0, 0, 0, 0, 0, hinstance, 0
+            0, 0, 0, 0, 0, 0, hinstance, None
         )
+
+        # Aplicar tema oscuro nativo de Windows 11 al HWND de la bandeja
+        try:
+            if uxtheme:
+                fn_allow_dark = ctypes.cast(uxtheme[133], ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, ctypes.c_bool))
+                fn_allow_dark(self.hwnd, True)
+                uxtheme.SetWindowTheme(self.hwnd, "DarkMode_Explorer", None)
+        except Exception:
+            pass
 
         # Crear icono en la bandeja del sistema con el logo oficial
         self.nid = NOTIFYICONDATAW()
@@ -196,6 +244,13 @@ class SystemTrayApp:
         shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
 
     def _show_context_menu(self):
+        try:
+            if uxtheme:
+                fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
+                fn_flush_themes()
+        except Exception:
+            pass
+
         menu = user32.CreatePopupMenu()
 
         user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Abrir VortexCore Hub")
