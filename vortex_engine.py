@@ -575,6 +575,9 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
             self._send_json({"status": "ok", "message": "Panel de audio abierto"})
+        elif self.path == "/api/focus_window":
+            launch_or_focus_window()
+            self._send_json({"status": "ok", "action": "focused"})
         else:
             self.send_error(404)
 
@@ -589,25 +592,96 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         pass
 
 
+def focus_existing_window() -> bool:
+    """Busca la ventana de VortexCore Hub en Windows y la trae al frente."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        found_hwnd = None
+
+        def enum_proc(hwnd, lparam):
+            nonlocal found_hwnd
+            if user32.IsWindowVisible(hwnd):
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buff = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd, buff, length + 1)
+                    if "VortexCore" in buff.value:
+                        found_hwnd = hwnd
+                        return False
+            return True
+
+        EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
+
+        if found_hwnd:
+            # SW_RESTORE = 9, SW_SHOW = 5
+            user32.ShowWindow(found_hwnd, 9)
+            user32.SetForegroundWindow(found_hwnd)
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def launch_native_window():
+    if focus_existing_window():
+        return
+
     edge_paths = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     ]
     edge_exe = next((p for p in edge_paths if os.path.isfile(p)), "msedge.exe")
     url = f"http://127.0.0.1:{PORT}"
+    user_data = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub", "Profile")
+    os.makedirs(user_data, exist_ok=True)
 
     args = [
         edge_exe,
         f"--app={url}",
-        "--window-size=1020,920",
+        f"--user-data-dir={user_data}",
+        "--app-id=VortexCoreHub",
+        "--window-size=1040,930",
         "--disable-extensions",
         "--disable-background-networking"
     ]
     subprocess.Popen(args)
 
 
+def launch_or_focus_window():
+    if not focus_existing_window():
+        launch_native_window()
+
+
+def check_and_focus_existing_instance():
+    """
+    Si VortexCore Hub ya se encuentra abierto, envía una petición local
+    para enfocar la ventana existente y termina el nuevo proceso de inmediato.
+    """
+    import urllib.request
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{PORT}/api/focus_window", data=b"{}", method="POST")
+        with urllib.request.urlopen(req, timeout=1.2) as resp:
+            if resp.status == 200:
+                print("VortexCore Hub ya está activo. Enfocando ventana existente...")
+                sys.exit(0)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    # 1. Guardia de Instancia Única (evita abrir ventanas duplicadas)
+    check_and_focus_existing_instance()
+
+    # 2. Asignar Identidad Nativa en Barra de Tareas de Windows (AppUserModelID)
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Faundezz21.VortexCoreHub.Suite.7.8")
+    except Exception:
+        pass
+
     if not is_admin():
         request_admin_elevation()
 
@@ -622,7 +696,7 @@ if __name__ == "__main__":
     # Iniciar icono en la bandeja del sistema (System Tray junto al reloj)
     tray = SystemTrayApp(
         manager,
-        on_open_callback=launch_native_window,
+        on_open_callback=launch_or_focus_window,
         on_exit_callback=lambda: os._exit(0)
     )
     threading.Thread(target=tray.run, daemon=True).start()
