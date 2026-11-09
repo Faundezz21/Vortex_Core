@@ -746,19 +746,23 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                     pass
             self._send_json({"status": "ok", "message": "Panel de audio abierto"})
         elif self.path == "/api/set_eq":
+            enabled = bool(data.get("enabled", True))
             bands = data.get("bands", [0] * 10)
             preset = data.get("preset", "custom")
             freqs = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
             apo_dir = r"C:\Program Files\EqualizerAPO\config"
             apo_config = os.path.join(apo_dir, "config.txt")
-            eq_line = "GraphicEQ: " + "; ".join(f"{freqs[i]} {bands[i]}" for i in range(min(len(bands), len(freqs)))) + "\n"
+            if enabled:
+                eq_line = "GraphicEQ: " + "; ".join(f"{freqs[i]} {bands[i]}" for i in range(min(len(bands), len(freqs)))) + "\n"
+            else:
+                eq_line = "# GraphicEQ desactivado por VortexCore Hub (Modo Normal / Bypass)\n"
 
             written = False
             if os.path.isdir(apo_dir):
                 try:
                     with open(apo_config, "w", encoding="utf-8") as f:
-                        f.write(f"# VortexCore Hub - Preset: {preset}\n")
+                        f.write(f"# VortexCore Hub - Estado EQ: {'ACTIVO (' + preset + ')' if enabled else 'DESACTIVADO (NORMAL)'}\n")
                         f.write(eq_line)
                     written = True
                 except Exception:
@@ -773,7 +777,7 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
-            self._send_json({"status": "ok", "apo_synced": written, "bands": bands})
+            self._send_json({"status": "ok", "enabled": enabled, "apo_synced": written, "bands": bands})
         elif self.path == "/api/focus_window":
             launch_or_focus_window()
             self._send_json({"status": "ok", "action": "focused"})

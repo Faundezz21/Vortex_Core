@@ -1929,6 +1929,23 @@ body {
   padding: 18px 22px;
 }
 
+.eq-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle-pill.eq-off {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-secondary);
+}
+
+.toggle-pill.eq-off:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
 .eq-status-badge {
   font-size: 10.5px;
   font-weight: 800;
@@ -1938,6 +1955,30 @@ body {
   padding: 3px 10px;
   border-radius: 5px;
   border: 1px solid rgba(0, 240, 255, 0.25);
+  transition: all 0.2s ease;
+}
+
+.eq-status-badge.muted-badge {
+  color: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.eq-bypass-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: 10px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.eq-bypass-banner strong {
+  color: var(--accent-cyan);
 }
 
 .eq-bands-wrapper {
@@ -1949,6 +1990,13 @@ body {
   padding: 20px 18px 16px;
   margin: 12px 0 16px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+.eq-bands-wrapper.eq-bypassed {
+  opacity: 0.35;
+  filter: grayscale(0.9);
+  pointer-events: none;
 }
 
 .eq-band-col {

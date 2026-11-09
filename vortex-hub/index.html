@@ -823,21 +823,29 @@
                 <button class="audio-preset-card" data-preset="flat" onclick="applyAudioPreset('flat')">
                   <span class="apc-icon">⚖️</span>
                   <div class="apc-text">
-                    <strong>Plano / Neutral (Flat)</strong>
-                    <small>0 dB en todo el espectro acústico. Respuesta de estudio plana original.</small>
+                    <strong>Plano / Normal (Bypass 0 dB)</strong>
+                    <small>0 dB en todo el espectro acústico. Respuesta de audio normal original de fábrica sin alterar.</small>
                   </div>
                 </button>
               </div>
             </div>
 
             <!-- ECUALIZADOR GRÁFICO TÁCTICO DE 10 BANDAS -->
-            <div class="glass-card eq-console-panel">
+            <div class="glass-card eq-console-panel" id="eq-main-panel">
               <div class="panel-header">
                 <div>
                   <h3>Ecualizador Paramétrico de 10 Bandas (-12 dB a +12 dB)</h3>
                   <small class="panel-subtitle">Calibración precisa del espectro de frecuencias audible de 31 Hz a 16 kHz</small>
                 </div>
-                <div class="eq-status-badge" id="eq-current-preset-label">Preset Activo: FPS Competitivo</div>
+                <div class="eq-header-controls">
+                  <button class="toggle-pill active" id="btn-toggle-eq" onclick="toggleEqMaster()" title="Activar o Desactivar todo el ecualizador">🟢 EQ ACTIVADO</button>
+                  <div class="eq-status-badge" id="eq-current-preset-label">Preset Activo: FPS Competitivo</div>
+                </div>
+              </div>
+
+              <!-- AVISO DE MODO BYPASS / NORMAL -->
+              <div class="eq-bypass-banner" id="eq-bypass-notice" style="display: none;">
+                <span>ℹ️ <strong>Modo Bypass Activo:</strong> El ecualizador está apagado. El audio funciona de manera normal y original de fábrica sin alteraciones acústicas.</span>
               </div>
 
               <!-- SLIDERS VERTICALES DE FRECUENCIA -->

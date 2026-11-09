@@ -713,8 +713,85 @@ function initWebAudioEngine() {
   masterGainNode.connect(webAudioCtx.destination);
 }
 
+let isEqEnabled = true;
+let previousBandsBeforeDisable = [2, -1, -2, 0, 1, 2, 5, 6, 4, 2];
+let previousPresetBeforeDisable = "fps";
+
+function toggleEqMaster() {
+  setEqEnabled(!isEqEnabled);
+}
+
+function setEqEnabled(enable) {
+  isEqEnabled = enable;
+  const btn = document.getElementById("btn-toggle-eq");
+  const badge = document.getElementById("eq-current-preset-label");
+  const wrapper = document.querySelector(".eq-bands-wrapper");
+  const banner = document.getElementById("eq-bypass-notice");
+  const bassBtn = document.getElementById("btn-bass-boost");
+  const voiceBtn = document.getElementById("btn-voice-clarity");
+
+  if (!isEqEnabled) {
+    previousBandsBeforeDisable = [...currentEqBands];
+    previousPresetBeforeDisable = activePresetKey;
+
+    if (btn) {
+      btn.className = "toggle-pill eq-off";
+      btn.textContent = "⚪ EQ DESACTIVADO (MODO NORMAL)";
+    }
+    if (badge) {
+      badge.textContent = "Estado: DESACTIVADO (Modo Normal / Bypass)";
+      badge.classList.add("muted-badge");
+    }
+    if (wrapper) wrapper.classList.add("eq-bypassed");
+    if (banner) banner.style.display = "flex";
+
+    document.querySelectorAll(".audio-preset-card").forEach(c => c.classList.remove("active"));
+    const flatCard = document.querySelector('.audio-preset-card[data-preset="flat"]');
+    if (flatCard) flatCard.classList.add("active");
+
+    initWebAudioEngine();
+    if (webAudioCtx && eqFilterNodes.length > 0) {
+      eqFilterNodes.forEach(node => {
+        node.gain.setTargetAtTime(0, webAudioCtx.currentTime, 0.05);
+      });
+    }
+
+    logConsole("⚪ Ecualizador DESACTIVADO. Sonido normal original de fábrica restaurado (Modo Bypass).");
+  } else {
+    if (btn) {
+      btn.className = "toggle-pill active";
+      btn.textContent = "🟢 EQ ACTIVADO";
+    }
+    if (badge) badge.classList.remove("muted-badge");
+    if (wrapper) wrapper.classList.remove("eq-bypassed");
+    if (banner) banner.style.display = "none";
+
+    if (previousPresetBeforeDisable && previousPresetBeforeDisable !== "flat") {
+      applyAudioPreset(previousPresetBeforeDisable);
+    } else {
+      currentEqBands = [...previousBandsBeforeDisable];
+      currentEqBands.forEach((val, idx) => {
+        const slider = document.querySelector(`.eq-slider[data-band="${idx}"]`);
+        if (slider) slider.value = val;
+        const dbText = document.getElementById(`db-val-${idx}`);
+        if (dbText) dbText.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+        updateDspFilterGain(idx, val);
+      });
+      if (badge) badge.textContent = `Preset Activo: Personalizado`;
+    }
+
+    logConsole("🟢 Ecualizador ACTIVADO. Perfil acústico en funcionamiento.");
+  }
+
+  sendEqToBackend();
+}
+
 function updateDspFilterGain(idx, dbVal) {
   if (eqFilterNodes[idx] && webAudioCtx) {
+    if (!isEqEnabled) {
+      eqFilterNodes[idx].gain.setTargetAtTime(0, webAudioCtx.currentTime, 0.05);
+      return;
+    }
     let effectiveDb = parseFloat(dbVal);
     // Aplicar realce adicional si Bass Boost está activo en sub-graves
     if (extraBassBoostActive && (idx === 0 || idx === 1)) {
@@ -734,6 +811,22 @@ function applyAudioPreset(presetKey) {
   activePresetKey = presetKey;
   currentEqBands = [...preset.vals];
 
+  // Si se selecciona un perfil y el ecualizador estaba apagado, encenderlo
+  if (!isEqEnabled && presetKey !== "flat") {
+    isEqEnabled = true;
+    const btn = document.getElementById("btn-toggle-eq");
+    const wrapper = document.querySelector(".eq-bands-wrapper");
+    const banner = document.getElementById("eq-bypass-notice");
+    const badge = document.getElementById("eq-current-preset-label");
+    if (btn) {
+      btn.className = "toggle-pill active";
+      btn.textContent = "🟢 EQ ACTIVADO";
+    }
+    if (badge) badge.classList.remove("muted-badge");
+    if (wrapper) wrapper.classList.remove("eq-bypassed");
+    if (banner) banner.style.display = "none";
+  }
+
   initWebAudioEngine();
 
   document.querySelectorAll(".audio-preset-card").forEach(c => {
@@ -741,7 +834,13 @@ function applyAudioPreset(presetKey) {
   });
 
   const lbl = document.getElementById("eq-current-preset-label");
-  if (lbl) lbl.textContent = `Preset Activo: ${preset.name}`;
+  if (lbl) {
+    if (presetKey === "flat") {
+      lbl.textContent = `Preset Activo: Plano / Normal (Bypass 0 dB)`;
+    } else {
+      lbl.textContent = `Preset Activo: ${preset.name}`;
+    }
+  }
 
   preset.vals.forEach((val, idx) => {
     const slider = document.querySelector(`.eq-slider[data-band="${idx}"]`);
@@ -758,6 +857,22 @@ function applyAudioPreset(presetKey) {
 
 function updateEqBand(idx, val) {
   initWebAudioEngine();
+
+  if (!isEqEnabled) {
+    isEqEnabled = true;
+    const btn = document.getElementById("btn-toggle-eq");
+    const wrapper = document.querySelector(".eq-bands-wrapper");
+    const banner = document.getElementById("eq-bypass-notice");
+    const badge = document.getElementById("eq-current-preset-label");
+    if (btn) {
+      btn.className = "toggle-pill active";
+      btn.textContent = "🟢 EQ ACTIVADO";
+    }
+    if (badge) badge.classList.remove("muted-badge");
+    if (wrapper) wrapper.classList.remove("eq-bypassed");
+    if (banner) banner.style.display = "none";
+  }
+
   const dbVal = parseFloat(val);
   currentEqBands[idx] = dbVal;
 
@@ -779,10 +894,11 @@ async function sendEqToBackend() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bands: currentEqBands,
-        preset: activePresetKey,
-        bass_boost: extraBassBoostActive,
-        voice_clarity: voiceClarityActive
+        enabled: isEqEnabled,
+        bands: isEqEnabled ? currentEqBands : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        preset: isEqEnabled ? activePresetKey : "flat",
+        bass_boost: isEqEnabled ? extraBassBoostActive : false,
+        voice_clarity: isEqEnabled ? voiceClarityActive : false
       })
     });
   } catch (err) {}
