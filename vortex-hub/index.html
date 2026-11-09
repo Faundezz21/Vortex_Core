@@ -735,6 +735,40 @@
               </div>
             </div>
 
+            <!-- MEZCLADOR DE VOLUMEN POR APLICACIÓN (EARTRUMPET SUITE) -->
+            <div class="glass-card eartrumpet-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Mezclador de Volumen por Aplicación (EarTrumpet Suite)</h3>
+                  <small class="panel-subtitle">Control individual de volumen y silencio para Spotify, Juegos, Discord y Navegador en tiempo real</small>
+                </div>
+                <div class="et-header-actions">
+                  <button class="clean-btn mini" onclick="refreshAudioMixer()">🔄 Actualizar Apps</button>
+                </div>
+              </div>
+
+              <!-- CONTROL DE VOLUMEN MASTER -->
+              <div class="et-master-row">
+                <div class="et-master-info">
+                  <span class="et-master-icon" id="master-vol-icon">🔊</span>
+                  <div class="et-master-titles">
+                    <strong>Volumen General del Sistema</strong>
+                    <small id="master-device-label">Altavoces / Auriculares</small>
+                  </div>
+                </div>
+                <div class="et-slider-container">
+                  <input type="range" min="0" max="100" value="50" class="et-slider" id="master-volume-slider" oninput="onMasterVolumeInput(this.value)">
+                  <span class="et-vol-val" id="master-vol-text">50%</span>
+                </div>
+                <button class="et-mute-btn" id="master-mute-btn" onclick="toggleMasterMute()" title="Silenciar / Activar Sonido">🔊</button>
+              </div>
+
+              <!-- GRID DE APPS ACTIVAS (SPOTIFY, DISCORD, CS2, CHROME) -->
+              <div class="et-apps-grid" id="et-apps-grid">
+                <div class="dev-item-loading">Consultando aplicaciones con audio activo...</div>
+              </div>
+            </div>
+
             <!-- REPRODUCTOR DE PRUEBA EN VIVO CON FILTROS REALES WEB AUDIO API -->
             <div class="glass-card audio-live-test-card">
               <div class="altc-info">

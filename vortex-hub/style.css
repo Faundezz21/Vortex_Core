@@ -2094,3 +2094,163 @@ body {
   color: var(--text-secondary);
   line-height: 1.45;
 }
+
+/* ==========================================================================
+   14. EARTRUMPET APP VOLUME MIXER SUITE
+   ========================================================================== */
+.eartrumpet-panel {
+  padding: 18px 22px;
+  background: linear-gradient(135deg, rgba(0, 136, 255, 0.08) 0%, rgba(14, 19, 28, 0.95) 100%);
+  border-color: rgba(0, 136, 255, 0.25);
+}
+
+.et-master-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 8px 0 14px;
+}
+
+.et-master-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.et-master-icon {
+  font-size: 20px;
+}
+
+.et-master-titles strong {
+  font-size: 12px;
+  color: #fff;
+  display: block;
+}
+
+.et-master-titles small {
+  font-size: 9.5px;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+.et-slider-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.et-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+}
+
+.et-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.et-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.et-vol-val {
+  font-size: 11px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+  min-width: 40px;
+  text-align: right;
+}
+
+.et-mute-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.et-mute-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.et-mute-btn.muted {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+/* APPS GRID */
+.et-apps-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.app-volume-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.app-volume-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.avc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.avc-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.avc-icon {
+  font-size: 16px;
+}
+
+.avc-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.avc-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

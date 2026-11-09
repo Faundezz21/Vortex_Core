@@ -25,6 +25,162 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
+try:
+    from pycaw.pycaw import AudioUtilities
+    import comtypes
+    HAS_PYCAW = True
+except Exception:
+    HAS_PYCAW = False
+
+
+def get_audio_mixer_data() -> dict:
+    """Obtiene el volumen maestro y todas las aplicaciones con audio activo (estilo EarTrumpet)."""
+    res = {
+        "master": {"volume": 50, "muted": False, "device_name": "Altavoces / Auriculares"},
+        "apps": []
+    }
+    if not HAS_PYCAW:
+        return res
+
+    try:
+        comtypes.CoInitialize()
+        spk = AudioUtilities.GetSpeakers()
+        if spk:
+            vol = spk.EndpointVolume
+            res["master"]["volume"] = int(round(vol.GetMasterVolumeLevelScalar() * 100))
+            res["master"]["muted"] = bool(vol.GetMute())
+            res["master"]["device_name"] = getattr(spk, "FriendlyName", "Altavoces")
+    except Exception:
+        pass
+
+    try:
+        sessions = AudioUtilities.GetAllSessions()
+        for s in sessions:
+            try:
+                v = s.SimpleAudioVolume
+                vol_pct = int(round(v.GetMasterVolume() * 100))
+                muted = bool(v.GetMute())
+                if s.Process:
+                    raw_name = s.Process.name()
+                    pid = s.ProcessId
+                else:
+                    raw_name = "Sonidos del Sistema"
+                    pid = 0
+
+                # Evitar entradas vacías o duplicados exactos de PID
+                if any(x["pid"] == pid and x["name"] == raw_name for x in res["apps"]):
+                    continue
+
+                nl = raw_name.lower()
+                if "spotify" in nl:
+                    disp = "Spotify"
+                    icon = "🎵"
+                elif "discord" in nl:
+                    disp = "Discord"
+                    icon = "💬"
+                elif "chrome" in nl:
+                    disp = "Google Chrome"
+                    icon = "🌐"
+                elif "brave" in nl:
+                    disp = "Brave Browser"
+                    icon = "🦁"
+                elif "edge" in nl:
+                    disp = "Microsoft Edge"
+                    icon = "🌊"
+                elif "steam" in nl:
+                    disp = "Steam"
+                    icon = "🎮"
+                elif any(g in nl for g in ["cs2", "valorant", "cyberpunk", "cod", "fortnite", "apex", "game"]):
+                    disp = raw_name.replace(".exe", "")
+                    icon = "🎯"
+                elif "system" in nl or "sonidos" in nl:
+                    disp = "Sonidos del Sistema"
+                    icon = "🔔"
+                else:
+                    disp = raw_name.replace(".exe", "")
+                    icon = "🔊"
+
+                res["apps"].append({
+                    "pid": pid,
+                    "name": raw_name,
+                    "display_name": disp,
+                    "volume": vol_pct,
+                    "muted": muted,
+                    "icon": icon
+                })
+            except Exception:
+                pass
+    except Exception:
+        pass
+    finally:
+        try:
+            comtypes.CoUninitialize()
+        except Exception:
+            pass
+
+    return res
+
+
+def set_app_volume_state(pid: int = None, name: str = None, volume: float = None, muted: bool = None) -> bool:
+    """Ajusta el volumen o silencio de una app específica (como Spotify) en Windows."""
+    if not HAS_PYCAW:
+        return False
+    found = False
+    try:
+        comtypes.CoInitialize()
+        sessions = AudioUtilities.GetAllSessions()
+        for s in sessions:
+            match = False
+            if pid is not None and pid != 0 and s.ProcessId == pid:
+                match = True
+            elif s.Process and name and s.Process.name().lower() == name.lower():
+                match = True
+            elif not s.Process and name and any(k in name.lower() for k in ["system", "sonidos"]):
+                match = True
+
+            if match:
+                v = s.SimpleAudioVolume
+                if volume is not None:
+                    target = max(0.0, min(1.0, float(volume) / 100.0))
+                    v.SetMasterVolume(target, None)
+                if muted is not None:
+                    v.SetMute(bool(muted), None)
+                found = True
+    except Exception:
+        pass
+    finally:
+        try:
+            comtypes.CoUninitialize()
+        except Exception:
+            pass
+    return found
+
+
+def set_master_volume_state(volume: float = None, muted: bool = None) -> bool:
+    """Ajusta el volumen general del dispositivo de salida de Windows."""
+    if not HAS_PYCAW:
+        return False
+    ok = False
+    try:
+        comtypes.CoInitialize()
+        spk = AudioUtilities.GetSpeakers()
+        if spk:
+            vol = spk.EndpointVolume
+            if volume is not None:
+                val = max(0.0, min(1.0, float(volume) / 100.0))
+                vol.SetMasterVolumeLevelScalar(val, None)
+            if muted is not None:
+                vol.SetMute(bool(muted), None)
+            ok = True
+    except Exception:
+        pass
+    finally:
+        try:
+            comtypes.CoUninitialize()
+        except Exception:
+            pass
+    return ok
+
 CREATE_NO_WINDOW = 0x08000000
 PORT = 8765
 
@@ -519,6 +675,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(manager.telemetry).encode("utf-8"))
         elif self.path == "/api/autostart":
             self._send_json({"enabled": is_autostart_enabled()})
+        elif self.path == "/api/audio_mixer":
+            self._send_json(get_audio_mixer_data())
         elif self.path == "/api/top_processes":
             procs = []
             if HAS_PSUTIL:
@@ -547,6 +705,18 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             mode = data.get("mode", "auto")
             manager.set_fan(mode)
             self._send_json({"status": "ok", "fan": mode})
+        elif self.path == "/api/set_master_volume":
+            vol = data.get("volume")
+            muted = data.get("muted")
+            ok = set_master_volume_state(vol, muted)
+            self._send_json({"status": "ok" if ok else "error"})
+        elif self.path == "/api/set_app_volume":
+            pid = data.get("pid")
+            name = data.get("name")
+            vol = data.get("volume")
+            muted = data.get("muted")
+            ok = set_app_volume_state(pid, name, vol, muted)
+            self._send_json({"status": "ok" if ok else "error"})
         elif self.path == "/api/set_cpu_limit":
             max_pct = int(data.get("max_pct", 100))
             manager.set_cpu_limit(max_pct)

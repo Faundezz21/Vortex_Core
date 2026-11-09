@@ -43,6 +43,17 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     if (targetId === "tab-booster") {
       refreshTopProcesses();
     }
+    if (targetId === "tab-audio") {
+      refreshAudioMixer();
+      if (!audioMixerInterval) {
+        audioMixerInterval = setInterval(refreshAudioMixer, 3500);
+      }
+    } else {
+      if (audioMixerInterval) {
+        clearInterval(audioMixerInterval);
+        audioMixerInterval = null;
+      }
+    }
   });
 });
 
@@ -949,6 +960,216 @@ function toggleAudioEnhance(type) {
 }
 
 // -------------------------------------------------------------
+// MEZCLADOR DE AUDIO POR APLICACIÓN (EARTRUMPET SUITE)
+// -------------------------------------------------------------
+let audioMixerInterval = null;
+let currentMasterMuted = false;
+let currentMasterVolume = 50;
+let masterDebounceTimer = null;
+let appDebounceTimers = {};
+let isUserInteractingWithAudio = false;
+let userInteractionTimeout = null;
+
+function markAudioInteraction() {
+  isUserInteractingWithAudio = true;
+  clearTimeout(userInteractionTimeout);
+  userInteractionTimeout = setTimeout(() => {
+    isUserInteractingWithAudio = false;
+  }, 1200);
+}
+
+function getAppIcon(name) {
+  const n = (name || "").toLowerCase();
+  if (n.includes("spotify")) return "🎵";
+  if (n.includes("discord")) return "💬";
+  if (n.includes("chrome")) return "🌐";
+  if (n.includes("brave")) return "🦁";
+  if (n.includes("edge")) return "🌊";
+  if (n.includes("firefox")) return "🦊";
+  if (n.includes("steam") || n.includes("cs2") || n.includes("valorant") || n.includes("game")) return "🎮";
+  if (n.includes("sistema") || n.includes("system")) return "🔔";
+  return "🔊";
+}
+
+function getAppDisplayName(rawName, defaultDisp) {
+  if (defaultDisp) return defaultDisp;
+  if (!rawName) return "Aplicación";
+  if (rawName.toLowerCase().endsWith(".exe")) {
+    return rawName.slice(0, -4);
+  }
+  return rawName;
+}
+
+async function refreshAudioMixer() {
+  try {
+    const res = await fetch(`${API_BASE}/api/audio_mixer`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // 1. Master Volume
+    if (data.master && !isUserInteractingWithAudio) {
+      currentMasterMuted = !!data.master.muted;
+      currentMasterVolume = data.master.volume ?? 50;
+
+      const slider = document.getElementById("master-volume-slider");
+      const valText = document.getElementById("master-vol-text");
+      const muteBtn = document.getElementById("master-mute-btn");
+      const icon = document.getElementById("master-vol-icon");
+      const devLbl = document.getElementById("master-device-label");
+
+      if (slider) slider.value = currentMasterVolume;
+      if (valText) valText.textContent = `${currentMasterVolume}%`;
+      if (devLbl && data.master.device_name) {
+        devLbl.textContent = data.master.device_name;
+        const heroDevice = document.getElementById("active-audio-device-name");
+        if (heroDevice) heroDevice.textContent = data.master.device_name;
+      }
+      if (muteBtn) {
+        muteBtn.classList.toggle("muted", currentMasterMuted);
+        muteBtn.textContent = currentMasterMuted ? "🔇" : "🔊";
+      }
+      if (icon) {
+        icon.textContent = currentMasterMuted ? "🔇" : "🔊";
+      }
+    }
+
+    // 2. Apps Sessions
+    const grid = document.getElementById("et-apps-grid");
+    if (!grid) return;
+
+    const apps = data.apps || [];
+    if (apps.length === 0) {
+      grid.innerHTML = `<div class="dev-item-loading" style="grid-column: 1 / -1; text-align: center; padding: 14px;">No hay aplicaciones reproduciendo audio en este momento.<br><small style="color: var(--text-secondary); font-size: 11px;">Abre Spotify, YouTube, Discord o un juego para controlar su volumen individual.</small></div>`;
+      return;
+    }
+
+    // Si el usuario está interactuando con sliders, no regenerar el HTML completo
+    if (isUserInteractingWithAudio) return;
+
+    let html = "";
+    apps.forEach(app => {
+      const icon = app.icon || getAppIcon(app.name);
+      const disp = app.display_name || getAppDisplayName(app.name);
+      const vol = app.volume ?? 100;
+      const isMuted = !!app.muted;
+      const cleanName = (app.name || "").replace(/'/g, "\\'");
+
+      html += `
+        <div class="app-volume-card" id="avc-card-${app.pid}">
+          <div class="avc-header">
+            <div class="avc-title-box">
+              <span class="avc-icon">${icon}</span>
+              <span class="avc-name" title="${app.name} (PID: ${app.pid})">${disp}</span>
+            </div>
+            <button class="et-mute-btn ${isMuted ? 'muted' : ''}" id="avc-mute-${app.pid}" onclick="toggleAppMute(${app.pid}, '${cleanName}', ${isMuted})" title="Silenciar / Activar">
+              ${isMuted ? '🔇' : '🔊'}
+            </button>
+          </div>
+          <div class="avc-slider-wrap">
+            <input type="range" min="0" max="100" value="${vol}" class="et-slider" id="avc-slider-${app.pid}" oninput="onAppVolumeChange(${app.pid}, '${cleanName}', this.value)">
+            <span class="et-vol-val" id="avc-vol-text-${app.pid}">${vol}%</span>
+          </div>
+        </div>
+      `;
+    });
+
+    grid.innerHTML = html;
+  } catch (err) {
+    console.error("Error al obtener mezclador de audio:", err);
+  }
+}
+
+function onMasterVolumeInput(val) {
+  markAudioInteraction();
+  const num = parseInt(val) || 0;
+  const textEl = document.getElementById("master-vol-text");
+  if (textEl) textEl.textContent = `${num}%`;
+
+  const muteBtn = document.getElementById("master-mute-btn");
+  const masterIcon = document.getElementById("master-vol-icon");
+  if (num === 0) {
+    if (muteBtn) muteBtn.classList.add("muted");
+    if (masterIcon) masterIcon.textContent = "🔇";
+  } else if (!currentMasterMuted) {
+    if (muteBtn) muteBtn.classList.remove("muted");
+    if (masterIcon) masterIcon.textContent = "🔊";
+  }
+
+  clearTimeout(masterDebounceTimer);
+  masterDebounceTimer = setTimeout(async () => {
+    try {
+      await fetch(`${API_BASE}/api/set_master_volume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ volume: num, muted: false })
+      });
+      currentMasterMuted = false;
+    } catch (e) {}
+  }, 40);
+}
+
+async function toggleMasterMute() {
+  markAudioInteraction();
+  currentMasterMuted = !currentMasterMuted;
+  const muteBtn = document.getElementById("master-mute-btn");
+  const masterIcon = document.getElementById("master-vol-icon");
+  if (muteBtn) {
+    muteBtn.classList.toggle("muted", currentMasterMuted);
+    muteBtn.textContent = currentMasterMuted ? "🔇" : "🔊";
+  }
+  if (masterIcon) {
+    masterIcon.textContent = currentMasterMuted ? "🔇" : "🔊";
+  }
+
+  try {
+    await fetch(`${API_BASE}/api/set_master_volume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ muted: currentMasterMuted })
+    });
+  } catch (e) {}
+}
+
+function onAppVolumeChange(pid, name, val) {
+  markAudioInteraction();
+  const num = parseInt(val) || 0;
+  const textEl = document.getElementById(`avc-vol-text-${pid}`);
+  if (textEl) textEl.textContent = `${num}%`;
+
+  if (appDebounceTimers[pid]) {
+    clearTimeout(appDebounceTimers[pid]);
+  }
+  appDebounceTimers[pid] = setTimeout(async () => {
+    try {
+      await fetch(`${API_BASE}/api/set_app_volume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pid: pid, name: name, volume: num, muted: false })
+      });
+    } catch (e) {}
+  }, 40);
+}
+
+async function toggleAppMute(pid, name, currentMuted) {
+  markAudioInteraction();
+  const newMuted = !currentMuted;
+  const btn = document.getElementById(`avc-mute-${pid}`);
+  if (btn) {
+    btn.classList.toggle("muted", newMuted);
+    btn.textContent = newMuted ? "🔇" : "🔊";
+    btn.setAttribute("onclick", `toggleAppMute(${pid}, '${name}', ${newMuted})`);
+  }
+
+  try {
+    await fetch(`${API_BASE}/api/set_app_volume`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pid: pid, name: name, muted: newMuted })
+    });
+  } catch (e) {}
+}
+
+// -------------------------------------------------------------
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
@@ -956,5 +1177,6 @@ window.addEventListener("DOMContentLoaded", () => {
   updateTelemetry();
   checkAutostart();
   refreshTopProcesses();
+  refreshAudioMixer();
   setInterval(updateTelemetry, 500);
 });
