@@ -1,16 +1,16 @@
 :root {
-  --bg-app: #080a10;
-  --bg-sidebar: #0c0f17;
-  --bg-card: rgba(18, 22, 33, 0.75);
-  --bg-card-hover: rgba(24, 30, 45, 0.85);
-  --bg-card-active: rgba(30, 38, 58, 0.95);
+  --bg-app: #080c11;
+  --bg-sidebar: #0b0f16;
+  --bg-card: rgba(14, 19, 28, 0.75);
+  --bg-card-hover: rgba(20, 27, 40, 0.85);
+  --bg-card-active: rgba(24, 34, 52, 0.95);
   
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.07);
   --border-focus: rgba(0, 240, 255, 0.4);
-  --border-highlight: rgba(255, 255, 255, 0.15);
+  --border-highlight: rgba(255, 255, 255, 0.12);
   
   --accent-cyan: #00f0ff;
-  --accent-blue: #0099ff;
+  --accent-blue: #0088ff;
   --accent-orange: #ff7700;
   --accent-green: #00ffaa;
   --accent-red: #ff3344;
@@ -20,10 +20,13 @@
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
 
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
   --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.25);
   --glow-orange: 0 0 20px rgba(255, 119, 0, 0.25);
   --glow-green: 0 0 20px rgba(0, 255, 170, 0.25);
-  --glow-blue: 0 0 20px rgba(0, 153, 255, 0.25);
+  --glow-blue: 0 0 20px rgba(0, 136, 255, 0.25);
 }
 
 * {
@@ -36,45 +39,37 @@
 body {
   background: var(--bg-app);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   position: relative;
 }
 
-/* EFECTOS AMBIENTALES DE ILUMINACIÓN */
+/* EFECTOS AMBIENTALES DE ILUMINACIÓN SUTIL */
 .ambient-glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(140px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.18;
+  opacity: 0.15;
 }
 
 .glow-cyan {
-  width: 450px;
-  height: 450px;
+  width: 500px;
+  height: 500px;
   background: var(--accent-cyan);
-  top: -100px;
-  left: 200px;
-}
-
-.glow-orange {
-  width: 400px;
-  height: 400px;
-  background: var(--accent-orange);
-  top: 15%;
-  right: -50px;
+  top: -120px;
+  left: 220px;
 }
 
 .glow-blue {
-  width: 500px;
-  height: 500px;
+  width: 550px;
+  height: 550px;
   background: var(--accent-blue);
   bottom: -150px;
-  left: 30%;
+  right: 5%;
 }
 
 .app-layout {
@@ -84,14 +79,16 @@ body {
   z-index: 1;
 }
 
-/* 1. SIDEBAR LATERAL TÁCTICO */
+/* ==========================================================================
+   1. SIDEBAR LATERAL PROFESIONAL
+   ========================================================================== */
 .sidebar {
-  width: 236px;
+  width: 242px;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 22px 14px;
+  padding: 20px 14px;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 
@@ -99,18 +96,17 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   padding-left: 6px;
 }
 
 .brand-badge {
   width: 38px;
   height: 38px;
-  background: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
-  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.45));
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.5));
 }
 
 .brand-img {
@@ -119,34 +115,29 @@ body {
   object-fit: contain;
 }
 
-.brand-icon {
-  width: 20px;
-  height: 20px;
-  fill: #000;
-}
-
 .brand-text h2 {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.8px;
+  font-family: var(--font-sans);
 }
 
 .brand-text h2 span {
   color: var(--accent-cyan);
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
 }
 
 .version-label {
   font-size: 10px;
   color: var(--text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.5px;
 }
 
 .nav-menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
 }
 
@@ -159,11 +150,12 @@ body {
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
-  padding: 11px 14px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 9px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
+  font-family: var(--font-sans);
 }
 
 .nav-icon {
@@ -171,12 +163,13 @@ body {
   height: 18px;
   fill: currentColor;
   transition: transform 0.2s;
+  flex-shrink: 0;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.08);
   transform: translateX(3px);
 }
 
@@ -192,47 +185,11 @@ body {
   filter: drop-shadow(0 0 6px var(--accent-cyan));
 }
 
-.sidebar-footer {
-  padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.system-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--accent-green);
-  background: rgba(0, 255, 170, 0.1);
-  padding: 7px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(0, 255, 170, 0.25);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.pulse-indicator {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-green);
-  box-shadow: 0 0 10px var(--accent-green);
-  animation: pulseLight 2s infinite;
-}
-
-@keyframes pulseLight {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
-}
-
-/* SECCIÓN DE DISPOSITIVOS Y BATERÍA EN EL SIDEBAR */
+/* SECCIÓN DE BATERÍA Y PERIFÉRICOS EN EL SIDEBAR */
 .sidebar-devices-section {
   margin: 12px 0 10px;
   padding: 10px 8px;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.28);
   border-radius: 9px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -242,7 +199,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-  padding: 0 2px;
+  padding: 0 4px;
 }
 
 .sds-title {
@@ -250,7 +207,7 @@ body {
   font-weight: 800;
   color: var(--text-tertiary);
   letter-spacing: 0.8px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .sds-count {
@@ -260,14 +217,14 @@ body {
   color: var(--accent-cyan);
   padding: 1px 6px;
   border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .sds-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 165px;
+  max-height: 160px;
   overflow-y: auto;
 }
 
@@ -323,7 +280,7 @@ body {
 .dev-status {
   font-size: 8.5px;
   color: var(--text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .dev-battery-box {
@@ -337,7 +294,7 @@ body {
 .dev-bat-pct {
   font-size: 9.5px;
   font-weight: 800;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   color: var(--accent-green);
 }
 
@@ -367,10 +324,46 @@ body {
   color: var(--text-tertiary);
   text-align: center;
   padding: 6px 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
-/* CRÉDITO DEL DESARROLLADOR */
+/* PIE DE SIDEBAR */
+.sidebar-footer {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.system-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-green);
+  background: rgba(0, 255, 170, 0.08);
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  font-family: var(--font-mono);
+}
+
+.pulse-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 10px var(--accent-green);
+  animation: pulseLight 2s infinite;
+}
+
+@keyframes pulseLight {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
 .developer-credit-box {
   display: flex;
   flex-direction: column;
@@ -388,7 +381,7 @@ body {
   font-weight: 800;
   color: var(--text-tertiary);
   letter-spacing: 1px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .dev-credit-name {
@@ -397,15 +390,17 @@ body {
   color: var(--accent-cyan);
   letter-spacing: 0.5px;
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
-/* 2. ÁREA PRINCIPAL */
+/* ==========================================================================
+   2. ÁREA PRINCIPAL & CABECERA
+   ========================================================================== */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 22px 28px;
+  padding: 20px 26px;
   overflow: hidden;
 }
 
@@ -413,7 +408,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.breadcrumb-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  margin-bottom: 2px;
 }
 
 .header-titles h1 {
@@ -424,27 +428,44 @@ body {
   text-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
-.header-titles p {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 3px;
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.quick-status {
+.health-chip {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: rgba(0, 255, 170, 0.1);
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  color: var(--accent-green);
+  font-size: 11px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+}
+
+.hc-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
 }
 
 .profile-chip, .fan-chip {
   font-size: 11px;
   font-weight: 700;
-  padding: 7px 14px;
+  padding: 6px 12px;
   border-radius: 7px;
   background: var(--bg-card);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-subtle);
   color: var(--accent-cyan);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
@@ -453,7 +474,7 @@ body {
 
 .fan-chip {
   color: var(--accent-blue);
-  border-color: rgba(0, 153, 255, 0.3);
+  border-color: rgba(0, 136, 255, 0.3);
 }
 
 .fan-mini-icon {
@@ -470,7 +491,20 @@ body {
   to { transform: rotate(360deg); }
 }
 
-/* VISTAS */
+.clock-display {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border-subtle);
+}
+
+/* ==========================================================================
+   3. CONTENEDOR DE PESTAÑAS (VIEWS)
+   ========================================================================== */
 .views-wrapper {
   flex: 1;
   overflow: hidden;
@@ -481,16 +515,13 @@ body {
   display: none;
   height: 100%;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   overflow-y: auto;
   padding-right: 6px;
 }
 
 .tab-view::-webkit-scrollbar {
   width: 5px;
-}
-.tab-view::-webkit-scrollbar-track {
-  background: transparent;
 }
 .tab-view::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
@@ -501,28 +532,27 @@ body {
   display: flex;
 }
 
-/* PANELES DE VIDRIO (GLASS PANELS) */
-.glass-panel {
+.glass-card {
   background: var(--bg-card);
   backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   border-top: 1px solid var(--border-highlight);
-  border-radius: 12px;
-  padding: 18px 22px;
+  border-radius: 14px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  position: relative;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .panel-header h3 {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   color: var(--text-primary);
 }
 
@@ -533,11 +563,178 @@ body {
   display: block;
 }
 
-/* TARJETAS DE SENSORES CON DIAL CIRCULAR */
+/* ==========================================================================
+   4. HERO SYSTEM CARD (INSPIRACIÓN IQON)
+   ========================================================================== */
+.hero-system-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(16, 23, 34, 0.9) 0%, rgba(10, 14, 22, 0.9) 100%);
+  border-color: rgba(0, 240, 255, 0.15);
+}
+
+.hsc-content {
+  flex: 1;
+}
+
+.hsc-tag {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+.hsc-titles h2 {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 3px 0 4px;
+  letter-spacing: 0.3px;
+}
+
+.hsc-titles p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+}
+
+.hsc-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.status-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sb-dot.green {
+  background: var(--accent-green);
+  box-shadow: 0 0 10px var(--accent-green);
+}
+
+.sb-dot.cyan {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan);
+}
+
+.sb-dot.orange {
+  background: var(--accent-orange);
+  box-shadow: 0 0 10px var(--accent-orange);
+}
+
+.sb-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-info strong {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sb-info span {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* MEDIDOR TÉRMICO VERTICAL */
+.hsc-thermal-gauge {
+  width: 90px;
+  margin-left: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.htg-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.htg-header span {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--text-tertiary);
+  letter-spacing: 0.8px;
+  font-family: var(--font-mono);
+}
+
+.htg-header strong {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+}
+
+.htg-bar-wrap {
+  width: 14px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.htg-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(0deg, var(--accent-green) 0%, var(--accent-cyan) 60%, var(--accent-orange) 100%);
+  border-radius: 10px;
+  transition: height 0.4s ease;
+}
+
+.htg-needle {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 2px;
+  background: #fff;
+  box-shadow: 0 0 6px #fff;
+  transition: bottom 0.4s ease;
+}
+
+.htg-val {
+  font-size: 14px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: #fff;
+  margin-top: 6px;
+}
+
+/* ==========================================================================
+   5. TACHOMETER GAUGES ROW (DIALES ARCO IQON)
+   ========================================================================== */
 .metrics-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
+  gap: 12px;
 }
 
 .metric-card {
@@ -545,8 +742,8 @@ body {
   backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   border-top: 1px solid var(--border-highlight);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -555,207 +752,233 @@ body {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
-.metric-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  opacity: 0.8;
-}
-
-.card-cpu::before { background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); }
-.card-gpu::before { background: linear-gradient(90deg, transparent, var(--accent-orange), transparent); }
-.card-ram::before { background: linear-gradient(90deg, transparent, var(--accent-green), transparent); }
-.card-fan::before { background: linear-gradient(90deg, transparent, var(--accent-blue), transparent); }
-
 .metric-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .mc-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 4px;
 }
 
-.mc-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: var(--text-secondary);
+.mc-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.mc-badge {
+.mc-tag {
   font-size: 9px;
   font-weight: 800;
-  padding: 3px 7px;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.mc-title-box h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.mc-status-pill {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
   border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
-.mc-badge.cyan { background: rgba(0, 240, 255, 0.12); color: var(--accent-cyan); border: 1px solid rgba(0, 240, 255, 0.3); }
-.mc-badge.orange { background: rgba(255, 119, 0, 0.12); color: var(--accent-orange); border: 1px solid rgba(255, 119, 0, 0.3); }
-.mc-badge.green { background: rgba(0, 255, 170, 0.12); color: var(--accent-green); border: 1px solid rgba(0, 255, 170, 0.3); }
-.mc-badge.blue { background: rgba(0, 153, 255, 0.12); color: var(--accent-blue); border: 1px solid rgba(0, 153, 255, 0.3); }
+.mc-status-pill.green { background: rgba(0, 255, 170, 0.12); color: var(--accent-green); }
+.mc-status-pill.cyan { background: rgba(0, 240, 255, 0.12); color: var(--accent-cyan); }
+.mc-status-pill.orange { background: rgba(255, 119, 0, 0.12); color: var(--accent-orange); }
+.mc-status-pill.blue { background: rgba(0, 136, 255, 0.12); color: var(--accent-blue); }
 
-/* GAUGE RING CIRCULAR */
-.mc-dial-box {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 12px 0 8px;
-}
-
-.gauge-ring-wrap {
-  width: 108px;
-  height: 108px;
+/* SVG TACHOMETER GAUGE */
+.tacho-gauge-box {
   position: relative;
+  width: 100%;
+  height: 98px;
   display: flex;
   justify-content: center;
   align-items: center;
+  margin: 4px 0 8px;
 }
 
-.gauge-svg {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
+.tacho-svg {
+  width: 175px;
+  height: 105px;
+  overflow: visible;
 }
 
-.gauge-track {
+.tacho-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.05);
-  stroke-width: 8;
-}
-
-.gauge-fill {
-  fill: none;
-  stroke-width: 8;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 9;
   stroke-linecap: round;
-  stroke-dasharray: 314.15;
-  stroke-dashoffset: 200;
+}
+
+.tacho-fill {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 235.6; /* Pi * 75 */
+  stroke-dashoffset: 150;
   transition: stroke-dashoffset 0.4s ease;
 }
 
-.gauge-fill.cyan {
+.tacho-fill.cyan {
   stroke: var(--accent-cyan);
-  filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.5));
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.6));
 }
 
-.gauge-fill.orange {
+.tacho-fill.orange {
   stroke: var(--accent-orange);
-  filter: drop-shadow(0 0 6px rgba(255, 119, 0, 0.5));
+  filter: drop-shadow(0 0 8px rgba(255, 119, 0, 0.6));
 }
 
-.gauge-fill.green {
+.tacho-fill.green {
   stroke: var(--accent-green);
-  filter: drop-shadow(0 0 6px rgba(0, 255, 170, 0.5));
+  filter: drop-shadow(0 0 8px rgba(0, 255, 170, 0.6));
 }
 
-.gauge-fill.blue {
+.tacho-fill.blue {
   stroke: var(--accent-blue);
-  filter: drop-shadow(0 0 6px rgba(0, 153, 255, 0.5));
+  filter: drop-shadow(0 0 8px rgba(0, 136, 255, 0.6));
 }
 
-.gauge-label-content {
+.tacho-content {
   position: absolute;
+  bottom: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  text-align: center;
 }
 
-.gauge-value {
-  font-size: 24px;
+.tacho-number {
+  font-size: 26px;
   font-weight: 800;
-  font-family: 'JetBrains Mono', monospace;
-  color: #fff;
+  font-family: var(--font-mono);
   line-height: 1;
+  color: #fff;
+  letter-spacing: -0.5px;
 }
 
-.gauge-value.orange { color: #fff; }
-.gauge-value.green { color: #fff; }
-.gauge-value.blue { color: #fff; }
+.tacho-number.orange { color: #fff; }
+.tacho-number.green { color: #fff; }
+.tacho-number.blue { color: #fff; }
 
-.gauge-unit {
-  font-size: 11px;
+.tacho-unit {
+  font-size: 8.5px;
   font-weight: 700;
   color: var(--text-tertiary);
   margin-top: 3px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
+  letter-spacing: 0.6px;
 }
 
-.mc-meta {
+.mc-bottom-metric {
   display: flex;
   justify-content: space-between;
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 6px;
   font-size: 11px;
 }
 
-.meta-item {
+.mbm-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 5px;
 }
 
-.meta-item span {
-  font-size: 10px;
+.mbm-item span {
   color: var(--text-tertiary);
+  font-size: 10px;
 }
 
-.meta-item b {
-  font-family: 'JetBrains Mono', monospace;
+.mbm-item b {
+  font-family: var(--font-mono);
   color: var(--text-primary);
   font-size: 11px;
 }
 
-.ram-subtext {
-  margin-top: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
+.mc-progress-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.ram-mini-purge-btn {
-  background: rgba(0, 255, 170, 0.15);
-  border: 1px solid rgba(0, 255, 170, 0.3);
-  color: var(--accent-green);
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 9px;
+.mc-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.mc-progress-bar.cyan { background: var(--accent-cyan); }
+.mc-progress-bar.orange { background: var(--accent-orange); }
+.mc-progress-bar.green { background: var(--accent-green); }
+.mc-progress-bar.blue { background: var(--accent-blue); }
+
+/* ==========================================================================
+   6. SPLIT DASHBOARD: GRÁFICO HISTÓRICO + TURBINA PANEL
+   ========================================================================== */
+.dashboard-split {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 12px;
+}
+
+.chart-container {
+  padding: 16px 20px;
+}
+
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.time-range-selector {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.tr-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
   font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.ram-mini-purge-btn:hover {
-  background: var(--accent-green);
-  color: #000;
-  box-shadow: 0 0 10px var(--accent-green);
+.tr-btn:hover {
+  color: var(--text-primary);
 }
 
-/* SEGUNDA FILA: GRÁFICA Y TURBINA */
-.dashboard-split {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 14px;
+.tr-btn.active {
+  background: rgba(0, 240, 255, 0.2);
+  color: var(--accent-cyan);
 }
 
 .chart-legend {
   display: flex;
-  gap: 14px;
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
+  gap: 10px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
 }
 
 .leg.cyan { color: var(--accent-cyan); }
@@ -763,257 +986,587 @@ body {
 
 .canvas-box {
   width: 100%;
-  height: 140px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 145px;
+  margin-top: 6px;
+  position: relative;
 }
 
 #live-chart {
-  width: 100%;
-  height: 100%;
-  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
-/* ACCIONES DE TURBINA */
+/* PANEL LATERAL DE TURBINA Y ACCIONES RÁPIDAS */
+.fan-quick-panel {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
 .quick-fan-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 8px;
+  margin: 6px 0 10px;
 }
 
 .fan-action-btn {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 14px;
+  border-radius: 9px;
   cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: left;
-  transition: all 0.2s ease;
-  color: #fff;
-}
-
-.fan-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-sans);
 }
 
 .fan-action-btn.max {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(255, 119, 0, 0.06) 100%);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(255, 119, 0, 0.15) 100%);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fff;
 }
 
 .fan-action-btn.max:hover {
-  border-color: var(--accent-red);
-  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.28) 0%, rgba(255, 119, 0, 0.28) 100%);
+  border-color: var(--accent-orange);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
 }
 
 .fan-action-btn.auto {
-  background: linear-gradient(135deg, rgba(0, 153, 255, 0.1) 0%, rgba(0, 240, 255, 0.04) 100%);
-  border-color: rgba(0, 153, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }
 
 .fan-action-btn.auto:hover {
+  background: rgba(255, 255, 255, 0.08);
   border-color: var(--accent-cyan);
-  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.25);
+  transform: translateY(-1px);
 }
 
 .fab-icon {
-  font-size: 22px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.fan-rotate-icon.spinning {
-  animation: spinTurbine 0.5s linear infinite;
+.fab-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .fab-info strong {
-  display: block;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.5px;
 }
 
 .fab-info small {
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
 }
 
-.ram-quick-stat {
+.fast-booster-box {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.25);
   padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.ram-quick-stat strong {
+.fbb-info strong {
+  font-size: 11px;
+  display: block;
+}
+
+.fbb-info small {
+  font-size: 9.5px;
   color: var(--accent-green);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
-/* PERFILES TÁCTICOS */
+/* ==========================================================================
+   7. PERFILES INTELIGENTES
+   ========================================================================== */
+.profiles-panel {
+  padding: 16px 20px;
+}
+
 .profiles-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  margin-top: 10px;
 }
 
 .profile-card {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 16px 14px;
+  border-radius: 11px;
+  padding: 14px;
   cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
 }
 
 .profile-card:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
   background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
 }
 
 .profile-card.active {
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.12) 0%, rgba(0, 85, 255, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.12) 0%, rgba(0, 102, 255, 0.05) 100%);
   border-color: var(--accent-cyan);
-  box-shadow: 0 4px 18px rgba(0, 240, 255, 0.25), inset 0 0 12px rgba(0, 240, 255, 0.1);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.2);
 }
 
-.pc-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 9px;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.pc-badge.active {
-  background: var(--accent-cyan);
-  color: #000;
-}
-
-.pc-badge.turbo {
-  background: var(--accent-red);
-  color: #fff;
-}
-
-.pc-icon {
-  font-size: 24px;
+.pc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
 }
 
+.pc-badge {
+  font-size: 9px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-tertiary);
+}
+
+.pc-badge.active {
+  background: rgba(0, 240, 255, 0.2);
+  color: var(--accent-cyan);
+}
+
+.pc-badge.turbo {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--accent-red);
+}
+
+.pc-icon {
+  font-size: 18px;
+}
+
 .profile-card h4 {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 4px;
+  font-size: 12.5px;
+  font-weight: 800;
   color: #fff;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
 }
 
 .profile-card p {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
-/* SETTINGS & CONFIGURACIONES */
+/* ==========================================================================
+   8. TAB 2: HARDWARE INTELLIGENCE
+   ========================================================================== */
 .settings-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
+.intel-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, rgba(0, 255, 170, 0.08) 0%, rgba(14, 19, 28, 0.9) 100%);
+  border-color: rgba(0, 255, 170, 0.25);
+}
+
+.ih-score-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 255, 170, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 170, 0.15);
+  flex-shrink: 0;
+}
+
+.ih-score-num {
+  font-size: 34px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--accent-green);
+  line-height: 1;
+}
+
+.ih-score-label {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  margin-top: 4px;
+  letter-spacing: 0.8px;
+}
+
+.ih-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.ih-badge.green {
+  background: rgba(0, 255, 170, 0.15);
+  color: var(--accent-green);
+}
+
+.ih-info h3 {
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.ih-info p {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.intel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.intel-card {
+  padding: 16px 18px;
+}
+
+.ic-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ic-icon {
+  font-size: 18px;
+}
+
+.ic-head h4 {
+  font-size: 13px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.ic-status {
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.ic-status.green { background: rgba(0, 255, 170, 0.12); color: var(--accent-green); }
+.ic-status.orange { background: rgba(255, 119, 0, 0.12); color: var(--accent-orange); }
+
+.intel-card p {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+
+.ic-meta {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 6px;
+}
+
+.advice-box {
+  padding: 16px 20px;
+}
+
+.advice-box h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.advice-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.advice-list li {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  border-left: 2px solid var(--accent-cyan);
+}
+
+.advice-list li strong {
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   9. TAB 3: COOLING & CURVAS WMI
+   ========================================================================== */
+.cooling-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, rgba(0, 136, 255, 0.12) 0%, rgba(14, 19, 28, 0.9) 100%);
+  border-color: rgba(0, 136, 255, 0.3);
+}
+
+.hero-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--accent-blue);
+  font-family: var(--font-mono);
+}
+
+.hero-status h2 {
+  font-size: 19px;
+  font-weight: 800;
+  margin: 3px 0 5px;
+  color: #fff;
+}
+
+.hero-status p {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  max-width: 520px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.hero-btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  letter-spacing: 0.4px;
+}
+
+.hero-btn.max {
+  background: linear-gradient(135deg, #ef4444, #ff7700);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+}
+
+.hero-btn.max:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+}
+
+.hero-btn.auto {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.hero-btn.auto:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent-cyan);
+}
+
+.fan-curve-panel {
+  padding: 16px 20px;
+}
+
+.curve-mode-pill {
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--accent-cyan);
+}
+
+.curve-visual-box {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.curve-svg {
+  width: 100%;
+  height: 150px;
+}
+
+.curve-legend-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  padding: 6px 2px;
+}
+
+.timer-panel {
+  padding: 16px 20px;
+}
+
+.timer-panel h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.timer-panel p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.timer-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.timer-live-label {
+  font-size: 11px;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+/* ==========================================================================
+   10. TAB 4: CPU TUNING & SETTINGS
+   ========================================================================== */
 .setting-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  padding: 18px 22px;
+  gap: 24px;
+}
+
+.setting-info {
+  flex: 1;
 }
 
 .setting-info h3 {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .setting-info p {
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.4;
-  max-width: 520px;
 }
 
 .throttle-feedback {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
   margin-top: 6px;
-  font-size: 11px;
-  color: var(--accent-cyan);
-  font-family: 'JetBrains Mono', monospace;
 }
 
-.setting-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.throttle-feedback b {
+  color: var(--accent-cyan);
 }
 
 .slider-box {
+  display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 8px;
-  min-width: 240px;
+  min-width: 250px;
 }
 
 .clean-slider {
+  -webkit-appearance: none;
   width: 100%;
-  accent-color: var(--accent-cyan);
-  cursor: pointer;
   height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+}
+
+.clean-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.clean-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 
 .slider-marks {
   display: flex;
   justify-content: space-between;
-  width: 100%;
   font-size: 9px;
   color: var(--text-tertiary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
-/* BOTONES TÁCTICOS */
+/* BOTONES GLOBALES & TOGGLES */
 .clean-btn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 9px 16px;
+  padding: 8px 14px;
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .clean-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.22);
   transform: translateY(-1px);
 }
 
@@ -1027,7 +1580,12 @@ body {
 .clean-btn.primary:hover {
   background: linear-gradient(135deg, var(--accent-cyan), #0066ff);
   color: #000;
-  box-shadow: 0 4px 18px rgba(0, 240, 255, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.4);
+}
+
+.clean-btn.mini {
+  padding: 4px 10px;
+  font-size: 10px;
 }
 
 .clean-btn.danger {
@@ -1051,7 +1609,7 @@ body {
 .toggle-group .clean-btn {
   border: none;
   background: transparent;
-  padding: 7px 14px;
+  padding: 6px 12px;
 }
 
 .toggle-group .clean-btn.active {
@@ -1066,15 +1624,15 @@ body {
 }
 
 .toggle-pill {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: 7px 14px;
   border-radius: 20px;
   cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   transition: all 0.2s ease;
 }
 
@@ -1082,110 +1640,34 @@ body {
   background: rgba(0, 240, 255, 0.15);
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
-  box-shadow: 0 0 14px rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
 }
 
-/* PESTAÑA COOLING HERO */
-.cooling-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(135deg, rgba(0, 153, 255, 0.12) 0%, rgba(18, 22, 33, 0.8) 100%);
-  border-color: rgba(0, 153, 255, 0.3);
-  padding: 24px;
-}
-
-.hero-label {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: var(--accent-blue);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.hero-status h2 {
-  font-size: 20px;
-  font-weight: 800;
-  margin: 4px 0 6px;
-  color: #fff;
-}
-
-.hero-status p {
-  font-size: 11px;
-  color: var(--text-secondary);
-  max-width: 500px;
-}
-
-.hero-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.hero-btn {
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
-  font-family: 'Inter', sans-serif;
-  letter-spacing: 0.5px;
-}
-
-.hero-btn.max {
-  background: linear-gradient(135deg, #ef4444, #ff7700);
-  color: #fff;
-  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.4);
-}
-
-.hero-btn.max:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.6);
-}
-
-.hero-btn.auto {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
-
-.hero-btn.auto:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: var(--accent-cyan);
-}
-
-/* TIMER DE COOLING */
-.timer-panel h3 {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.timer-panel p {
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-bottom: 14px;
-}
-
-.timer-selector {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.timer-live-label {
-  font-size: 11px;
-  color: var(--accent-cyan);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* GAME BOOSTER ITEM */
+/* ==========================================================================
+   11. TAB 5: MEMORIA RAM & GAME BOOST
+   ========================================================================== */
 .booster-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
+  padding: 18px 22px;
+}
+
+.bi-info {
+  flex: 1;
+}
+
+.bi-info h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.bi-info p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .ram-deep-details {
@@ -1194,9 +1676,9 @@ body {
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .ram-deep-details b {
@@ -1209,14 +1691,68 @@ body {
 
 @keyframes pulseGlowBtn {
   0%, 100% { box-shadow: 0 2px 10px rgba(0, 240, 255, 0.2); }
-  50% { box-shadow: 0 2px 20px rgba(0, 255, 170, 0.5); }
+  50% { box-shadow: 0 2px 20px rgba(0, 255, 170, 0.45); }
 }
 
-/* GPU GRID */
-.gpu-info-panel h3 {
-  font-size: 14px;
+/* TOP PROCESSES LIST */
+.top-procs-panel {
+  padding: 16px 20px;
+}
+
+.top-procs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.top-procs-list::-webkit-scrollbar {
+  width: 4px;
+}
+.top-procs-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.proc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.proc-name {
   font-weight: 700;
-  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.proc-pid {
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+}
+
+.proc-mem {
+  font-weight: 800;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+.gpu-info-panel {
+  padding: 16px 20px;
+}
+
+.gpu-info-panel h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
 
 .gpu-grid {
@@ -1224,7 +1760,7 @@ body {
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   background: rgba(0, 0, 0, 0.25);
-  padding: 14px;
+  padding: 12px 14px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -1237,26 +1773,28 @@ body {
 }
 
 .gg-col span {
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-tertiary);
 }
 
 .gg-col strong {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   color: var(--text-primary);
 }
 
-/* CONSOLA INFERIOR */
+/* ==========================================================================
+   12. CONSOLA INFERIOR DISCRETA
+   ========================================================================== */
 .app-console-bar {
-  margin-top: 14px;
-  padding: 9px 14px;
+  margin-top: 12px;
+  padding: 8px 14px;
   background: rgba(0, 0, 0, 0.4);
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
 }
 

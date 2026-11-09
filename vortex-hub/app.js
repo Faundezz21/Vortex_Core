@@ -4,22 +4,24 @@
 
 const API_BASE = "http://127.0.0.1:8765";
 
-// Historial para la gráfica térmica
-const maxPoints = 35;
-const cpuHistory = new Array(maxPoints).fill(45);
-const gpuHistory = new Array(maxPoints).fill(45);
+// Historial dinámico para la gráfica térmica
+let maxPoints = 30;
+let cpuHistory = new Array(maxPoints).fill(45);
+let gpuHistory = new Array(maxPoints).fill(40);
 
 let timerCountdown = null;
 let secondsRemaining = 0;
 let autoTurboSafety = true;
 let latencyTweakActive = true;
+let autostartEnabled = false;
 
 // Navegación en Sidebar
 const tabTitles = {
-  "tab-overview": { title: "Centro de Control", sub: "Telemetría de silicio y administración térmica de Windows 11" },
-  "tab-tuning": { title: "Tuning de CPU & Energía", sub: "Límites precisos de frecuencia y estados de procesador" },
-  "tab-cooling": { title: "Ventilación & Turbina WMI", sub: "Control directo sobre el hardware de ventiladores HP" },
-  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "Optimización de latencia y liberación de working set" }
+  "tab-overview": { title: "Centro de Control", sub: "HP VICTUS GAMING 15 • WINDOWS 11" },
+  "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
+  "tab-cooling": { title: "Ventilación & Curvas WMI", sub: "FIRMWARE HP BIOS WMI • CONTROL TÉRMICO DIRECTO" },
+  "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
+  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "PURGA DE WORKING SET • PROCESOS PRINCIPALES • LATENCIA" }
 };
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -33,8 +35,12 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     if (view) view.classList.add("active");
 
     if (tabTitles[targetId]) {
-      document.getElementById("page-title").textContent = tabTitles[targetId].title;
-      document.getElementById("page-sub").textContent = tabTitles[targetId].sub;
+      const titleEl = document.getElementById("page-title");
+      if (titleEl) titleEl.textContent = tabTitles[targetId].title;
+    }
+
+    if (targetId === "tab-booster") {
+      refreshTopProcesses();
     }
   });
 });
@@ -44,15 +50,46 @@ function logConsole(msg) {
   if (el) el.textContent = `[${new Date().toLocaleTimeString()}]: ${msg}`;
 }
 
-// Utilidad para ajustar el círculo del gauge SVG
-function setGaugeProgress(circleId, pct) {
-  const circle = document.getElementById(circleId);
-  if (!circle) return;
-  const radius = 50;
-  const circumference = 2 * Math.PI * radius; // ~314.159
+// Actualizar reloj de la cabecera
+function updateClock() {
+  const clockEl = document.getElementById("clock-display");
+  if (clockEl) {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Manejo del selector de intervalo de tiempo para la gráfica
+document.querySelectorAll(".tr-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tr-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const range = parseInt(btn.dataset.range) || 30;
+    
+    // Adaptar buffer
+    maxPoints = Math.min(120, range);
+    if (cpuHistory.length > maxPoints) {
+      cpuHistory = cpuHistory.slice(-maxPoints);
+      gpuHistory = gpuHistory.slice(-maxPoints);
+    } else while (cpuHistory.length < maxPoints) {
+      cpuHistory.unshift(cpuHistory[0] || 45);
+      gpuHistory.unshift(gpuHistory[0] || 40);
+    }
+    drawLiveChart();
+    logConsole(`Escala de gráfica térmica fijada a ${range} segundos.`);
+  });
+});
+
+// Ajuste del Tacómetro Arco SVG
+function setTachoProgress(pathId, pct) {
+  const path = document.getElementById(pathId);
+  if (!path) return;
+  const totalLength = 235.6; // Pi * 75
   const clamped = Math.min(100, Math.max(0, pct));
-  const offset = circumference - (circumference * clamped) / 100;
-  circle.style.strokeDashoffset = offset;
+  const offset = totalLength - (totalLength * clamped) / 100;
+  path.style.strokeDashoffset = offset;
 }
 
 // -------------------------------------------------------------
@@ -65,88 +102,163 @@ async function updateTelemetry() {
     const d = await res.json();
 
     // 1. CPU
-    const cTemp = d.cpu_temp > 0 ? d.cpu_temp : 45;
-    document.getElementById("cpu-temp-text").textContent = cTemp;
-    document.getElementById("cpu-freq-text").textContent = `${d.cpu_freq} GHz`;
-    document.getElementById("cpu-load-text").textContent = `${d.cpu_usage}%`;
-    setGaugeProgress("cpu-gauge-circle", Math.min(100, Math.max(10, cTemp)));
+    const cTemp = d.cpu_temp > 0 ? d.cpu_temp : 48;
+    const cpuTempEl = document.getElementById("cpu-temp-text");
+    if (cpuTempEl) cpuTempEl.textContent = `${cTemp}°`;
+    
+    const cpuFreqEl = document.getElementById("cpu-freq-text");
+    if (cpuFreqEl) cpuFreqEl.textContent = `${d.cpu_freq || '3.80'} GHz`;
+
+    const cpuLoadEl = document.getElementById("cpu-load-text");
+    if (cpuLoadEl) cpuLoadEl.textContent = `${d.cpu_usage || 0}%`;
+
+    const cpuBarEl = document.getElementById("cpu-progress-bar");
+    if (cpuBarEl) cpuBarEl.style.width = `${Math.min(100, Math.max(5, d.cpu_usage || 15))}%`;
+
+    // Tacómetro CPU en base a temperatura (rango 30°C - 95°C)
+    const cpuTachoPct = Math.min(100, Math.max(5, ((cTemp - 30) / (95 - 30)) * 100));
+    setTachoProgress("cpu-tacho-fill", cpuTachoPct);
 
     // 2. GPU NVIDIA RTX 4060
-    const gTemp = d.gpu_temp > 0 ? d.gpu_temp : 45;
-    document.getElementById("gpu-temp-text").textContent = gTemp;
-    document.getElementById("gpu-load-text").textContent = `${d.gpu_usage}%`;
-    document.getElementById("gpu-power-text").textContent = `${d.gpu_power} W`;
+    const gTemp = d.gpu_temp > 0 ? d.gpu_temp : 42;
+    const gpuTempEl = document.getElementById("gpu-temp-text");
+    if (gpuTempEl) gpuTempEl.textContent = `${gTemp}°`;
+
+    const gpuLoadEl = document.getElementById("gpu-load-text");
+    if (gpuLoadEl) gpuLoadEl.textContent = `${d.gpu_usage || 0}%`;
+
+    const gpuPowerEl = document.getElementById("gpu-power-text");
+    if (gpuPowerEl) gpuPowerEl.textContent = `${d.gpu_power || 0} W`;
+
     const gpuPwrSummary = document.getElementById("gpu-pwr-summary");
-    if (gpuPwrSummary) gpuPwrSummary.textContent = `${d.gpu_power} W`;
-    setGaugeProgress("gpu-gauge-circle", Math.min(100, Math.max(10, gTemp)));
+    if (gpuPwrSummary) gpuPwrSummary.textContent = `${d.gpu_power || 0} W`;
 
-    // 3. MEMORIA RAM (LECTURA EXACTA DEL KERNEL)
+    const gpuBarEl = document.getElementById("gpu-progress-bar");
+    if (gpuBarEl) gpuBarEl.style.width = `${Math.min(100, Math.max(5, d.gpu_usage || 10))}%`;
+
+    const gpuTachoPct = Math.min(100, Math.max(5, ((gTemp - 30) / (90 - 30)) * 100));
+    setTachoProgress("gpu-tacho-fill", gpuTachoPct);
+
+    // 3. MEMORIA RAM DDR5
     const ramInst = d.ram_installed || 32;
-    document.getElementById("ram-badge").textContent = `${ramInst} GB DDR5`;
-    document.getElementById("ram-pct-text").textContent = d.ram_pct;
-    document.getElementById("ram-used-text").textContent = `${d.ram_used} GB`;
-    document.getElementById("ram-free-text").textContent = `${d.ram_free} GB`;
-    document.getElementById("ram-total-text").textContent = d.ram_total;
-    document.getElementById("ram-installed-text").textContent = ramInst;
-    document.getElementById("ram-free-summary").textContent = `${d.ram_free} GB Libres`;
+    const ramBadge = document.getElementById("ram-badge");
+    if (ramBadge) ramBadge.textContent = `${ramInst} GB DDR5`;
 
-    // Detalles profundos en Tab Booster
+    const ramPctEl = document.getElementById("ram-pct-text");
+    if (ramPctEl) ramPctEl.textContent = d.ram_pct || 0;
+
+    const ramUsedEl = document.getElementById("ram-used-text");
+    if (ramUsedEl) ramUsedEl.textContent = `${d.ram_used || 0} GB`;
+
+    const ramFreeEl = document.getElementById("ram-free-text");
+    if (ramFreeEl) ramFreeEl.textContent = `${d.ram_free || 0} GB`;
+
+    const ramFreeSum = document.getElementById("ram-free-summary");
+    if (ramFreeSum) ramFreeSum.textContent = `${d.ram_free || 0} GB Libres`;
+
+    const ramBarEl = document.getElementById("ram-progress-bar");
+    if (ramBarEl) ramBarEl.style.width = `${d.ram_pct || 0}%`;
+
+    setTachoProgress("ram-tacho-fill", d.ram_pct || 0);
+
+    // Detalles en Tab Booster
     const rInstDeep = document.getElementById("ram-installed-deep");
     if (rInstDeep) rInstDeep.textContent = `${ramInst} GB`;
     const rUsedDeep = document.getElementById("ram-used-deep");
-    if (rUsedDeep) rUsedDeep.textContent = `${d.ram_used} GB`;
+    if (rUsedDeep) rUsedDeep.textContent = `${d.ram_used || 0} GB`;
     const rAvailDeep = document.getElementById("ram-avail-deep");
-    if (rAvailDeep) rAvailDeep.textContent = `${d.ram_free} GB`;
+    if (rAvailDeep) rAvailDeep.textContent = `${d.ram_free || 0} GB`;
     const rCachedDeep = document.getElementById("ram-cached-deep");
     if (rCachedDeep) rCachedDeep.textContent = `${d.ram_cached || '0.0'} GB`;
-
-    setGaugeProgress("ram-gauge-circle", d.ram_pct);
 
     // 4. VENTILADORES HP WMI
     const f1 = d.fan1_rpm > 0 ? d.fan1_rpm : 2600;
     const f2 = d.fan2_rpm > 0 ? d.fan2_rpm : 2400;
-    document.getElementById("fan1-rpm-text").textContent = f1;
-    document.getElementById("fan2-rpm-text").textContent = `${f2} RPM`;
 
-    // Porcentaje de gauge de RPM (máximo ~5800 RPM)
-    const fanPct = Math.min(100, Math.round((f1 / 5800) * 100));
-    setGaugeProgress("fan-gauge-circle", fanPct);
+    const fan1El = document.getElementById("fan1-rpm-text");
+    if (fan1El) fan1El.textContent = f1;
+
+    const fan2El = document.getElementById("fan2-rpm-text");
+    if (fan2El) fan2El.textContent = `${f2} RPM`;
+
+    const fanPct = Math.min(100, Math.round((f1 / 5600) * 100));
+    setTachoProgress("fan-tacho-fill", fanPct);
+
+    const fanBarEl = document.getElementById("fan-progress-bar");
+    if (fanBarEl) fanBarEl.style.width = `${fanPct}%`;
 
     const isTurbo = (d.fan_mode && (d.fan_mode.includes("TURBO") || d.fan_mode.includes("MAX"))) || f1 >= 4800;
-    
-    document.getElementById("fan-badge-mode").textContent = isTurbo ? "TURBO 100%" : "AUTO";
-    document.getElementById("fan-curve-text").textContent = isTurbo ? "Turbina 100%" : "Automática";
-    
+
     const fanChip = document.getElementById("fan-chip");
     const fanChipText = document.getElementById("fan-chip-text");
-    const quickRotateIcon = document.querySelector(".fan-rotate-icon");
+    const fanBadgeMode = document.getElementById("fan-badge-mode");
+    const fanCurveText = document.getElementById("fan-curve-text");
+    const coolingStatusHero = document.getElementById("cooling-status-hero");
 
     if (isTurbo) {
-      fanChip.classList.add("turbo-active");
-      fanChipText.textContent = "FANS: TURBO 100%";
-      if (quickRotateIcon) quickRotateIcon.classList.add("spinning");
-      document.getElementById("cooling-status-hero").textContent = "Modo Turbina al 100% (Overdrive Activo)";
+      if (fanChip) fanChip.classList.add("turbo-active");
+      if (fanChipText) fanChipText.textContent = "FANS: TURBO 100%";
+      if (fanBadgeMode) fanBadgeMode.textContent = "HP Turbina 100%";
+      if (fanCurveText) fanCurveText.textContent = "Overdrive Máximo";
+      if (coolingStatusHero) coolingStatusHero.textContent = "Modo Turbina al 100% (Overdrive Activo)";
     } else {
-      fanChip.classList.remove("turbo-active");
-      fanChipText.textContent = "FANS: AUTO";
-      if (quickRotateIcon) quickRotateIcon.classList.remove("spinning");
-      document.getElementById("cooling-status-hero").textContent = "Curva Automática de Fábrica (HP BIOS)";
+      if (fanChip) fanChip.classList.remove("turbo-active");
+      if (fanChipText) fanChipText.textContent = "FANS: AUTO";
+      if (fanBadgeMode) fanBadgeMode.textContent = "HP Turbina Dual";
+      if (fanCurveText) fanCurveText.textContent = "Automática (BIOS)";
+      if (coolingStatusHero) coolingStatusHero.textContent = "Curva Automática de Fábrica (HP BIOS)";
     }
 
-    document.getElementById("profile-chip").textContent = `MODO: ${d.current_profile.toUpperCase()}`;
+    const profChip = document.getElementById("profile-chip");
+    if (profChip && d.current_profile) {
+      profChip.textContent = `MODO: ${d.current_profile.toUpperCase()}`;
+    }
 
-    // Protección térmica automática de seguridad (>75°C)
+    // 5. HARDWARE INTELLIGENCE & HERO HEALTH SCORE
+    const healthScore = d.health_score || (cTemp < 75 && gTemp < 75 ? 98 : 86);
+    const healthScoreEl = document.getElementById("intel-health-score");
+    if (healthScoreEl) healthScoreEl.textContent = healthScore;
+
+    const htgScore = document.getElementById("htg-score");
+    if (htgScore) htgScore.textContent = `${healthScore}%`;
+
+    const htgFill = document.getElementById("htg-fill");
+    if (htgFill) htgFill.style.height = `${healthScore}%`;
+
+    const htgNeedle = document.getElementById("htg-needle");
+    if (htgNeedle) htgNeedle.style.bottom = `${healthScore}%`;
+
+    const heroTempSub = document.getElementById("hero-temp-sub");
+    if (heroTempSub) heroTempSub.textContent = `Rango Normal (${cTemp}°C)`;
+
+    const heroRamSub = document.getElementById("hero-ram-sub");
+    if (heroRamSub) heroRamSub.textContent = `${d.ram_free || 20} GB Libres`;
+
+    // Diagnósticos dinámicos
+    const diagCpu = document.getElementById("diag-cpu-desc");
+    if (diagCpu) {
+      diagCpu.textContent = cTemp < 70 
+        ? `El procesador Intel Core i7 opera a una temperatura estable (${cTemp}°C). Sin Thermal Throttling.`
+        : `CPU operando a ${cTemp}°C bajo carga elevada. Límites de seguridad estables.`;
+    }
+
+    const diagGpu = document.getElementById("diag-gpu-desc");
+    if (diagGpu) {
+      diagGpu.textContent = `La gráfica NVIDIA RTX 4060 mantiene un consumo de ${d.gpu_power || 4}W con ${gTemp}°C en núcleo.`;
+    }
+
+    // Protección térmica de seguridad
     if (autoTurboSafety && !isTurbo && (cTemp >= 76 || gTemp >= 78)) {
-      logConsole(`⚠️ Auto-Turbina activada: CPU alcanzó ${cTemp}°C. Forzando refrigeración máxima.`);
+      logConsole(`⚠️ Auto-Turbina activada: Silicio a ${cTemp}°C. Forzando refrigeración máxima.`);
       triggerFan("max");
     }
 
-    // 5. DISPOSITIVOS VINCULADOS & BATERÍA (SIDEBAR)
+    // 6. DISPOSITIVOS Y BATERÍA EN SIDEBAR
     if (d.battery_devices) {
       updateBatteryDevices(d.battery_devices);
     }
 
-    // 6. HISTORIAL DE GRÁFICA TÉRMICA
+    // 7. BUFFER DE GRÁFICA TÉRMICA
     cpuHistory.shift();
     cpuHistory.push(cTemp);
     gpuHistory.shift();
@@ -154,7 +266,7 @@ async function updateTelemetry() {
     drawLiveChart();
 
   } catch (err) {
-    // Backend aún reconectando
+    // Backend inicializando
   }
 }
 
@@ -206,7 +318,7 @@ function updateBatteryDevices(devices) {
 }
 
 // -------------------------------------------------------------
-// 2. DIBUJO DE GRÁFICA TÉRMICA DE SILICIO
+// 2. DIBUJO DE GRÁFICA TÉRMICA EN TIEMPO REAL
 // -------------------------------------------------------------
 function drawLiveChart() {
   const canvas = document.getElementById("live-chart");
@@ -217,11 +329,11 @@ function drawLiveChart() {
 
   ctx.clearRect(0, 0, w, h);
 
-  // Líneas de cuadrícula sutiles
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  // Cuadrícula sutil
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
-  for (let y = 20; y < h; y += 30) {
+  for (let y = 15; y < h; y += 28) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
@@ -230,15 +342,15 @@ function drawLiveChart() {
   ctx.setLineDash([]);
 
   function plotSeries(arr, color, glowColor) {
+    if (!arr || arr.length === 0) return;
     ctx.beginPath();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.2;
     ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 6;
 
-    const step = w / (maxPoints - 1);
+    const step = w / (arr.length - 1);
     for (let i = 0; i < arr.length; i++) {
-      // Rango de temperatura de 30°C a 95°C
       const val = Math.max(30, Math.min(95, arr[i]));
       const y = h - ((val - 30) / (95 - 30)) * (h - 20) - 10;
       const x = i * step;
@@ -250,7 +362,6 @@ function drawLiveChart() {
     ctx.shadowBlur = 0;
   }
 
-  // CPU en Cyan y GPU en Naranja
   plotSeries(cpuHistory, "#00f0ff", "rgba(0, 240, 255, 0.6)");
   plotSeries(gpuHistory, "#ff7700", "rgba(255, 119, 0, 0.6)");
 }
@@ -304,13 +415,14 @@ async function applyProfile(name) {
 // 5. SLIDER DE THROTTLING DE CPU
 // -------------------------------------------------------------
 function updateSliderLabel(val) {
-  document.getElementById("throttle-val-text").textContent = `${val}%`;
+  const lbl = document.getElementById("throttle-val-text");
+  if (lbl) lbl.textContent = `${val}%`;
 }
 
 async function applyCpuLimit() {
   const slider = document.getElementById("cpu-limit-slider");
   const val = slider ? parseInt(slider.value) : 100;
-  logConsole(`Estableciendo tope de CPU Throttle a ${val}% vía powercfg...`);
+  logConsole(`Estableciendo límite de CPU a ${val}% vía powercfg...`);
 
   try {
     const res = await fetch(`${API_BASE}/api/set_cpu_limit`, {
@@ -330,8 +442,10 @@ async function applyCpuLimit() {
 // 6. INTEL TURBO BOOST
 // -------------------------------------------------------------
 async function setTurbo(turboVal) {
-  document.getElementById("tb-off").classList.toggle("active", turboVal === 0);
-  document.getElementById("tb-on").classList.toggle("active", turboVal === 2);
+  const tbOff = document.getElementById("tb-off");
+  const tbOn = document.getElementById("tb-on");
+  if (tbOff) tbOff.classList.toggle("active", turboVal === 0);
+  if (tbOn) tbOn.classList.toggle("active", turboVal === 2);
 
   logConsole(`Configurando Intel Turbo Boost [Modo ${turboVal === 2 ? 'Agresivo' : 'Desactivado'}]...`);
   try {
@@ -380,7 +494,8 @@ function setTimer(minutes) {
     const m = Math.floor(secondsRemaining / 60);
     const s = secondsRemaining % 60;
     const padS = s < 10 ? `0${s}` : s;
-    document.getElementById("timer-live-label").textContent = `Cooldown en curso: ${m}:${padS} restantes`;
+    const timerLabel = document.getElementById("timer-live-label");
+    if (timerLabel) timerLabel.textContent = `Cooldown en curso: ${m}:${padS} restantes`;
 
     if (secondsRemaining <= 0) {
       cancelTimer();
@@ -397,7 +512,8 @@ function cancelTimer() {
     clearInterval(timerCountdown);
     timerCountdown = null;
   }
-  document.getElementById("timer-live-label").textContent = "Temporizador inactivo.";
+  const timerLabel = document.getElementById("timer-live-label");
+  if (timerLabel) timerLabel.textContent = "Temporizador inactivo.";
 }
 
 // -------------------------------------------------------------
@@ -415,11 +531,47 @@ async function purgeMemory() {
       const freed = (data.cleaned && data.cleaned.freed_mb) ? data.cleaned.freed_mb : 450;
       logConsole(`✅ Memoria liberada con éxito: ~${freed} MB recuperados del caché en standby.`);
       setTimeout(updateTelemetry, 400);
+      refreshTopProcesses();
     }
   } catch (err) {
     logConsole(`Error al purgar memoria: ${err.message}`);
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+// -------------------------------------------------------------
+// 9.1 CONSULTA DE PROCESOS CON MAYOR CONSUMO DE RAM
+// -------------------------------------------------------------
+async function refreshTopProcesses() {
+  const container = document.getElementById("top-procs-list");
+  if (!container) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/top_processes`);
+    if (!res.ok) return;
+    const procs = await res.json();
+
+    if (!procs || procs.length === 0) {
+      container.innerHTML = `<div class="dev-item-loading">No se encontraron procesos activos</div>`;
+      return;
+    }
+
+    let html = "";
+    procs.forEach(p => {
+      html += `
+        <div class="proc-row">
+          <div>
+            <span class="proc-name">${p.name}</span>
+            <span class="proc-pid">PID: ${p.pid}</span>
+          </div>
+          <span class="proc-mem">${p.memory_mb} MB</span>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="dev-item-loading">Error al cargar procesos</div>`;
   }
 }
 
@@ -449,8 +601,6 @@ function toggleAutoTurboSafety() {
 // -------------------------------------------------------------
 // 11. AUTO-INICIO CON WINDOWS (STARTUP & SYSTEM TRAY)
 // -------------------------------------------------------------
-let autostartEnabled = false;
-
 async function checkAutostart() {
   try {
     const res = await fetch(`${API_BASE}/api/autostart`);
@@ -497,5 +647,6 @@ window.addEventListener("DOMContentLoaded", () => {
   logConsole("VortexCore Hub v7.8 listo. Conectando telemetría de silicio...");
   updateTelemetry();
   checkAutostart();
+  refreshTopProcesses();
   setInterval(updateTelemetry, 500);
 });

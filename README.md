@@ -84,19 +84,23 @@ VortexCore Hub está programado respetando la **Aislamiento de Núcleo (HVCI)** 
 - **Python:** Versión 3.10 o superior ([Descargar Python](https://www.python.org)).
 - **Permisos de Administrador:** Necesarios para interactuar con WMI y `powercfg`. El programa solicita elevación UAC de manera automática.
 
-### Opción 1: Ejecución Inmediata (Recomendada)
+### Opción 1: Ejecución Portátil en 1-Clic (Para todo público)
 
-Clona o descarga el repositorio y ejecuta:
+VortexCore Hub incluye lanzadores automáticos diseñados para usuarios no técnicos:
+
+1. **Doble clic en `Iniciar VortexCore.bat`**: Solicita permisos de Administrador automáticamente en Windows mediante UAC y levanta la suite en segundo plano sin terminales abiertas.
+2. **Doble clic en `Crear Acceso Directo.bat`**: Crea instantáneamente un acceso directo con el icono oficial de VortexCore en tu **Escritorio** con el permiso *"Ejecutar como Administrador"* preconfigurado en el acceso directo.
+3. **Bandeja del Sistema (System Tray)**: La suite incluye un icono táctico en la barra de tareas junto al reloj de Windows con menú contextual para cambiar perfiles, forzar ventiladores, purgar RAM y alternar auto-inicio con Windows.
+
+### Opción 2: Ejecución desde Terminal / Desarrollador
 
 ```powershell
-# 1. Instalar dependencias requeridas (solo la primera vez)
+# 1. Instalar dependencias requeridas
 pip install psutil
 
-# 2. Iniciar VortexCore Hub
+# 2. Iniciar VortexCore Hub con System Tray y Servidor REST
 python vortex_engine.py
 ```
-
-*VortexCore Hub iniciará el servidor REST local y abrirá la ventana de escritorio acelerada por hardware de inmediato.*
 
 ---
 

@@ -293,7 +293,26 @@ class VortexCoreManager:
                         self.telemetry["fan1_rpm"] = 5400
                         self.telemetry["fan2_rpm"] = 5200
 
-                # 5. Detección de Dispositivos y Batería (Laptop, Auriculares Bluetooth, Gamepads) cada 3s
+                # 5. Cálculo de Diagnóstico e Inteligencia de Hardware (Health Score)
+                c_temp = self.telemetry.get("cpu_temp", 45)
+                g_temp = self.telemetry.get("gpu_temp", 40)
+                r_pct = self.telemetry.get("ram_pct", 35)
+
+                health = 100
+                if c_temp > 85: health -= 25
+                elif c_temp > 75: health -= 12
+                elif c_temp > 65: health -= 5
+
+                if g_temp > 80: health -= 20
+                elif g_temp > 70: health -= 10
+
+                if r_pct > 85: health -= 15
+                elif r_pct > 70: health -= 5
+
+                self.telemetry["health_score"] = max(45, health)
+                self.telemetry["health_status"] = "ÓPTIMO" if health >= 85 else "MODERADO" if health >= 70 else "ELEVADO"
+
+                # 6. Detección de Dispositivos y Batería (Laptop, Auriculares Bluetooth, Gamepads) cada 3s
                 if tick % 6 == 0:
                     self.telemetry["battery_devices"] = self._get_battery_devices()
 
@@ -407,6 +426,18 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(manager.telemetry).encode("utf-8"))
         elif self.path == "/api/autostart":
             self._send_json({"enabled": is_autostart_enabled()})
+        elif self.path == "/api/top_processes":
+            procs = []
+            if HAS_PSUTIL:
+                for p in psutil.process_iter(['name', 'memory_info', 'pid']):
+                    try:
+                        rss = p.info['memory_info'].rss / (1024**2)
+                        if rss > 35:
+                            procs.append({'pid': p.info['pid'], 'name': p.info['name'], 'mem_mb': round(rss, 1)})
+                    except Exception:
+                        pass
+                procs.sort(key=lambda x: x['mem_mb'], reverse=True)
+            self._send_json({"processes": procs[:8]})
         else:
             super().do_GET()
 
