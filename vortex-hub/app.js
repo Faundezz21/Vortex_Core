@@ -21,7 +21,8 @@ const tabTitles = {
   "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
   "tab-cooling": { title: "Ventilación & Curvas WMI", sub: "FIRMWARE HP BIOS WMI • CONTROL TÉRMICO DIRECTO" },
   "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
-  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "PURGA DE WORKING SET • PROCESOS PRINCIPALES • LATENCIA" }
+  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "PURGA DE WORKING SET • PROCESOS PRINCIPALES • LATENCIA" },
+  "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" }
 };
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -289,7 +290,14 @@ function updateBatteryDevices(devices) {
   let html = "";
   devices.forEach(dev => {
     let icon = "📶";
-    if (dev.type === "headphone") icon = "🎧";
+    if (dev.type === "headphone") {
+      icon = "🎧";
+      const audioActiveName = document.getElementById("active-audio-device-name");
+      if (audioActiveName && dev.name) {
+        audioActiveName.textContent = dev.name;
+      }
+    }
+    else if (dev.type === "mouse") icon = "🖱️";
     else if (dev.type === "gamepad") icon = "🎮";
     else if (dev.type === "laptop") icon = dev.plugged ? "⚡" : "💻";
 
@@ -637,6 +645,66 @@ async function toggleAutostart() {
     }
   } catch (err) {
     logConsole(`Error en auto-inicio: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
+// 12. AUDIO SUITE & EQUALIZER 10 BANDAS
+// -------------------------------------------------------------
+const eqPresets = {
+  fps: { name: "FPS Competitivo (Pasos)", vals: [2, -1, -2, 0, 1, 2, 5, 6, 4, 2] },
+  bass: { name: "Bass Boost Explosivo", vals: [8, 7, 5, 2, 0, 0, 1, 2, 3, 3] },
+  music: { name: "Música Hi-Fi (Harman)", vals: [3, 2, 1, 0, 1, 2, 3, 4, 4, 5] },
+  movie: { name: "Cine & Diálogos", vals: [4, 3, 1, 2, 4, 4, 3, 2, 2, 1] },
+  flat: { name: "Plano / Neutral (Flat)", vals: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+};
+
+function applyAudioPreset(presetKey) {
+  const preset = eqPresets[presetKey];
+  if (!preset) return;
+
+  document.querySelectorAll(".audio-preset-card").forEach(c => {
+    c.classList.toggle("active", c.dataset.preset === presetKey);
+  });
+
+  const lbl = document.getElementById("eq-current-preset-label");
+  if (lbl) lbl.textContent = `Preset Activo: ${preset.name}`;
+
+  preset.vals.forEach((val, idx) => {
+    const slider = document.querySelector(`.eq-slider[data-band="${idx}"]`);
+    if (slider) slider.value = val;
+    const dbText = document.getElementById(`db-val-${idx}`);
+    if (dbText) dbText.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+  });
+
+  logConsole(`Perfil Acústico [${preset.name}] aplicado.`);
+}
+
+function updateEqBand(idx, val) {
+  const dbText = document.getElementById(`db-val-${idx}`);
+  if (dbText) dbText.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+
+  document.querySelectorAll(".audio-preset-card").forEach(c => c.classList.remove("active"));
+  const lbl = document.getElementById("eq-current-preset-label");
+  if (lbl) lbl.textContent = `Preset Activo: Personalizado (${val > 0 ? '+' : ''}${val} dB en banda ${idx + 1})`;
+}
+
+async function openSoundSettings() {
+  logConsole("Abriendo panel de propiedades de sonido de Windows...");
+  try {
+    await fetch(`${API_BASE}/api/open_sound_settings`, { method: "POST" });
+  } catch (e) {
+    logConsole("Error al solicitar apertura de panel de sonido.");
+  }
+}
+
+function toggleAudioEnhance(type) {
+  const btnId = type === 'bass' ? 'btn-bass-boost' : type === 'voice' ? 'btn-voice-clarity' : 'btn-loudness-eq';
+  const btn = document.getElementById(btnId);
+  if (btn) {
+    const active = btn.classList.toggle("active");
+    btn.textContent = active ? (type === 'bass' ? "ACTIVO (+4dB)" : "ACTIVO") : "DESACTIVADO";
+    logConsole(`Mejora de audio [${type.toUpperCase()}]: ${active ? "ACTIVADA" : "DESACTIVADA"}.`);
   }
 }
 

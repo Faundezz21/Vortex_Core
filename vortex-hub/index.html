@@ -51,6 +51,10 @@
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M21 6H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm3-3a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5z"/></svg>
           <span>Memoria & Boost</span>
         </button>
+        <button class="nav-item" data-tab="tab-audio">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+          <span>Audio Suite & EQ</span>
+        </button>
       </nav>
 
       <!-- SECCIÓN DE PERIFÉRICOS Y BATERÍA EN EL SIDEBAR -->
@@ -705,6 +709,198 @@
                 <div class="gg-col"><span>Potencia Actual:</span> <strong id="gpu-pwr-summary">-- W</strong></div>
                 <div class="gg-col"><span>Bus Status:</span> <strong>PCIe Gen4 x8 Active</strong></div>
               </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- PESTAÑA 6: AUDIO SUITE & EQUALIZER 10 BANDAS -->
+        <section class="tab-view" id="tab-audio">
+          <div class="settings-stack">
+            
+            <!-- HERO CARD DE AUDIO ACTIVO -->
+            <div class="glass-card audio-hero-card">
+              <div class="ahc-info">
+                <span class="hero-label">PROCESADOR DE AUDIO ACTIVO (WINDOWS CORE AUDIO)</span>
+                <h2 id="active-audio-device-name">Razer Barracuda X 2.4</h2>
+                <p>Enlace de audio inalámbrico ultra-rápido de 2.4 GHz mediante receptor USB Tipo-C. Sin compresión Bluetooth, latencia &lt; 15 ms.</p>
+                <div class="ahc-specs-pills">
+                  <span class="asp-pill green">● Conexión: 2.4 GHz Ultra-Low Latency</span>
+                  <span class="asp-pill cyan">Muestreo: 16-bit / 48000 Hz Hi-Fi</span>
+                  <span class="asp-pill blue">Salida: Estéreo 2.0 / Envolvente Virtual</span>
+                </div>
+              </div>
+              <div class="ahc-actions">
+                <button class="clean-btn primary" onclick="openSoundSettings()">🎛️ Panel de Sonido Windows</button>
+              </div>
+            </div>
+
+            <!-- PRESETS RÁPIDOS DE ECUALIZACIÓN -->
+            <div class="glass-card audio-presets-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Perfiles Acústicos Tácticos</h3>
+                  <small class="panel-subtitle">Ajuste instantáneo de curva de ecualización para videojuegos y multimedia</small>
+                </div>
+              </div>
+              <div class="audio-presets-grid">
+                <button class="audio-preset-card active" data-preset="fps" onclick="applyAudioPreset('fps')">
+                  <span class="apc-icon">🎯</span>
+                  <div class="apc-text">
+                    <strong>FPS Competitivo (Pasos)</strong>
+                    <small>Realce de 2kHz a 8kHz. Escucha pisadas y recargas antes de que te vean.</small>
+                  </div>
+                </button>
+                <button class="audio-preset-card" data-preset="bass" onclick="applyAudioPreset('bass')">
+                  <span class="apc-icon">💥</span>
+                  <div class="apc-text">
+                    <strong>Bass Boost Explosivo</strong>
+                    <small>Refuerzo de graves +8dB (31Hz - 125Hz) para inmersión máxima y explosiones.</small>
+                  </div>
+                </button>
+                <button class="audio-preset-card" data-preset="music" onclick="applyAudioPreset('music')">
+                  <span class="apc-icon">🎵</span>
+                  <div class="apc-text">
+                    <strong>Música Hi-Fi (Harman)</strong>
+                    <small>Curva equilibrada y natural para voces cálidas y platillos aireados.</small>
+                  </div>
+                </button>
+                <button class="audio-preset-card" data-preset="movie" onclick="applyAudioPreset('movie')">
+                  <span class="apc-icon">🎬</span>
+                  <div class="apc-text">
+                    <strong>Cine & Diálogos</strong>
+                    <small>Claridad en canal central para entender cada palabra sin subir volumen.</small>
+                  </div>
+                </button>
+                <button class="audio-preset-card" data-preset="flat" onclick="applyAudioPreset('flat')">
+                  <span class="apc-icon">⚖️</span>
+                  <div class="apc-text">
+                    <strong>Plano / Neutral (Flat)</strong>
+                    <small>0 dB en todo el espectro acústico. Respuesta de estudio plana original.</small>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- ECUALIZADOR GRÁFICO TÁCTICO DE 10 BANDAS -->
+            <div class="glass-card eq-console-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Ecualizador Paramétrico de 10 Bandas (-12 dB a +12 dB)</h3>
+                  <small class="panel-subtitle">Calibración precisa del espectro de frecuencias audible de 31 Hz a 16 kHz</small>
+                </div>
+                <div class="eq-status-badge" id="eq-current-preset-label">Preset Activo: FPS Competitivo</div>
+              </div>
+
+              <!-- SLIDERS VERTICALES DE FRECUENCIA -->
+              <div class="eq-bands-wrapper">
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-0">+2 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="2" class="eq-slider" orient="vertical" data-band="0" oninput="updateEqBand(0, this.value)">
+                  </div>
+                  <span class="eq-freq-label">31 Hz</span>
+                  <small class="eq-sub-label">Sub-Bass</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-1">-1 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="-1" class="eq-slider" orient="vertical" data-band="1" oninput="updateEqBand(1, this.value)">
+                  </div>
+                  <span class="eq-freq-label">63 Hz</span>
+                  <small class="eq-sub-label">Bajos</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-2">-2 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="-2" class="eq-slider" orient="vertical" data-band="2" oninput="updateEqBand(2, this.value)">
+                  </div>
+                  <span class="eq-freq-label">125 Hz</span>
+                  <small class="eq-sub-label">Graves</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-3">0 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="0" class="eq-slider" orient="vertical" data-band="3" oninput="updateEqBand(3, this.value)">
+                  </div>
+                  <span class="eq-freq-label">250 Hz</span>
+                  <small class="eq-sub-label">Cuerpo</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-4">+1 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="1" class="eq-slider" orient="vertical" data-band="4" oninput="updateEqBand(4, this.value)">
+                  </div>
+                  <span class="eq-freq-label">500 Hz</span>
+                  <small class="eq-sub-label">Voz Baja</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-5">+2 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="2" class="eq-slider" orient="vertical" data-band="5" oninput="updateEqBand(5, this.value)">
+                  </div>
+                  <span class="eq-freq-label">1 kHz</span>
+                  <small class="eq-sub-label">Presencia</small>
+                </div>
+
+                <div class="eq-band-col highlight-fps">
+                  <span class="eq-db-val" id="db-val-6">+5 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="5" class="eq-slider" orient="vertical" data-band="6" oninput="updateEqBand(6, this.value)">
+                  </div>
+                  <span class="eq-freq-label">2 kHz</span>
+                  <small class="eq-sub-label">Pasos</small>
+                </div>
+
+                <div class="eq-band-col highlight-fps">
+                  <span class="eq-db-val" id="db-val-7">+6 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="6" class="eq-slider" orient="vertical" data-band="7" oninput="updateEqBand(7, this.value)">
+                  </div>
+                  <span class="eq-freq-label">4 kHz</span>
+                  <small class="eq-sub-label">Táctico</small>
+                </div>
+
+                <div class="eq-band-col highlight-fps">
+                  <span class="eq-db-val" id="db-val-8">+4 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="4" class="eq-slider" orient="vertical" data-band="8" oninput="updateEqBand(8, this.value)">
+                  </div>
+                  <span class="eq-freq-label">8 kHz</span>
+                  <small class="eq-sub-label">Claridad</small>
+                </div>
+
+                <div class="eq-band-col">
+                  <span class="eq-db-val" id="db-val-9">+2 dB</span>
+                  <div class="eq-slider-track">
+                    <input type="range" min="-12" max="12" value="2" class="eq-slider" orient="vertical" data-band="9" oninput="updateEqBand(9, this.value)">
+                  </div>
+                  <span class="eq-freq-label">16 kHz</span>
+                  <small class="eq-sub-label">Aire</small>
+                </div>
+              </div>
+
+              <!-- CONTROLES ADICIONALES DE MEJORA ACÚSTICA -->
+              <div class="audio-enhancements-row">
+                <div class="aer-item">
+                  <span>💥 Realce de Graves (Bass Boost):</span>
+                  <button class="toggle-pill active" id="btn-bass-boost" onclick="toggleAudioEnhance('bass')">ACTIVO (+4dB)</button>
+                </div>
+                <div class="aer-item">
+                  <span>🗣️ Claridad de Voces:</span>
+                  <button class="toggle-pill active" id="btn-voice-clarity" onclick="toggleAudioEnhance('voice')">ACTIVO</button>
+                </div>
+                <div class="aer-item">
+                  <span>🔊 Normalización de Sonoridad (Loudness EQ):</span>
+                  <button class="toggle-pill" id="btn-loudness-eq" onclick="toggleAudioEnhance('loudness')">DESACTIVADO</button>
+                </div>
+              </div>
+
             </div>
 
           </div>

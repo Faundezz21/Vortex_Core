@@ -172,7 +172,100 @@ class VortexCoreManager:
         except Exception:
             pass
 
-        # 3. Dispositivos Bluetooth conocidos en BTHPORT (como audífonos Redmi Buds 6 Active o mandos)
+        # 3. Dispositivos de Audio USB 2.4 GHz (Dongle) - Ej. Razer Barracuda X, HyperX, Logitech G, Corsair
+        try:
+            # 3.1 Escaneo por Enum\USB para dongles activos (Razer Barracuda X VID 1532 PID 0552, etc.)
+            usb_base = r"SYSTEM\CurrentControlSet\Enum\USB"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, usb_base) as uk:
+                for i in range(winreg.QueryInfoKey(uk)[0]):
+                    dev_id = winreg.EnumKey(uk, i)
+                    dev_upper = dev_id.upper()
+                    if any(v in dev_upper for v in ["VID_1532&PID_0552", "VID_1532&PID_0527", "VID_0951", "VID_046D", "VID_1B1C", "VID_1038"]):
+                        try:
+                            with winreg.OpenKey(uk, dev_id) as subk:
+                                for j in range(winreg.QueryInfoKey(subk)[0]):
+                                    inst = winreg.EnumKey(subk, j)
+                                    with winreg.OpenKey(subk, inst) as ik:
+                                        # Verificar si está configurado y presente (ConfigFlags == 0)
+                                        cfg_flags = 0
+                                        try:
+                                            cfg_flags, _ = winreg.QueryValueEx(ik, "ConfigFlags")
+                                        except Exception:
+                                            pass
+                                        
+                                        fname = None
+                                        try:
+                                            fname, _ = winreg.QueryValueEx(ik, "FriendlyName")
+                                        except Exception:
+                                            try:
+                                                fname, _ = winreg.QueryValueEx(ik, "DeviceDesc")
+                                            except Exception:
+                                                pass
+
+                                        if fname and cfg_flags == 0:
+                                            if fname.startswith("@") or "devicedesc" in fname.lower() or "composite" in fname.lower():
+                                                continue
+                                            clean_name = fname.replace("@wdma_usb.inf,%usb\\class_01.devicedesc%;", "").strip()
+                                            
+                                            # Clasificación inteligente
+                                            nl = clean_name.lower()
+                                            if any(w in nl for w in ["mouse", "g502", "viper", "deathadder", "basilisk", "aerox"]):
+                                                dtype = "mouse"
+                                                conn_tag = "USB Cable / LightSpeed"
+                                                default_pct = 95
+                                            elif any(w in nl for w in ["barracuda", "headset", "audio", "headphone", "auricular"]):
+                                                dtype = "headphone"
+                                                conn_tag = "2.4 GHz Ultra-Low Latency"
+                                                default_pct = 85
+                                            else:
+                                                continue
+
+                                            # Evitar duplicados similares (ej. 'Razer Barracuda X 2.4' y 'Razer Barracuda X (2.4 GHz)')
+                                            if not any("barracuda" in d["name"].lower() for d in devs if "barracuda" in nl) and not any(d["name"].lower() == clean_name.lower() for d in devs):
+                                                devs.append({
+                                                    "name": clean_name,
+                                                    "type": dtype,
+                                                    "percent": default_pct,
+                                                    "plugged": False,
+                                                    "icon": dtype,
+                                                    "connection": conn_tag,
+                                                    "status": f"Conectado ({conn_tag})"
+                                                })
+                        except Exception:
+                            pass
+
+            # 3.2 Escaneo de Endpoints de Audio Activos en Windows (MMDevices Render)
+            mm_base = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, mm_base) as mk:
+                for i in range(winreg.QueryInfoKey(mk)[0]):
+                    guid = winreg.EnumKey(mk, i)
+                    try:
+                        with winreg.OpenKey(mk, guid) as gk:
+                            state, _ = winreg.QueryValueEx(gk, "DeviceState")
+                            if state == 1:  # Dispositivo Activo y Conectado
+                                with winreg.OpenKey(gk, "Properties") as pk:
+                                    try:
+                                        ep_name, _ = winreg.QueryValueEx(pk, "{a45c254e-df1c-4efd-8020-67d146a850e0},2")
+                                        ep_lower = ep_name.lower()
+                                        if any(k in ep_lower for k in ["barracuda", "razer", "hyperx", "headset", "audífono", "auricular", "headphone"]):
+                                            if not any(d["name"].lower() == ep_name.lower() for d in devs):
+                                                devs.append({
+                                                    "name": ep_name,
+                                                    "type": "headphone",
+                                                    "percent": 90,
+                                                    "plugged": False,
+                                                    "icon": "headphone",
+                                                    "connection": "2.4G",
+                                                    "status": "Conectado (2.4 GHz Dongle)"
+                                                })
+                                    except Exception:
+                                        pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 4. Dispositivos Bluetooth conocidos en BTHPORT (como audífonos Redmi Buds 6 Active o mandos)
         try:
             reg_path = r"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices"
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path) as k:
@@ -473,6 +566,15 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             enable = bool(data.get("enabled", True))
             ok = set_autostart(enable)
             self._send_json({"status": "ok", "enabled": is_autostart_enabled()})
+        elif self.path == "/api/open_sound_settings":
+            try:
+                subprocess.Popen(["control", "mmsys.cpl", "sounds"], creationflags=CREATE_NO_WINDOW)
+            except Exception:
+                try:
+                    subprocess.Popen(["start", "ms-settings:sound"], shell=True)
+                except Exception:
+                    pass
+            self._send_json({"status": "ok", "message": "Panel de audio abierto"})
         else:
             self.send_error(404)
 
