@@ -16,17 +16,6 @@ from ctypes import wintypes
 user32 = ctypes.windll.user32
 shell32 = ctypes.windll.shell32
 kernel32 = ctypes.windll.kernel32
-uxtheme = ctypes.windll.uxtheme
-dwmapi = ctypes.windll.dwmapi
-
-# Inicializar Modo Oscuro nativo de Windows 11 para la aplicación y sus menús
-try:
-    fn_set_app_mode = ctypes.cast(uxtheme[135], ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int))
-    fn_set_app_mode(2)  # ForceDark
-    fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
-    fn_flush_themes()
-except Exception:
-    pass
 
 NIM_ADD = 0
 NIM_MODIFY = 1
@@ -185,15 +174,6 @@ class SystemTrayApp:
             0, 0, 0, 0, 0, 0, hinstance, 0
         )
 
-        # Aplicar tema oscuro nativo de Windows 11 al HWND de la bandeja
-        try:
-            fn_allow_dark = ctypes.cast(uxtheme[133], ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, ctypes.c_bool))
-            fn_allow_dark(self.hwnd, True)
-            uxtheme.SetWindowTheme(self.hwnd, "DarkMode_Explorer", None)
-            dwmapi.DwmSetWindowAttribute(self.hwnd, 20, ctypes.byref(ctypes.c_int(1)), 4)
-        except Exception:
-            pass
-
         # Crear icono en la bandeja del sistema con el logo oficial
         self.nid = NOTIFYICONDATAW()
         self.nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
@@ -216,12 +196,6 @@ class SystemTrayApp:
         shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
 
     def _show_context_menu(self):
-        try:
-            fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
-            fn_flush_themes()
-        except Exception:
-            pass
-
         menu = user32.CreatePopupMenu()
 
         user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Abrir VortexCore Hub")
