@@ -5,7 +5,7 @@
 ; ==============================================================================
 
 #define MyAppName "VortexCore Hub"
-#define MyAppVersion "7.8.0"
+#define MyAppVersion "7.8.1"
 #define MyAppPublisher "Faundezz21"
 #define MyAppURL "https://github.com/Faundezz21/VortexCore-Hub"
 #define MyAppExeName "VortexCoreHub.exe"
@@ -29,7 +29,7 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\{#MyAppExeName},0
+UninstallDisplayIcon={app}\vortex_icon.ico
 UninstallDisplayName={#MyAppName} v{#MyAppVersion}
 
 [Languages]
@@ -44,9 +44,9 @@ Source: "dist\VortexCoreHub\*"; DestDir: "{app}"; Flags: ignoreversion recursesu
 Source: "{#SourcePath}\vortex_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0
+Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\vortex_icon.ico"
 Name: "{autoprograms}\{#MyAppName}\Desinstalar {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; IconIndex: 0; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\vortex_icon.ico"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VortexCoreHub"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart

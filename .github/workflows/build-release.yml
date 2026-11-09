@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.0)'
+        description: 'Etiqueta de la versión (ej. v7.8.1)'
         required: true
-        default: 'v7.8.0'
+        default: 'v7.8.1'
       release_name:
         description: 'Título del Release'
         required: true
-        default: 'VortexCore Hub v7.8.0 // Official Setup & Hardware Suite'
+        default: 'VortexCore Hub v7.8.1 // Official Setup & Hardware Suite'
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -70,51 +70,62 @@ jobs:
           Write-Host "Compilando installer.iss con $iscc"
           & $iscc "$PWD\installer.iss"
 
-      - name: 🗜️ Generar Paquete Portátil (Portable ZIP)
+      - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8-Portable.zip" -Force
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.1-Portable.zip" -Force
+          $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
+          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.1-Portable.zip -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.1-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          Write-Host "SHA256 Setup: $setupHash"
+          Write-Host "SHA256 Portable: $zipHash"
 
       - name: 🚀 Publicar Release en GitHub con Setup.exe
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.0 // Official Setup & Hardware Suite' }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.1 // Official Setup & Hardware Suite' }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8-Portable.zip
+            dist/VortexCoreHub-v7.8.1-Portable.zip
+            dist/checksums-sha256.txt
           body: |
-            # 🌀 VortexCore Hub v7.8.0 // Suite Oficial para Windows
+            # 🌀 VortexCore Hub v7.8.1 // Suite Oficial para Windows
             
             **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
             *Centro de control táctico de hardware, ventilación WMI, audio por app y latencia ultra-baja.*
 
             ---
 
-            ### 📦 Descargas Disponibles
-            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) (Instalador con asistente, accesos directos y desinstalador limpio).
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8-Portable.zip).
+            ### 📦 Descargas Oficiales
+            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.1-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.1-Portable.zip).
+            * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
 
-            > 💡 **Nota Importante:** Esta versión viene **completamente empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y comenzará a funcionar.
+            > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
 
             ---
 
-            ### ✨ Novedades y Características Principales:
-            1. **🎛️ Mezclador de Volumen por Aplicación (EarTrumpet Suite)**:
-               * Control de volumen y silencio individual para Spotify, Discord, Navegadores y Juegos en tiempo real.
-               * Ecualizador paramétrico de 10 bandas con perfiles tácticos (FPS Pasos, Bass Boost, Hi-Fi).
-               * Interruptor maestro de **Bypass / Modo Normal** para restaurar el audio plano de fábrica con un clic.
-            2. **🌪️ Control Térmico y Turbina 100% (HP WMI BIOS)**:
-               * Overdrive directo a 5400+ RPM vía WMI Opcode 0x27 sin drivers vulnerables.
-               * Auto-Cooldown programable (5, 15 y 30 minutos).
-            3. **⚡ Modo Latencia Cero & Purga de RAM**:
-               * Resolución del temporizador del kernel de Windows fijada a **1.0 ms**.
-               * Purga de memoria en Standby (`EmptyWorkingSet`) para eliminar micro-stuttering en shooters.
-            4. **🛡️ System Tray Nativo en Modo Oscuro Fluent**:
-               * Menú contextual de alto contraste en la bandeja del sistema junto al reloj.
-               * Bloqueo de instancia única blindado (doble clic abre o restaura una sola ventana).
+            ### 🛡️ Nota sobre Windows Defender SmartScreen ("Editor Desconocido")
+            Al tratarse de una versión reciente de código abierto compilada por la comunidad sin un certificado de pago empresarial de Microsoft:
+            1. Si Windows muestra la pantalla azul preventiva de SmartScreen:
+            2. Haz clic en el enlace **"Más información"** (*More info*).
+            3. Haz clic en el botón **"Ejecutar de todas formas"** (*Run anyway*).
+            > *El código fuente es 100% público, auditable y libre de cualquier malware o telemetría invasiva.*
+
+            ---
+
+            ### 🛠️ Correcciones y Mejoras en v7.8.1:
+            * **🎨 Ícono Oficial Integrado**: Ícono nativo de VortexCore embutido en el instalador `.exe`, accesos directos y panel de control.
+            * **🛡️ Solución a Elevación 740**: Incorporación del flag `shellexec` en Inno Setup para garantizar lanzamiento suave tras finalizar la instalación.
+            * **🎛️ Mezclador de Volumen por Aplicación (EarTrumpet Suite)**:
+              * Control de volumen y silencio individual para Spotify, Discord, Navegadores y Juegos en tiempo real.
+              * Ecualizador de 10 bandas con perfiles tácticos y **Bypass Maestro (Modo Normal)** con un clic.
+            * **🌪️ Control Térmico y Turbina 100% (HP WMI BIOS)**: Overdrive directo a 5400+ RPM con Auto-Cooldown programable.
+            * **⚡ Modo Latencia Cero & Purga de RAM**: Temporizador a 1.0 ms y purga de memoria en Standby (`EmptyWorkingSet`).
+            * **🛡️ System Tray Nativo**: Menú contextual Fluent Dark Mode y bloqueo de ventana única en la bandeja del sistema.
 
             ---
 
