@@ -5,7 +5,7 @@ import sys
 
 block_cipher = None
 
-project_dir = os.path.abspath(os.path.dirname(__file__))
+project_dir = os.path.abspath(SPECPATH)
 
 added_datas = [
     (os.path.join(project_dir, 'vortex-hub'), 'vortex-hub'),

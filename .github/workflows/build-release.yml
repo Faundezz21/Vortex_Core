@@ -32,6 +32,9 @@ jobs:
   build:
     name: Compilar Instalador Standalone .exe (Windows)
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: 'utf-8'
 
     steps:
       - name: 📥 Clonar Repositorio
@@ -53,9 +56,19 @@ jobs:
           pyinstaller vortex_core_hub.spec --noconfirm --clean
 
       - name: 🛠️ Instalar Inno Setup y Compilar Instalador Oficial
+        shell: powershell
         run: |
           choco install innosetup --no-progress
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+            $paths = @(
+              'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+              'C:\Program Files\Inno Setup 6\ISCC.exe'
+            )
+            $iscc = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          Write-Host "Compilando installer.iss con $iscc"
+          & $iscc installer.iss
 
       - name: 🗜️ Generar Paquete Portátil (Portable ZIP)
         shell: powershell
