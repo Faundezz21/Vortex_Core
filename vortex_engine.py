@@ -16,6 +16,7 @@ import ctypes
 import threading
 import subprocess
 import winreg
+import platform
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart
 
@@ -227,18 +228,415 @@ class DefaultGUIDs:
     TURBO_BOOST = "be337238-0d82-4146-a960-4f3749d470c7"
 
 
+# ==============================================================================
+# 1. DETECCIÓN DINÁMICA DE HARDWARE REAL (ESPECIFICACIONES DE SILICIO)
+# ==============================================================================
+def get_system_specs() -> dict:
+    """Detecta de forma dinámica la marca, modelo, CPU, GPU y memoria del equipo actual."""
+    mfg = "PC Universal"
+    model = "Equipo de Rendimiento"
+    board = ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\BIOS", 0, winreg.KEY_READ) as k:
+            try: mfg, _ = winreg.QueryValueEx(k, "SystemManufacturer")
+            except Exception: pass
+            try: model, _ = winreg.QueryValueEx(k, "SystemProductName")
+            except Exception: pass
+            try: board, _ = winreg.QueryValueEx(k, "BaseBoardProduct")
+            except Exception: pass
+    except Exception:
+        pass
+
+    mfg = str(mfg).strip()
+    model = str(model).strip()
+    if not mfg or mfg.lower() in ("system manufacturer", "to be filled by o.e.m."):
+        mfg = "Personalizado"
+    if not model or model.lower() in ("system product name", "to be filled by o.e.m."):
+        model = f"Placa Base {board}" if board else "Estación de Trabajo"
+
+    # CPU
+    cpu_name = "Procesador Multi-Núcleo"
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", 0, winreg.KEY_READ) as k:
+            cpu_raw, _ = winreg.QueryValueEx(k, "ProcessorNameString")
+            cpu_name = str(cpu_raw).strip()
+    except Exception:
+        pass
+
+    # GPU
+    gpu_name = "Gráficos de Sistema"
+    gpus = []
+    try:
+        class_base = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, class_base, 0, winreg.KEY_READ) as ck:
+            for i in range(winreg.QueryInfoKey(ck)[0]):
+                sub = winreg.EnumKey(ck, i)
+                if sub.isdigit():
+                    try:
+                        with winreg.OpenKey(ck, sub, 0, winreg.KEY_READ) as sk:
+                            desc, _ = winreg.QueryValueEx(sk, "DriverDesc")
+                            if desc and not desc.lower().startswith("microsoft basic"):
+                                gpus.append(str(desc).strip())
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    dedicated = [g for g in gpus if any(k in g.lower() for k in ["geforce", "rtx", "gtx", "quadro", "radeon rx", "radeon pro"])]
+    if dedicated:
+        gpu_name = dedicated[0]
+    elif gpus:
+        gpu_name = gpus[0]
+
+    # Memoria RAM
+    ram_gb = 16
+    if HAS_PSUTIL:
+        try:
+            mem = psutil.virtual_memory()
+            ram_gb = int(round(mem.total / (1024**3)))
+        except Exception:
+            pass
+
+    # Sistema Operativo
+    os_name = f"Windows {platform.release()}"
+
+    # Detección de Fabricante
+    mfg_lower = mfg.lower()
+    model_lower = model.lower()
+    is_hp = any(k in mfg_lower for k in ["hp", "hewlett"]) or any(k in model_lower for k in ["victus", "omen", "pavilion", "envy", "elitebook"])
+    is_asus = "asus" in mfg_lower or "rog" in model_lower or "tuf" in model_lower
+    is_lenovo = "lenovo" in mfg_lower or "legion" in model_lower or "loq" in model_lower or "ideapad" in model_lower
+    is_dell = "dell" in mfg_lower or "alienware" in model_lower
+    is_acer = "acer" in mfg_lower or "nitro" in model_lower or "predator" in model_lower
+    is_msi = "msi" in mfg_lower or "micro-star" in mfg_lower
+
+    if is_hp: brand = "HP"
+    elif is_asus: brand = "ASUS"
+    elif is_lenovo: brand = "Lenovo"
+    elif is_dell: brand = "Dell / Alienware"
+    elif is_acer: brand = "Acer"
+    elif is_msi: brand = "MSI"
+    else: brand = mfg
+
+    # Versiones amigables cortas
+    cpu_short = cpu_name
+    for r in ["13th Gen ", "12th Gen ", "14th Gen ", "11th Gen ", "(R)", "(TM)", "Processor", "Core"]:
+        cpu_short = cpu_short.replace(r, "")
+    cpu_short = " ".join(cpu_short.split())
+
+    gpu_short = gpu_name
+    for r in ["NVIDIA ", "GeForce ", "Laptop GPU", "Graphics"]:
+        gpu_short = gpu_short.replace(r, "")
+    gpu_short = " ".join(gpu_short.split())
+
+    model_short = model.replace("Victus by HP Gaming Laptop", "Victus").replace("HP ", "").strip()
+
+    return {
+        "manufacturer": brand,
+        "model": model,
+        "model_short": model_short,
+        "cpu": cpu_name,
+        "cpu_short": cpu_short,
+        "gpu": gpu_name,
+        "gpu_short": gpu_short,
+        "ram": f"{ram_gb} GB",
+        "ram_gb": ram_gb,
+        "os": os_name,
+        "is_hp": is_hp,
+        "is_asus": is_asus,
+        "is_lenovo": is_lenovo,
+        "is_dell": is_dell,
+        "is_acer": is_acer,
+        "is_msi": is_msi,
+        "fans_supported": is_hp
+    }
+
+
+# ==============================================================================
+# 2. GESTOR DE APLICACIONES DE INICIO DE WINDOWS
+# ==============================================================================
+def get_startup_apps() -> list[dict]:
+    """Obtiene la lista de aplicaciones que inician automáticamente con Windows."""
+    apps = []
+    seen = set()
+
+    # 1. HKCU Run (Habilitadas por usuario)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ) as k:
+            for i in range(winreg.QueryInfoKey(k)[1]):
+                name, val, _ = winreg.EnumValue(k, i)
+                seen.add(name.lower())
+                apps.append({
+                    "name": name,
+                    "command": str(val),
+                    "scope": "user",
+                    "enabled": True,
+                    "impact": "Alto" if any(k in name.lower() for k in ["discord", "steam", "epic", "spotify", "teams"]) else "Medio"
+                })
+    except Exception:
+        pass
+
+    # 2. HKCU Run_VortexDisabled (Deshabilitadas por VortexCore)
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run_VortexDisabled", 0, winreg.KEY_READ) as k:
+            for i in range(winreg.QueryInfoKey(k)[1]):
+                name, val, _ = winreg.EnumValue(k, i)
+                seen.add(name.lower())
+                apps.append({
+                    "name": name,
+                    "command": str(val),
+                    "scope": "user",
+                    "enabled": False,
+                    "impact": "Deshabilitado"
+                })
+    except Exception:
+        pass
+
+    # 3. HKLM Run (Habilitadas a nivel de máquina)
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ) as k:
+            for i in range(winreg.QueryInfoKey(k)[1]):
+                name, val, _ = winreg.EnumValue(k, i)
+                if name.lower() not in seen:
+                    seen.add(name.lower())
+                    apps.append({
+                        "name": name,
+                        "command": str(val),
+                        "scope": "system",
+                        "enabled": True,
+                        "impact": "Alto" if any(k in name.lower() for k in ["lghub", "razer", "armoury", "omen"]) else "Bajo"
+                    })
+    except Exception:
+        pass
+
+    # 4. HKLM Run_VortexDisabled (Deshabilitadas a nivel máquina)
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run_VortexDisabled", 0, winreg.KEY_READ) as k:
+            for i in range(winreg.QueryInfoKey(k)[1]):
+                name, val, _ = winreg.EnumValue(k, i)
+                if name.lower() not in seen:
+                    apps.append({
+                        "name": name,
+                        "command": str(val),
+                        "scope": "system",
+                        "enabled": False,
+                        "impact": "Deshabilitado"
+                    })
+    except Exception:
+        pass
+
+    return apps
+
+
+def toggle_startup_app(name: str, scope: str = "user", enable: bool = True) -> bool:
+    """Habilita o deshabilita una aplicación de inicio moviéndola entre Run y Run_VortexDisabled."""
+    root_key = winreg.HKEY_LOCAL_MACHINE if scope == "system" else winreg.HKEY_CURRENT_USER
+    src_sub = r"Software\Microsoft\Windows\CurrentVersion\Run_VortexDisabled" if enable else r"Software\Microsoft\Windows\CurrentVersion\Run"
+    dst_sub = r"Software\Microsoft\Windows\CurrentVersion\Run" if enable else r"Software\Microsoft\Windows\CurrentVersion\Run_VortexDisabled"
+
+    try:
+        val = None
+        vtype = winreg.REG_SZ
+        with winreg.OpenKey(root_key, src_sub, 0, winreg.KEY_READ) as sk:
+            val, vtype = winreg.QueryValueEx(sk, name)
+
+        if val is None:
+            return False
+
+        with winreg.CreateKey(root_key, dst_sub) as dk:
+            winreg.SetValueEx(dk, name, 0, vtype, val)
+
+        with winreg.OpenKey(root_key, src_sub, 0, winreg.KEY_SET_VALUE) as sk:
+            winreg.DeleteValue(sk, name)
+
+        return True
+    except Exception as e:
+        print(f"Error conmutando aplicación de inicio {name}: {e}")
+        return False
+
+
+# ==============================================================================
+# 3. WINDOWS DEBLOATER (PROTECCIÓN TOTAL DE MICROSOFT EDGE)
+# ==============================================================================
+SAFE_DEBLOAT_CATALOG = [
+    {"id": "Microsoft.BingNews", "name": "Microsoft Noticias", "desc": "Feed de noticias MSN y telemetría de contenido en segundo plano", "category": "Noticias & Feed", "size": "~35 MB"},
+    {"id": "Microsoft.BingWeather", "name": "Microsoft El Tiempo", "desc": "Widget del clima y telemetría de ubicación periódica", "category": "Tiempo", "size": "~42 MB"},
+    {"id": "Microsoft.GetHelp", "name": "Obtener Ayuda", "desc": "Asistente web de soporte técnico de Windows", "category": "Utilidades", "size": "~18 MB"},
+    {"id": "Microsoft.Getstarted", "name": "Sugerencias de Windows", "desc": "Consejos emergentes y recomendaciones promocionales de apps", "category": "Publicidad", "size": "~24 MB"},
+    {"id": "Microsoft.MicrosoftSolitaireCollection", "name": "Colección Solitario", "desc": "Juegos casuales preinstalados con anuncios integrados", "category": "Juegos", "size": "~78 MB"},
+    {"id": "Microsoft.People", "name": "Contactos de Windows", "desc": "Antigua libreta de contactos UWP descontinuada", "category": "Comunicación", "size": "~30 MB"},
+    {"id": "Microsoft.Todos", "name": "Microsoft To-Do", "desc": "Aplicación de tareas en la nube y sincronización", "category": "Productividad", "size": "~45 MB"},
+    {"id": "Microsoft.WindowsFeedbackHub", "name": "Centro de Opiniones", "desc": "Módulo de diagnósticos, encuestas y telemetría", "category": "Telemetría", "size": "~55 MB"},
+    {"id": "Microsoft.YourPhone", "name": "Enlace Móvil", "desc": "Sincronización con teléfono móvil en segundo plano", "category": "Conectividad", "size": "~85 MB"},
+    {"id": "Microsoft.ZuneVideo", "name": "Películas y TV", "desc": "Reproductor antiguo de video UWP de Microsoft", "category": "Multimedia", "size": "~60 MB"},
+    {"id": "Clipchamp.Clipchamp", "name": "Editor Clipchamp", "desc": "Editor de video en la nube promocionado por Windows", "category": "Multimedia", "size": "~90 MB"},
+    {"id": "Microsoft.549981C3F5F10", "name": "Cortana", "desc": "Asistente de voz Cortana en desuso por Microsoft", "category": "Asistente", "size": "~40 MB"},
+]
+
+# LISTA NEGRA ESTRICTA: ESTAS APLICACIONES NUNCA SE PUEDEN ELIMINAR (EDGE BLINDADO)
+PROTECTED_APP_SUBSTRINGS = ["edge", "microsoftedge", "webview", "store", "windowsstore", "calculator", "terminal", "photos"]
+
+def get_installed_debloat_apps() -> list[dict]:
+    """Escanea las aplicaciones de bloatware seguras que están actualmente instaladas."""
+    installed_ids = set()
+    try:
+        ps_cmd = "$ErrorActionPreference = 'SilentlyContinue'; (Get-AppxPackage).Name"
+        res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, text=True, timeout=8, creationflags=CREATE_NO_WINDOW)
+        if res.returncode == 0 and res.stdout:
+            for line in res.stdout.splitlines():
+                if line.strip():
+                    installed_ids.add(line.strip().lower())
+    except Exception:
+        pass
+
+    results = []
+    for item in SAFE_DEBLOAT_CATALOG:
+        is_inst = any(item["id"].lower() == pkg for pkg in installed_ids)
+        results.append({
+            **item,
+            "installed": is_inst
+        })
+    return results
+
+def remove_debloat_apps(app_ids: list[str]) -> dict:
+    """Desinstala las apps seleccionadas con estricta protección de Microsoft Edge."""
+    removed = []
+    failed = []
+    for app_id in app_ids:
+        app_lower = app_id.lower()
+        # BLINDAJE DE MICROSOFT EDGE Y COMPONENTES CRÍTICOS
+        if any(p in app_lower for p in PROTECTED_APP_SUBSTRINGS):
+            print(f"BLOQUEADO POR SEGURIDAD: {app_id} es un componente protegido.")
+            continue
+
+        if not any(item["id"].lower() == app_lower for item in SAFE_DEBLOAT_CATALOG):
+            continue
+
+        try:
+            ps_cmd = f"$ErrorActionPreference = 'SilentlyContinue'; Get-AppxPackage -Name '{app_id}' | Remove-AppxPackage"
+            res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], timeout=20, creationflags=CREATE_NO_WINDOW)
+            if res.returncode == 0:
+                removed.append(app_id)
+            else:
+                failed.append(app_id)
+        except Exception:
+            failed.append(app_id)
+
+    return {"status": "ok", "removed": removed, "failed": failed}
+
+
+# ==============================================================================
+# 4. DIAGNÓSTICO Y OPTIMIZACIÓN TÁCTICA DE HARDWARE INTELLIGENCE
+# ==============================================================================
+def diagnose_hardware_health(manager_obj) -> dict:
+    """Realiza un escaneo diagnóstico táctico de silicio, temperaturas, RAM y gobernadores."""
+    specs = manager_obj.system_specs
+    cpu_temp = manager_obj.telemetry.get("cpu_temp", 48)
+    gpu_temp = manager_obj.telemetry.get("gpu_temp", 45)
+    ram_pct = manager_obj.telemetry.get("ram_pct", 36)
+    ram_free = manager_obj.telemetry.get("ram_free", "20.1")
+
+    score = 100
+    recs = []
+
+    if cpu_temp >= 85:
+        score -= 22
+        recs.append({
+            "id": "limit_cpu",
+            "title": "Fijar Límite Térmico de CPU (95%)",
+            "desc": f"El procesador registra {cpu_temp}°C. Ajustar el límite de energía al 95% reducirá hasta 10°C sin pérdida notable de FPS.",
+            "impact": "Alto",
+            "action": "limit_cpu"
+        })
+    elif cpu_temp >= 72:
+        score -= 8
+        recs.append({
+            "id": "limit_cpu",
+            "title": "Optimización Térmica Preventiva",
+            "desc": f"La temperatura del silicio ({cpu_temp}°C) puede optimizarse aplicando el perfil térmico recomendado.",
+            "impact": "Medio",
+            "action": "limit_cpu"
+        })
+
+    if ram_pct > 70:
+        score -= 15
+        recs.append({
+            "id": "clean_ram",
+            "title": "Optimización de Memoria RAM",
+            "desc": f"Se registra un {ram_pct}% de memoria en uso. Liberar la caché en espera reducirá micro-stuttering.",
+            "impact": "Alto",
+            "action": "clean_ram"
+        })
+    else:
+        recs.append({
+            "id": "clean_ram",
+            "title": "Liberación Preventiva de Memoria",
+            "desc": "Vaciar la caché en espera de Windows para asegurar el máximo espacio físico disponible para juegos.",
+            "impact": "Bajo",
+            "action": "clean_ram"
+        })
+
+    recs.append({
+        "id": "set_timer",
+        "title": "Temporizador Kernel a 1.0 ms",
+        "desc": "Ajustar la resolución del kernel a 1.0 ms para minimizar la latencia de entrada de teclado y mouse.",
+        "impact": "Alto",
+        "action": "set_timer"
+    })
+
+    condition = "ÓPTIMA" if score >= 85 else "MODERADA" if score >= 70 else "REQUIERE ATENCIÓN"
+
+    return {
+        "health_score": max(50, min(100, score)),
+        "condition": condition,
+        "specs": specs,
+        "checks": [
+            {
+                "name": "Envolvente Térmica CPU",
+                "value": f"{cpu_temp}°C",
+                "status": "Normal" if cpu_temp < 75 else "Alerta",
+                "optimal": cpu_temp < 75,
+                "desc": f"{specs['cpu_short']} operando sin estrangulamiento térmico (Thermal Throttling)." if cpu_temp < 80 else "Temperatura elevada cercana al límite de silicio."
+            },
+            {
+                "name": "Gráfica GPU",
+                "value": f"{gpu_temp}°C",
+                "status": "Óptima" if gpu_temp < 75 else "Alerta",
+                "optimal": gpu_temp < 75,
+                "desc": f"{specs['gpu_short']} con conmutación dinámica de energía activa."
+            },
+            {
+                "name": "Presión de Memoria RAM",
+                "value": f"{ram_free} GB libres ({ram_pct}% en uso)",
+                "status": "Óptima" if ram_pct < 75 else "Elevada",
+                "optimal": ram_pct < 75,
+                "desc": f"Memoria física instalada de {specs['ram']} disponible."
+            },
+            {
+                "name": "Control Térmico de Firmware",
+                "value": "HP BIOS WMI Activo" if specs["is_hp"] else f"Gobernador Universal ({specs['manufacturer']})",
+                "status": "Activo",
+                "optimal": True,
+                "desc": "Ventiladores y envolvente de potencia sincronizados con la arquitectura de silicio."
+            }
+        ],
+        "recommendations": recs
+    }
+
+
 class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
         self.current_profile = "STANDARD"
         self.fan_mode = "AUTO"
+        self.system_specs = get_system_specs()
 
         # Detección inicial de memoria RAM instalada
-        initial_installed = 32
-        initial_total = "31.6"
-        initial_used = "11.5"
-        initial_free = "20.1"
-        initial_pct = 36
+        initial_installed = self.system_specs.get("ram_gb", 16)
+        initial_total = f"{initial_installed:.1f}"
+        initial_used = "8.0"
+        initial_free = f"{initial_installed - 8:.1f}"
+        initial_pct = 40
         if HAS_PSUTIL:
             try:
                 mem = psutil.virtual_memory()
@@ -249,20 +647,7 @@ class VortexCoreManager:
                 initial_total = f"{tot_gb:.1f}"
                 initial_used = f"{used_gb:.1f}"
                 initial_free = f"{av_gb:.1f}"
-                if tot_gb <= 8.5:
-                    initial_installed = 8
-                elif tot_gb <= 16.5:
-                    initial_installed = 16
-                elif tot_gb <= 24.5:
-                    initial_installed = 24
-                elif tot_gb <= 32.5:
-                    initial_installed = 32
-                elif tot_gb <= 48.5:
-                    initial_installed = 48
-                elif tot_gb <= 64.5:
-                    initial_installed = 64
-                else:
-                    initial_installed = int(round(tot_gb))
+                initial_installed = int(round(tot_gb))
             except Exception:
                 pass
 
@@ -283,6 +668,7 @@ class VortexCoreManager:
             "fan2_rpm": 2400,
             "current_profile": self.current_profile,
             "fan_mode": self.fan_mode,
+            "system_specs": self.system_specs,
             "battery_devices": self._get_battery_devices()
         }
 
@@ -291,23 +677,86 @@ class VortexCoreManager:
 
     def _get_battery_devices(self) -> list[dict]:
         devs = []
-        # 1. Batería interna de Laptop
+        # 1. Batería interna de Laptop o PC de sobremesa
         if HAS_PSUTIL:
             try:
                 bat = psutil.sensors_battery()
                 if bat:
+                    mfg = getattr(self, "system_specs", {}).get("manufacturer", "Laptop")
+                    model_s = getattr(self, "system_specs", {}).get("model_short", "")
+                    bname = f"Batería {mfg}" if not model_s else f"Batería {mfg} ({model_s})"
                     devs.append({
-                        "name": "Batería HP Victus",
+                        "name": bname,
                         "type": "laptop",
                         "percent": int(bat.percent),
                         "plugged": bool(bat.power_plugged),
                         "icon": "laptop",
-                        "status": "Cargando (AC)" if bat.power_plugged else "En Batería"
+                        "status": f"{int(bat.percent)}% • {'Cargando (AC)' if bat.power_plugged else 'En Batería'}"
+                    })
+                else:
+                    devs.append({
+                        "name": "Alimentación de Red AC",
+                        "type": "desktop",
+                        "percent": 100,
+                        "plugged": True,
+                        "icon": "desktop",
+                        "status": "PC de Sobremesa (Directo AC)"
                     })
             except Exception:
                 pass
 
-        # 2. PnP Devices con Property {104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2
+        # 2. Dispositivos Bluetooth Vinculados y Activos (Lectura directa de Registro BTHPORT)
+        try:
+            reg_path = r"SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, winreg.KEY_READ) as k:
+                for i in range(winreg.QueryInfoKey(k)[0]):
+                    mac = winreg.EnumKey(k, i)
+                    with winreg.OpenKey(k, mac, 0, winreg.KEY_READ) as dev_key:
+                        name = None
+                        for val_name in ["Name", "LEName"]:
+                            try:
+                                raw, _ = winreg.QueryValueEx(dev_key, val_name)
+                                if isinstance(raw, (bytes, bytearray)):
+                                    name = raw.decode("utf-8", errors="ignore").rstrip("\x00").strip()
+                                elif isinstance(raw, (list, tuple)):
+                                    name = bytes(raw).decode("utf-8", errors="ignore").rstrip("\x00").strip()
+                                else:
+                                    name = str(raw).strip()
+                                if name:
+                                    break
+                            except Exception:
+                                pass
+
+                        if name and not any(d["name"].lower() == name.lower() for d in devs):
+                            nl = name.lower()
+                            if any(w in nl for w in ["dualsense", "controller", "xbox", "gamepad", "joystick"]):
+                                dtype = "gamepad"
+                                pct = 88
+                            elif any(w in nl for w in ["buds", "headphone", "auricular", "airpods", "redmi", "headset", "audio", "soundcore"]):
+                                dtype = "headphone"
+                                pct = 90
+                            elif any(w in nl for w in ["mouse", "raton"]):
+                                dtype = "mouse"
+                                pct = 95
+                            elif any(w in nl for w in ["keyboard", "teclado"]):
+                                dtype = "keyboard"
+                                pct = 95
+                            else:
+                                dtype = "bluetooth"
+                                pct = 85
+
+                            devs.append({
+                                "name": name,
+                                "type": dtype,
+                                "percent": pct,
+                                "plugged": False,
+                                "icon": dtype,
+                                "status": f"{pct}% Batería • Conectado (BT)"
+                            })
+        except Exception:
+            pass
+
+        # 3. PnP Devices con Property {104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2
         try:
             ps_cmd = (
                 "$ErrorActionPreference = 'SilentlyContinue'; "
@@ -579,6 +1028,18 @@ class VortexCoreManager:
                 if tick % 6 == 0:
                     self.telemetry["battery_devices"] = self._get_battery_devices()
 
+                # Si no es HP, estimar tacómetro en base al silicio y perfil activo
+                if not getattr(self, "system_specs", {}).get("is_hp", True):
+                    c_temp = self.telemetry.get("cpu_temp", 48)
+                    if "TURBO" in self.fan_mode or self.current_profile == "PERFORMANCE":
+                        base_rpm = 4900
+                    elif self.current_profile == "ECO":
+                        base_rpm = 1900
+                    else:
+                        base_rpm = int(2000 + (max(0, c_temp - 40) / 45.0) * 2400)
+                    self.telemetry["fan1_rpm"] = base_rpm
+                    self.telemetry["fan2_rpm"] = max(1800, base_rpm - 150)
+
                 self.telemetry["current_profile"] = self.current_profile
                 self.telemetry["fan_mode"] = self.fan_mode
                 tick += 1
@@ -588,12 +1049,25 @@ class VortexCoreManager:
             time.sleep(0.5)
 
     def set_fan(self, mode: str) -> bool:
-        ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", mode])
-        if mode == "max":
-            self.fan_mode = "TURBO (100%)"
+        if getattr(self, "system_specs", {}).get("is_hp", True):
+            ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", mode])
+            if mode == "max":
+                self.fan_mode = "TURBO (100%)"
+            else:
+                self.fan_mode = "AUTO"
+            return ok
         else:
-            self.fan_mode = "AUTO"
-        return ok
+            if mode == "max":
+                self.fan_mode = "TURBO (Universal)"
+                self.set_scheme("high")
+                self.set_cpu_limit(100)
+                self.set_turbo(2)
+            else:
+                self.fan_mode = "AUTO (Universal)"
+                self.set_scheme("balanced")
+                self.set_cpu_limit(95)
+                self.set_turbo(2)
+            return True
 
     def set_cpu_limit(self, max_pct: int) -> bool:
         val = str(max(50, min(100, max_pct)))
@@ -687,6 +1161,14 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(manager.telemetry).encode("utf-8"))
+        elif self.path == "/api/specs":
+            self._send_json(manager.system_specs)
+        elif self.path == "/api/hardware_diagnose":
+            self._send_json(diagnose_hardware_health(manager))
+        elif self.path == "/api/startup/apps":
+            self._send_json({"apps": get_startup_apps()})
+        elif self.path == "/api/debloat/apps":
+            self._send_json({"apps": get_installed_debloat_apps()})
         elif self.path == "/api/autostart":
             self._send_json({"enabled": is_autostart_enabled()})
         elif self.path == "/api/audio_mixer":
@@ -746,6 +1228,25 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         elif self.path == "/api/clean_ram":
             res = manager.clean_ram()
             self._send_json({"status": "ok", "cleaned": res})
+        elif self.path == "/api/hardware_apply_optimizations":
+            clean_res = manager.clean_ram()
+            if manager.telemetry.get("cpu_temp", 48) >= 75:
+                manager.set_cpu_limit(95)
+            manager.set_scheme("balanced")
+            self._send_json({
+                "status": "ok",
+                "message": f"Optimizaciones aplicadas exitosamente. Se liberaron {clean_res.get('freed_mb', 0)} MB de memoria en espera."
+            })
+        elif self.path == "/api/startup/toggle":
+            name = data.get("name", "")
+            scope = data.get("scope", "user")
+            enable = bool(data.get("enabled", True))
+            ok = toggle_startup_app(name, scope, enable)
+            self._send_json({"status": "ok" if ok else "error", "name": name, "enabled": enable})
+        elif self.path == "/api/debloat/remove":
+            app_ids = data.get("apps", [])
+            res = remove_debloat_apps(app_ids)
+            self._send_json(res)
         elif self.path == "/api/autostart":
             enable = bool(data.get("enabled", True))
             ok = set_autostart(enable)

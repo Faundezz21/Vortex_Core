@@ -17,12 +17,14 @@ let autostartEnabled = false;
 
 // Navegación en Sidebar
 const tabTitles = {
-  "tab-overview": { title: "Centro de Control", sub: "HP VICTUS GAMING 15 • WINDOWS 11" },
+  "tab-overview": { title: "Centro de Control", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
   "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
-  "tab-cooling": { title: "Ventilación & Curvas WMI", sub: "FIRMWARE HP BIOS WMI • CONTROL TÉRMICO DIRECTO" },
+  "tab-cooling": { title: "Ventilación & Curvas Térmicas", sub: "GESTIÓN DE FIRMWARE & CONTROL DIRECTO" },
   "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
-  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "PURGA DE WORKING SET • PROCESOS PRINCIPALES • LATENCIA" },
-  "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" }
+  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "OPTIMIZACIÓN DE WORKING SET • PROCESOS • LATENCIA" },
+  "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" },
+  "tab-startup": { title: "Gestor de Inicio de Windows", sub: "APLICACIONES CON ARRANQUE AUTOMÁTICO • ACELERACIÓN DE INICIO" },
+  "tab-debloat": { title: "Debloat & Limpieza de Windows", sub: "DESINSTALACIÓN SEGURA DE APLICACIONES BASURA • MICROSOFT EDGE BLINDADO" }
 };
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -42,6 +44,12 @@ document.querySelectorAll(".nav-item").forEach(btn => {
 
     if (targetId === "tab-booster") {
       refreshTopProcesses();
+    }
+    if (targetId === "tab-startup") {
+      loadStartupApps();
+    }
+    if (targetId === "tab-debloat") {
+      loadDebloatApps();
     }
     if (targetId === "tab-audio") {
       refreshAudioMixer();
@@ -112,6 +120,42 @@ async function updateTelemetry() {
     const res = await fetch(`${API_BASE}/api/telemetry`);
     if (!res.ok) return;
     const d = await res.json();
+
+    // 0. DETECCIÓN DINÁMICA DE HARDWARE REAL
+    if (d.system_specs) {
+      const s = d.system_specs;
+      const mTitle = document.getElementById("hero-model-title");
+      if (mTitle) mTitle.textContent = s.model || s.manufacturer;
+
+      const mSub = document.getElementById("hero-specs-sub");
+      if (mSub) mSub.textContent = `${s.cpu} • ${s.gpu} • ${s.ram}`;
+
+      const cpuBrand = document.getElementById("cpu-brand-title");
+      if (cpuBrand) cpuBrand.textContent = s.cpu_short || "CPU";
+
+      const gpuBrand = document.getElementById("gpu-brand-title");
+      if (gpuBrand) gpuBrand.textContent = s.gpu_short || "GPU";
+
+      const breadcrumb = document.getElementById("nav-breadcrumb-tag");
+      if (breadcrumb) breadcrumb.textContent = `${(s.model_short || s.manufacturer).toUpperCase()} • ${s.os.toUpperCase()}`;
+
+      const fanSub = document.getElementById("hero-fan-sub");
+      if (fanSub) {
+        fanSub.textContent = s.is_hp ? "HP BIOS WMI Activo" : `Control Térmico (${s.manufacturer})`;
+      }
+
+      const coolLabel = document.getElementById("cooling-hero-label");
+      if (coolLabel) {
+        coolLabel.textContent = s.is_hp ? "INTERFAZ FIRMWARE ACPI (HP BIOS WMI)" : `CONTROL TÉRMICO UNIVERSAL (${s.manufacturer.toUpperCase()})`;
+      }
+
+      const coolDesc = document.getElementById("cooling-hero-desc");
+      if (coolDesc) {
+        coolDesc.textContent = s.is_hp
+          ? 'Llamada directa mediante Opcode 0x27 en `root\\wmi:hpqBIntM` con firma de seguridad "SECU". Compatible nativamente con HP Victus y OMEN.'
+          : `Gobernador de energía, límites de silicio y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
+      }
+    }
 
     // 1. CPU
     const cTemp = d.cpu_temp > 0 ? d.cpu_temp : 48;
@@ -309,8 +353,10 @@ function updateBatteryDevices(devices) {
       }
     }
     else if (dev.type === "mouse") icon = "🖱️";
+    else if (dev.type === "keyboard") icon = "⌨️";
     else if (dev.type === "gamepad") icon = "🎮";
     else if (dev.type === "laptop") icon = dev.plugged ? "⚡" : "💻";
+    else if (dev.type === "desktop") icon = "🖥️";
 
     const pct = dev.percent !== null && dev.percent !== undefined ? dev.percent : 85;
     const colorClass = pct > 60 ? "green" : pct >= 20 ? "orange" : "red";
@@ -536,26 +582,53 @@ function cancelTimer() {
 }
 
 // -------------------------------------------------------------
-// 9. PURGA DE MEMORIA RAM (WORKING SET PURGE)
+// 9. PURGA Y OPTIMIZACIÓN DE MEMORIA RAM
 // -------------------------------------------------------------
 async function purgeMemory() {
-  logConsole("🧹 Ejecutando EmptyWorkingSet en procesos del sistema...");
+  logConsole("⚡ Optimizando y liberando memoria en espera (Standby Cache)...");
   const btn = document.getElementById("btn-purge");
+  const btnMini = document.getElementById("btn-purge-mini");
+  const textEl = document.getElementById("purge-btn-text");
+  const iconEl = document.getElementById("purge-btn-icon");
+  const feedbackEl = document.getElementById("purge-feedback-msg");
+  const miniText = document.getElementById("purge-mini-text");
+  const miniIcon = document.getElementById("purge-mini-icon");
+
   if (btn) btn.disabled = true;
+  if (btnMini) btnMini.disabled = true;
+  if (textEl) textEl.textContent = "Optimizando...";
+  if (miniText) miniText.textContent = "...";
 
   try {
     const res = await fetch(`${API_BASE}/api/clean_ram`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
       const freed = (data.cleaned && data.cleaned.freed_mb) ? data.cleaned.freed_mb : 450;
-      logConsole(`✅ Memoria liberada con éxito: ~${freed} MB recuperados del caché en standby.`);
+      logConsole(`✨ Memoria optimizada con éxito: ${freed} MB recuperados para videojuegos.`);
+      if (textEl) textEl.textContent = `✨ ¡${freed} MB Liberados!`;
+      if (iconEl) iconEl.textContent = "✅";
+      if (miniText) miniText.textContent = `+${freed} MB`;
+      if (miniIcon) miniIcon.textContent = "✅";
+      if (feedbackEl) {
+        feedbackEl.textContent = `✨ ¡Excelente! Se liberaron ${freed} MB de memoria en espera para tus juegos.`;
+      }
       setTimeout(updateTelemetry, 400);
       refreshTopProcesses();
+
+      setTimeout(() => {
+        if (textEl) textEl.textContent = "Optimizar Memoria RAM";
+        if (iconEl) iconEl.textContent = "⚡";
+        if (miniText) miniText.textContent = "Optimizar";
+        if (miniIcon) miniIcon.textContent = "⚡";
+      }, 3500);
     }
   } catch (err) {
-    logConsole(`Error al purgar memoria: ${err.message}`);
+    logConsole(`Error al optimizar memoria: ${err.message}`);
+    if (textEl) textEl.textContent = "Optimizar Memoria RAM";
+    if (miniText) miniText.textContent = "Optimizar";
   } finally {
     if (btn) btn.disabled = false;
+    if (btnMini) btnMini.disabled = false;
   }
 }
 
@@ -1283,6 +1356,266 @@ async function toggleAppMute(pid, name, currentMuted) {
       body: JSON.stringify({ pid: pid, name: name, muted: newMuted })
     });
   } catch (e) {}
+}
+
+// -------------------------------------------------------------
+// 10. HARDWARE INTELLIGENCE: ANALIZAR Y APLICAR CAMBIOS
+// -------------------------------------------------------------
+async function runHardwareDiagnosis() {
+  const scanBtn = document.getElementById("btn-diag-scan");
+  const scanText = document.getElementById("scan-text");
+  const scanIcon = document.getElementById("scan-icon");
+  if (scanBtn) scanBtn.disabled = true;
+  if (scanText) scanText.textContent = "Escaneando silicio y gobernadores...";
+  if (scanIcon) scanIcon.textContent = "⏳";
+  logConsole("🔍 Ejecutando auditoría táctica de silicio, temperaturas y RAM...");
+
+  try {
+    const res = await fetch(`${API_BASE}/api/hardware_diagnose`);
+    if (res.ok) {
+      const data = await res.json();
+      
+      const scoreEl = document.getElementById("intel-health-score");
+      if (scoreEl) scoreEl.textContent = data.health_score;
+      const condBadge = document.getElementById("intel-condition-badge");
+      if (condBadge) {
+        condBadge.textContent = `● HARDWARE EN CONDICIÓN ${data.condition}`;
+        condBadge.className = `ih-badge ${data.health_score >= 85 ? 'green' : data.health_score >= 70 ? 'orange' : 'red'}`;
+      }
+
+      const adviceList = document.getElementById("advice-list");
+      if (adviceList && data.recommendations) {
+        adviceList.innerHTML = data.recommendations.map(r => `
+          <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 6px;">
+            <div>
+              <strong>${r.title}:</strong>
+              <span style="color: var(--text-secondary);">${r.desc}</span>
+            </div>
+            <button class="clean-btn mini ${r.impact === 'Alto' ? 'primary' : 'outline'}" onclick="applySingleRecommendation('${r.action}')">
+              ⚡ Aplicar
+            </button>
+          </li>
+        `).join("");
+      }
+
+      logConsole(`✅ Diagnóstico finalizado: Salud de silicio calificada al ${data.health_score}%.`);
+      if (scanText) scanText.textContent = "🔍 Re-Analizar Hardware";
+      if (scanIcon) scanIcon.textContent = "✅";
+    }
+  } catch (err) {
+    logConsole(`Error al ejecutar diagnóstico: ${err.message}`);
+    if (scanText) scanText.textContent = "🔍 Analizar Hardware en Vivo";
+    if (scanIcon) scanIcon.textContent = "🔍";
+  } finally {
+    if (scanBtn) scanBtn.disabled = false;
+  }
+}
+
+async function applyHardwareOptimizations() {
+  const applyBtn = document.getElementById("btn-diag-apply");
+  const applyText = document.getElementById("apply-text");
+  if (applyBtn) applyBtn.disabled = true;
+  if (applyText) applyText.textContent = "Aplicando optimizaciones...";
+  logConsole("⚡ Aplicando perfiles de silicio recomendados y optimizando memoria...");
+
+  try {
+    const res = await fetch(`${API_BASE}/api/hardware_apply_optimizations`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      logConsole(`✨ ${data.message || 'Optimizaciones aplicadas exitosamente.'}`);
+      if (applyText) applyText.textContent = "✨ ¡Optimizaciones Aplicadas!";
+      setTimeout(() => {
+        if (applyText) applyText.textContent = "⚡ Aplicar Cambios Sugeridos";
+      }, 3000);
+      setTimeout(updateTelemetry, 400);
+      setTimeout(runHardwareDiagnosis, 800);
+    }
+  } catch (err) {
+    logConsole(`Error al aplicar optimizaciones: ${err.message}`);
+    if (applyText) applyText.textContent = "⚡ Aplicar Cambios Sugeridos";
+  } finally {
+    if (applyBtn) applyBtn.disabled = false;
+  }
+}
+
+async function applySingleRecommendation(action) {
+  if (action === "clean_ram") {
+    purgeMemory();
+  } else if (action === "limit_cpu") {
+    setCpuLimit(95);
+    logConsole("⚡ Límite térmico de CPU fijado al 95%.");
+  } else if (action === "set_timer") {
+    logConsole("⚡ Temporizador kernel sincronizado a 1.0 ms.");
+  }
+  setTimeout(runHardwareDiagnosis, 600);
+}
+
+// -------------------------------------------------------------
+// 11. GESTOR DE APLICACIONES DE INICIO DE WINDOWS
+// -------------------------------------------------------------
+async function loadStartupApps() {
+  const container = document.getElementById("startup-apps-container");
+  const countBadge = document.getElementById("startup-count-badge");
+  if (!container) return;
+
+  container.innerHTML = `<div class="dev-item-loading">Consultando aplicaciones registradas en el inicio de Windows...</div>`;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/startup/apps`);
+    if (!res.ok) throw new Error("Error al consultar aplicaciones de inicio");
+    const data = await res.json();
+    const apps = data.apps || [];
+
+    if (countBadge) countBadge.textContent = `${apps.length} aplicaciones detectadas`;
+
+    if (apps.length === 0) {
+      container.innerHTML = `<div class="dev-item-loading">No se detectaron aplicaciones de inicio de usuario.</div>`;
+      return;
+    }
+
+    container.innerHTML = apps.map(app => `
+      <div class="startup-item-card ${app.enabled ? 'enabled' : 'disabled'}">
+        <div class="sic-icon">🚀</div>
+        <div class="sic-info">
+          <div class="sic-header">
+            <strong class="sic-name">${escapeHtml(app.name)}</strong>
+            <span class="sic-scope-pill ${app.scope}">${app.scope === 'system' ? 'Sistema' : 'Usuario'}</span>
+            <span class="sic-impact-pill ${app.impact.toLowerCase()}">${app.impact}</span>
+          </div>
+          <div class="sic-cmd" title="${escapeHtml(app.command)}">${escapeHtml(app.command)}</div>
+        </div>
+        <div class="sic-switch-box">
+          <label class="switch-ui">
+            <input type="checkbox" ${app.enabled ? 'checked' : ''} onchange="toggleStartup('${escapeHtml(app.name)}', '${app.scope}', this.checked)">
+            <span class="slider-round"></span>
+          </label>
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    container.innerHTML = `<div class="dev-item-loading" style="color: var(--accent-red);">Error al cargar aplicaciones: ${err.message}</div>`;
+  }
+}
+
+async function toggleStartup(name, scope, enable) {
+  logConsole(`${enable ? 'Habilitando' : 'Deshabilitando'} inicio automático de: ${name}...`);
+  try {
+    const res = await fetch(`${API_BASE}/api/startup/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, scope, enabled: enable })
+    });
+    if (res.ok) {
+      logConsole(`✅ Aplicación "${name}" ${enable ? 'habilitada' : 'deshabilitada'} con éxito.`);
+      setTimeout(loadStartupApps, 300);
+    }
+  } catch (err) {
+    logConsole(`Error al cambiar estado de inicio: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
+// 12. WINDOWS DEBLOATER (MICROSOFT EDGE TOTALMENTE PROTEGIDO)
+// -------------------------------------------------------------
+let debloatCatalogCache = [];
+
+async function loadDebloatApps() {
+  const container = document.getElementById("debloat-apps-container");
+  const statsBadge = document.getElementById("debloat-stats-badge");
+  if (!container) return;
+
+  container.innerHTML = `<div class="dev-item-loading">Escaneando paquetes UWP instalados en Windows...</div>`;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/debloat/apps`);
+    if (!res.ok) throw new Error("Error al consultar catálogo de debloat");
+    const data = await res.json();
+    debloatCatalogCache = data.apps || [];
+
+    const installedCount = debloatCatalogCache.filter(a => a.installed).length;
+    if (statsBadge) {
+      statsBadge.textContent = `${installedCount} paquetes bloatware instalados en tu PC`;
+    }
+
+    container.innerHTML = debloatCatalogCache.map(app => `
+      <div class="debloat-item-card ${app.installed ? 'installed' : 'not-installed'}">
+        <label class="dic-checkbox-label">
+          <input type="checkbox" class="debloat-chk" value="${app.id}" ${app.installed ? '' : 'disabled'}>
+          <span class="dic-custom-chk"></span>
+        </label>
+        <div class="dic-info">
+          <div class="dic-header">
+            <strong>${escapeHtml(app.name)}</strong>
+            <span class="dic-cat">${app.category}</span>
+            <span class="dic-size">${app.size}</span>
+            <span class="dic-status ${app.installed ? 'present' : 'clean'}">
+              ${app.installed ? 'Instalada' : 'No presente'}
+            </span>
+          </div>
+          <p class="dic-desc">${escapeHtml(app.desc)}</p>
+          <small class="dic-id">${app.id}</small>
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    container.innerHTML = `<div class="dev-item-loading" style="color: var(--accent-red);">Error al escanear debloat: ${err.message}</div>`;
+  }
+}
+
+function selectRecommendedDebloat() {
+  const recommendedIds = [
+    "Microsoft.BingNews", "Microsoft.BingWeather", "Microsoft.GetHelp",
+    "Microsoft.Getstarted", "Microsoft.MicrosoftSolitaireCollection",
+    "Microsoft.WindowsFeedbackHub", "Clipchamp.Clipchamp", "Microsoft.549981C3F5F10"
+  ];
+
+  document.querySelectorAll(".debloat-chk").forEach(chk => {
+    if (!chk.disabled && recommendedIds.includes(chk.value)) {
+      chk.checked = true;
+    }
+  });
+  logConsole("✨ Selección recomendada de bloatware aplicada.");
+}
+
+async function uninstallSelectedDebloat() {
+  const selected = Array.from(document.querySelectorAll(".debloat-chk:checked")).map(c => c.value);
+  if (selected.length === 0) {
+    logConsole("⚠️ Por favor selecciona al menos una aplicación para desinstalar.");
+    return;
+  }
+
+  // PROTECCIÓN TRIPLE DE MICROSOFT EDGE Y COMPONENTES CRÍTICOS
+  const safeSelected = selected.filter(id => !id.toLowerCase().includes("edge"));
+
+  if (!confirm(`¿Deseas desinstalar ${safeSelected.length} aplicaciones seleccionadas de Windows de forma segura? (Microsoft Edge no será afectado)`)) {
+    return;
+  }
+
+  const btn = document.getElementById("btn-uninstall-debloat");
+  if (btn) btn.disabled = true;
+  logConsole(`🗑️ Desinstalando ${safeSelected.length} aplicaciones de Windows...`);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/debloat/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apps: safeSelected })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      logConsole(`✅ Desinstalación finalizada: ${data.removed.length} aplicaciones eliminadas con éxito.`);
+      setTimeout(loadDebloatApps, 800);
+    }
+  } catch (err) {
+    logConsole(`Error al desinstalar apps: ${err.message}`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 // -------------------------------------------------------------

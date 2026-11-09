@@ -2,14 +2,14 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://www.microsoft.com/windows)
 [![Download Setup](https://img.shields.io/badge/Descargar-Vortex--core--hub--Setup.exe-00F0FF?style=for-the-badge&logo=windows)](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)
-[![Release](https://img.shields.io/badge/Release-v7.8.2%20Oficial-00E676?style=for-the-badge&logo=github)](https://github.com/Faundezz21/VortexCore-Hub/releases)
-[![Hardware](https://img.shields.io/badge/Hardware-HP%20Victus%20%7C%20OMEN%20%7C%20Universal-FF4500?style=for-the-badge&logo=hp)](https://www.hp.com)
+[![Release](https://img.shields.io/badge/Release-v7.8.3%20Oficial-00E676?style=for-the-badge&logo=github)](https://github.com/Faundezz21/VortexCore-Hub/releases)
+[![Hardware](https://img.shields.io/badge/Hardware-HP%20Victus%20%7C%20OMEN%20%7C%20ASUS%20%7C%20Lenovo%20%7C%20Universal-FF4500?style=for-the-badge&logo=hp)](https://www.hp.com)
 [![Developer](https://img.shields.io/badge/Developer-Faundezz21-00F0FF?style=for-the-badge)](https://github.com/Faundezz21)
 [![License](https://img.shields.io/badge/License-MIT-00E676?style=for-the-badge)](LICENSE)
 
 > **VortexCore Hub** es un centro de control de hardware de alto rendimiento, ultra-ligero y táctico, desarrollado por **Faundezz21**. Diseñado para sustituir por completo programas pesados y con telemetría invasiva como *OMEN Gaming Hub*, *Armoury Crate* o *Lenovo Vantage*. 
 >
-> Ofrece control directo de refrigeración por **BIOS WMI de HP**, monitoreo térmico en tiempo real (500 ms), limitadores precisos de frecuencia de CPU, interruptores de Intel Turbo Boost, purga de memoria RAM en standby, monitoreo de batería de periféricos (auriculares Bluetooth y mandos), **Mezclador de Audio por Aplicación estilo EarTrumpet**, ecualizador táctico de 10 bandas y una interfaz táctica con diales circulares SVG inspirada en las suites más avanzadas del mercado.
+> Ofrece **detección dinámica automática de hardware** (cualquier marca de laptop o PC), control directo de refrigeración por **BIOS WMI de HP** y gobernador universal de silicio para otras marcas, monitoreo térmico en tiempo real (500 ms), limitadores precisos de frecuencia de CPU, interruptores de Intel Turbo Boost, optimización y liberación de memoria RAM en espera, **Gestor de Aplicaciones de Inicio de Windows**, **Herramienta Segura de Debloat (con Microsoft Edge blindado)**, monitoreo de batería de periféricos (auriculares Bluetooth y mandos), **Mezclador de Audio por Aplicación estilo EarTrumpet**, ecualizador táctico de 10 bandas y una interfaz táctica con diales circulares SVG inspirada en las suites más avanzadas del mercado.
 
 ---
 
@@ -26,7 +26,7 @@
    - Integra la suite en la **Bandeja del Sistema (System Tray junto al reloj)**.
    - Opción para iniciar automáticamente con Windows minimizado.
    - Incluye desinstalador limpio en el Panel de Control de Windows.
-4. *(Opcional)* Si prefieres una versión portable sin instalador, también puedes descargar **`VortexCoreHub-v7.8.2-Portable.zip`**.
+4. *(Opcional)* Si prefieres una versión portable sin instalador, también puedes descargar **`VortexCoreHub-v7.8.3-Portable.zip`**.
 
 > 🛡️ **Nota sobre Windows Defender SmartScreen ("Windows protegió su PC / Editor desconocido"):**  
 > Al tratarse de software de código abierto recién publicado sin certificados comerciales corporativos de pago ($300 USD/año), Windows SmartScreen mostrará una ventana azul preventiva la primera vez:

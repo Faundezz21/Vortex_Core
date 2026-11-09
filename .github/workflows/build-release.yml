@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.2)'
+        description: 'Etiqueta de la versión (ej. v7.8.3)'
         required: true
-        default: 'v7.8.2'
+        default: 'v7.8.3'
       release_name:
         description: 'Título del Release'
         required: true
-        default: 'VortexCore Hub v7.8.2 // Official Setup & Hardware Suite'
+        default: 'VortexCore Hub v7.8.3 // Multi-Hardware & Debloat Suite'
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -73,10 +73,10 @@ jobs:
       - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.2-Portable.zip" -Force
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.3-Portable.zip" -Force
           $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
-          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.2-Portable.zip -Algorithm SHA256).Hash
-          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.2-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.3-Portable.zip -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.3-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
           Write-Host "SHA256 Setup: $setupHash"
           Write-Host "SHA256 Portable: $zipHash"
 
@@ -84,18 +84,48 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.2 // Official Setup & Hardware Suite' }}
+          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.3 // Multi-Hardware & Debloat Suite' }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8.2-Portable.zip
+            dist/VortexCoreHub-v7.8.3-Portable.zip
             dist/checksums-sha256.txt
           body: |
-            # 🌀 VortexCore Hub v7.8.2 // Suite Oficial para Windows
+            # 🌀 VortexCore Hub v7.8.3 // Suite Oficial Multi-Hardware para Windows
             
             **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
-            *Centro de control táctico de hardware, ventilación WMI, audio por app y latencia ultra-baja.*
+            *Centro de control táctico de hardware, detección multi-fabricante, optimización de silicio y suite de inicio/debloat.*
+
+            ---
+
+            ### 📦 Descargas Oficiales
+            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
+            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.3-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.3-Portable.zip).
+            * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
+
+            > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
+
+            ---
+
+            ### 🛡️ Nota sobre Windows Defender SmartScreen / Smart App Control ("Editor Desconocido")
+            Al tratarse de una versión reciente de código abierto compilada por la comunidad sin un certificado de pago empresarial de Microsoft:
+            * **SmartScreen clásico**: Haz clic en **"Más información"** (*More info*) ➔ **"Ejecutar de todas formas"** (*Run anyway*).
+            * **Control Inteligente de Aplicaciones (SAC en Windows 11)**: Si bloquea el archivo, haz **Clic derecho en el .exe ➔ Propiedades ➔ Marcar [☑ Desbloquear] ➔ Aceptar**.
+            > *El código fuente es 100% público, auditable y libre de cualquier malware o telemetría invasiva.*
+
+            ---
+
+            ### 🛠️ Novedades y Mejoras Principales en v7.8.3:
+            * **🌐 Detección Dinámica de Hardware Real**: Detección automática instantánea del fabricante (HP, ASUS, Lenovo, Dell, Acer, MSI, Custom PC), modelo de laptop/desktop, CPU (Intel / AMD Ryzen) y GPU (NVIDIA RTX / AMD Radeon / Intel Iris). Ya no muestra especificaciones fijas en otras computadoras.
+            * **🌡️ Gobernador Térmico Universal Multi-Marca**: Soporte térmico adaptable para laptops que no sean HP, regulando frecuencias, estados de throttling y planes de energía de silicio de forma nativa.
+            * **🔍 Hardware Intelligence Interactivo**:
+              * Botón para **Analizar Hardware en Vivo** (auditoría térmica, cuellos de botella de RAM y temporizadores).
+              * Botón para **Aplicar Optimizaciones Sugeridas** automáticamente con un solo clic.
+            * **⚡ Optimización y Liberación de Memoria RAM**: Textos amigables, visualización de memoria liberada en tiempo real y reducción de Standby Cache.
+            * **🔋 Batería y Periféricos Mejorados**: Detección robusta de batería por fabricante / modelo, PCs de escritorio con alimentación AC directa y mandos / auriculares Bluetooth activos (DualSense, Xbox, Redmi, AirPods, dongles 2.4G).
+            * **🚀 Gestor de Aplicaciones de Inicio**: Visualiza todos los programas que arrancan con Windows y habilítalos/deshabilítalos con interruptores tácticos.
+            * **🧹 Limpiador y Debloat de Windows (Microsoft Edge Blindado)**: Remueve paquetes basura UWP con telemetría (Noticias, El Tiempo, Sugerencias, Solitario, Feedback Hub, Clipchamp, Cortana) manteniendo **Microsoft Edge y WebView2 100% protegidos**.
 
             ---
 
