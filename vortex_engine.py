@@ -17,6 +17,7 @@ import threading
 import subprocess
 import winreg
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart
 
 try:
     import psutil
@@ -404,6 +405,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(manager.telemetry).encode("utf-8"))
+        elif self.path == "/api/autostart":
+            self._send_json({"enabled": is_autostart_enabled()})
         else:
             super().do_GET()
 
@@ -435,6 +438,10 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         elif self.path == "/api/clean_ram":
             res = manager.clean_ram()
             self._send_json({"status": "ok", "cleaned": res})
+        elif self.path == "/api/autostart":
+            enable = bool(data.get("enabled", True))
+            ok = set_autostart(enable)
+            self._send_json({"status": "ok", "enabled": is_autostart_enabled()})
         else:
             self.send_error(404)
 
@@ -475,11 +482,22 @@ if __name__ == "__main__":
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
     print(f"=====================================================")
-    print(f"  VORTEXCORE HUB // ULTIMATE SUITE v7.5 ACTIVE")
+    print(f"  VORTEXCORE HUB // SYSTEM TRAY & REST ACTIVE")
     print(f"  Local Host: http://127.0.0.1:{PORT}")
     print(f"=====================================================")
 
-    launch_native_window()
+    # Iniciar icono en la bandeja del sistema (System Tray junto al reloj)
+    tray = SystemTrayApp(
+        manager,
+        on_open_callback=launch_native_window,
+        on_exit_callback=lambda: os._exit(0)
+    )
+    threading.Thread(target=tray.run, daemon=True).start()
+
+    # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
+    is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])
+    if not is_minimized:
+        launch_native_window()
 
     try:
         while True:

@@ -447,10 +447,55 @@ function toggleAutoTurboSafety() {
 }
 
 // -------------------------------------------------------------
+// 11. AUTO-INICIO CON WINDOWS (STARTUP & SYSTEM TRAY)
+// -------------------------------------------------------------
+let autostartEnabled = false;
+
+async function checkAutostart() {
+  try {
+    const res = await fetch(`${API_BASE}/api/autostart`);
+    if (res.ok) {
+      const d = await res.json();
+      autostartEnabled = !!d.enabled;
+      updateAutostartBtn();
+    }
+  } catch (err) {}
+}
+
+function updateAutostartBtn() {
+  const btn = document.getElementById("btn-autostart");
+  if (btn) {
+    btn.classList.toggle("active", autostartEnabled);
+    btn.textContent = autostartEnabled ? "AUTO-INICIO: ON" : "AUTO-INICIO: OFF";
+  }
+}
+
+async function toggleAutostart() {
+  const next = !autostartEnabled;
+  logConsole(`Configurando auto-inicio con Windows: [${next ? "ACTIVADO" : "DESACTIVADO"}]...`);
+  try {
+    const res = await fetch(`${API_BASE}/api/autostart`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      autostartEnabled = !!d.enabled;
+      updateAutostartBtn();
+      logConsole(autostartEnabled ? "✅ VortexCore Hub iniciará minimizado en la bandeja al encender Windows." : "❌ Auto-inicio con Windows desactivado.");
+    }
+  } catch (err) {
+    logConsole(`Error en auto-inicio: ${err.message}`);
+  }
+}
+
+// -------------------------------------------------------------
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
   logConsole("VortexCore Hub v7.8 listo. Conectando telemetría de silicio...");
   updateTelemetry();
+  checkAutostart();
   setInterval(updateTelemetry, 500);
 });
