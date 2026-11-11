@@ -301,5 +301,16 @@ class CoreAndNetworkTelemetryTests(unittest.TestCase):
         self.assertEqual(m.fan_mode, "TURBO (Universal)")
 
 
+class PowerShellQuotingTests(unittest.TestCase):
+    """Los nombres que van a PowerShell entre comillas simples no pueden cerrar la cadena."""
+
+    def test_all_single_quote_variants_are_doubled(self):
+        for q in ("'", chr(0x2018), chr(0x2019), chr(0x201A), chr(0x201B)):
+            self.assertEqual(hw_sensors.ps_quote(f"a{q}b"), f"a{q}{q}b")
+
+    def test_newlines_removed(self):
+        self.assertEqual(hw_sensors.ps_quote("Wi-Fi" + chr(10) + "x"), "Wi-Fi x")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

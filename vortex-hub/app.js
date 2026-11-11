@@ -252,14 +252,14 @@ async function installPawnIODriver() {
     });
     const out = await res.json();
     showToast({
-      icon: res.ok ? "check-circle" : "alert-triangle",
+      icon: res.ok ? "check-circle" : "alert",
       title: res.ok ? "PawnIO listo" : "Aviso PawnIO",
       message: out.message || "Operación completada.",
       type: res.ok ? "success" : "error",
       duration: 5000
     });
   } catch (e) {
-    showToast({ icon: "alert-triangle", title: "Error", message: "No se pudo iniciar la instalación de PawnIO.", type: "error" });
+    showToast({ icon: "alert", title: "Error", message: "No se pudo iniciar la instalación de PawnIO.", type: "error" });
   } finally {
     _pawnioActionBusy = false;
   }
@@ -281,7 +281,7 @@ async function relaunchAsAdmin() {
     });
     showToast({ icon: "shield", title: "Elevación UAC", message: "Acepta el aviso de Windows para activar sensores por núcleo.", type: "info", duration: 5000 });
   } catch (e) {
-    showToast({ icon: "alert-triangle", title: "Error", message: "No se pudo solicitar elevación.", type: "error" });
+    showToast({ icon: "alert", title: "Error", message: "No se pudo solicitar elevación.", type: "error" });
     _pawnioActionBusy = false;
   }
 }
@@ -491,7 +491,7 @@ async function applyNetworkBoost(enable) {
     const out = await res.json();
     if (out.boost_status) renderNetworkBoostStatus(out.boost_status);
     showToast({
-      icon: res.ok ? "check-circle" : "alert-triangle",
+      icon: res.ok ? "check-circle" : "alert",
       title: enable ? "Intensificador de red" : "Red restaurada",
       message: out.message || "Configuración actualizada.",
       type: res.ok ? "success" : "error",
@@ -501,7 +501,7 @@ async function applyNetworkBoost(enable) {
       logConsole(out.message || "Boost de red aplicado.");
     }
   } catch (e) {
-    showToast({ icon: "alert-triangle", title: "Error de red", message: "No se pudo aplicar el intensificador.", type: "error" });
+    showToast({ icon: "alert", title: "Error de red", message: "No se pudo aplicar el intensificador.", type: "error" });
   } finally {
     if (boostBtn) boostBtn.disabled = false;
     if (resetBtn) resetBtn.disabled = false;
@@ -1357,9 +1357,11 @@ async function refreshTopProcesses() {
       row.className = "proc-row";
 
       const left = document.createElement("div");
+      left.className = "proc-left";
       const nameEl = document.createElement("span");
       nameEl.className = "proc-name";
       nameEl.textContent = p.name || "Proceso";
+      nameEl.title = p.name || "";
       const pidEl = document.createElement("span");
       pidEl.className = "proc-pid";
       pidEl.textContent = `PID: ${p.pid ?? "--"}`;
@@ -3021,7 +3023,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.10.0 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.10.1 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");

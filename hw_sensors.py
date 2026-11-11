@@ -843,7 +843,7 @@ def get_network_boost_status(iface_name: str | None = None) -> dict:
 
     dns_servers = []
     if iface_name:
-        safe_iface = iface_name.replace("'", "''")
+        safe_iface = ps_quote(iface_name)
         code, out = _run([
             "powershell", "-NoProfile", "-Command",
             f"(Get-DnsClientServerAddress -InterfaceAlias '{safe_iface}' -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses | ConvertTo-Json -Compress",
@@ -870,6 +870,16 @@ def get_network_boost_status(iface_name: str | None = None) -> dict:
         "iface": iface_name,
         "is_admin": is_admin(),
     }
+
+
+def ps_quote(text: str) -> str:
+    """Escapa texto para una cadena de PowerShell entre comillas simples.
+    PowerShell acepta también las comillas tipográficas ‘ ’ ‚ ‛ como delimitadores,
+    así que se duplican todas (y se quitan saltos de línea)."""
+    out = " ".join(str(text).splitlines())
+    for q in ("'", chr(0x2018), chr(0x2019), chr(0x201A), chr(0x201B)):
+        out = out.replace(q, q + q)
+    return out
 
 
 def apply_network_boost(enable: bool, dns_preset: str = "keep", iface_name: str | None = None) -> dict:
@@ -918,7 +928,7 @@ def apply_network_boost(enable: bool, dns_preset: str = "keep", iface_name: str 
 
     # 3. Cambio de DNS en la interfaz activa (solo presets validados)
     if dns_preset in DNS_PRESETS and iface_name:
-        safe_iface = iface_name.replace("'", "''")
+        safe_iface = ps_quote(iface_name)
         if dns_preset == "auto":
             c, _ = _run(["powershell", "-NoProfile", "-Command",
                          f"Set-DnsClientServerAddress -InterfaceAlias '{safe_iface}' -ResetServerAddresses"], timeout=6)

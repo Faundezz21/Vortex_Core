@@ -6007,3 +6007,19 @@ button:active:not(:disabled),
     transition: none !important;
   }
 }
+
+/* Avisos de error (type: "error") con el mismo estilo que los de peligro */
+.vortex-toast.toast-error { border-color: rgba(239, 68, 68, 0.45) !important; }
+.vortex-toast.toast-error .vortex-toast-icon { color: var(--accent-red); }
+.vortex-toast.toast-danger .vortex-toast-icon { color: var(--accent-red); }
+
+/* Lista de procesos: nombres largos se cortan con "…" y el PID/MB siempre quedan visibles */
+.proc-row { gap: 10px; min-width: 0; }
+.proc-left { display: flex; align-items: baseline; min-width: 0; overflow: hidden; }
+.proc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-pid, .proc-mem { flex-shrink: 0; white-space: nowrap; }
+.top-procs-list { max-height: none !important; overflow: visible !important; }
+
+/* Tarjetas de RAM: el texto se ajusta al ancho en ventanas muy estrechas */
+.booster-item .bi-info { min-width: 0; flex-basis: 100%; }
+.booster-item { min-width: 0; }

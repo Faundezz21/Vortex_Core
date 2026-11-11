@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.10.1
+
+### Correcciones
+- Los avisos de error ahora muestran su icono (usaban `alert-triangle`, que no existe en el juego de iconos) y se ven en rojo; antes parecían avisos normales.
+- El nombre del adaptador de red que se pasa a PowerShell escapa también las comillas tipográficas (`‘ ’ ‚ ‛`), que PowerShell acepta como delimitadores.
+- Procesos con más RAM: los nombres largos se cortan con «…» (nombre completo al pasar el ratón) en vez de encimarse, y la lista ya no tiene un scroll propio dentro de la página.
+- La tarjeta de liberar RAM ya no se sale de la pantalla en ventanas muy estrechas.
+
 ## 7.10.0
 
 ### Soporte Multi-Marca Universal para todos los notebooks
