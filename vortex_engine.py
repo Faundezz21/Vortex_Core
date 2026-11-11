@@ -1701,6 +1701,30 @@ def get_apo_status() -> dict:
     }
 
 
+def get_top_memory_processes(limit: int = 8) -> list[dict]:
+    """Devuelve los procesos activos con mayor consumo real de RAM (RSS en MB)."""
+    procs = []
+    if HAS_PSUTIL:
+        for p in psutil.process_iter(["pid", "name", "memory_info"]):
+            try:
+                mi = p.info.get("memory_info")
+                if not mi:
+                    continue
+                rss = mi.rss / (1024 ** 2)
+                if rss > 10:
+                    mb = round(rss, 1)
+                    procs.append({
+                        "pid": p.info.get("pid"),
+                        "name": p.info.get("name") or "Proceso",
+                        "mem_mb": mb,
+                        "memory_mb": mb,
+                    })
+            except Exception:
+                pass
+        procs.sort(key=lambda x: x["memory_mb"], reverse=True)
+    return procs[:limit]
+
+
 class VortexHttpHandler(SimpleHTTPRequestHandler):
     # El servidor corre como Administrador: solo la interfaz propia puede usar la API.
     # Cualquier página web abierta en el navegador podría, si no, mandar peticiones a
@@ -1774,17 +1798,7 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/cleanup/scan":
             self._send_json(scan_disk_cleanup())
         elif path == "/api/top_processes":
-            procs = []
-            if HAS_PSUTIL:
-                for p in psutil.process_iter(['name', 'memory_info', 'pid']):
-                    try:
-                        rss = p.info['memory_info'].rss / (1024**2)
-                        if rss > 35:
-                            procs.append({'pid': p.info['pid'], 'name': p.info['name'], 'mem_mb': round(rss, 1)})
-                    except Exception:
-                        pass
-                procs.sort(key=lambda x: x['mem_mb'], reverse=True)
-            self._send_json({"processes": procs[:8]})
+            self._send_json({"processes": get_top_memory_processes(8)})
         else:
             self._send_json({"status": "error", "message": "Not found"}, code=404)
 

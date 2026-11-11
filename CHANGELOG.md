@@ -1,5 +1,10 @@
 # Changelog
 
+## 7.8.9
+
+### Correcciones
+- **Procesos principales con mayor consumo de RAM:** corregido el error `"Error al cargar procesos"` provocado porque `/api/top_processes` devolvía `{"processes": [...], "mem_mb": ...}` mientras el frontend esperaba un arreglo directo con `memory_mb`. Ahora el backend expone ambos campos y la interfaz renderiza los nombres de proceso de forma segura.
+
 ## 7.8.8
 
 ### Refrigeración Acer Nitro / Predator

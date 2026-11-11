@@ -1192,29 +1192,48 @@ async function refreshTopProcesses() {
 
   try {
     const res = await fetch(`${API_BASE}/api/top_processes`);
-    if (!res.ok) return;
-    const procs = await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const procs = Array.isArray(data) ? data : (Array.isArray(data?.processes) ? data.processes : []);
 
-    if (!procs || procs.length === 0) {
-      container.innerHTML = `<div class="dev-item-loading">No se encontraron procesos activos</div>`;
+    container.replaceChildren();
+    if (!procs.length) {
+      const empty = document.createElement("div");
+      empty.className = "dev-item-loading";
+      empty.textContent = "No se encontraron procesos activos";
+      container.appendChild(empty);
       return;
     }
 
-    let html = "";
-    procs.forEach(p => {
-      html += `
-        <div class="proc-row">
-          <div>
-            <span class="proc-name">${p.name}</span>
-            <span class="proc-pid">PID: ${p.pid}</span>
-          </div>
-          <span class="proc-mem">${p.memory_mb} MB</span>
-        </div>
-      `;
+    procs.forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "proc-row";
+
+      const left = document.createElement("div");
+      const nameEl = document.createElement("span");
+      nameEl.className = "proc-name";
+      nameEl.textContent = p.name || "Proceso";
+      const pidEl = document.createElement("span");
+      pidEl.className = "proc-pid";
+      pidEl.textContent = `PID: ${p.pid ?? "--"}`;
+      left.appendChild(nameEl);
+      left.appendChild(pidEl);
+
+      const memEl = document.createElement("span");
+      memEl.className = "proc-mem";
+      const mb = hasNum(p.memory_mb) ? p.memory_mb : (hasNum(p.mem_mb) ? p.mem_mb : 0);
+      memEl.textContent = `${mb} MB`;
+
+      row.appendChild(left);
+      row.appendChild(memEl);
+      container.appendChild(row);
     });
-    container.innerHTML = html;
   } catch (err) {
-    container.innerHTML = `<div class="dev-item-loading">Error al cargar procesos</div>`;
+    container.replaceChildren();
+    const fail = document.createElement("div");
+    fail.className = "dev-item-loading";
+    fail.textContent = "Error al cargar procesos";
+    container.appendChild(fail);
   }
 }
 
@@ -2855,7 +2874,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8.8 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.8.9 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");

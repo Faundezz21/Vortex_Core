@@ -180,6 +180,18 @@ class ServerTests(unittest.TestCase):
         st, _, _ = self.req("POST", "/api/cleanup/clean", {"targets": "user_temp"})
         self.assertEqual(st, 400)
 
+    def test_top_processes_returns_list_and_memory_mb(self):
+        st, data, _ = self.req("GET", "/api/top_processes")
+        self.assertEqual(st, 200)
+        self.assertIn("processes", data)
+        self.assertIsInstance(data["processes"], list)
+        if data["processes"]:
+            first = data["processes"][0]
+            self.assertIn("pid", first)
+            self.assertIn("name", first)
+            self.assertIn("memory_mb", first)
+            self.assertIn("mem_mb", first)
+
 
 class HelperTests(unittest.TestCase):
     def test_clamp_int(self):
