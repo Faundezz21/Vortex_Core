@@ -266,6 +266,40 @@ class CoreAndNetworkTelemetryTests(unittest.TestCase):
         self.assertIsNone(empty["avg_ms"])
         self.assertEqual(empty["loss_pct"], 100)
 
+    def test_multi_oem_fan_dispatch_and_fallback(self):
+        orig = ve.VortexCoreManager._monitor_loop
+        ve.VortexCoreManager._monitor_loop = lambda self: None
+        try:
+            m = ve.VortexCoreManager()
+        finally:
+            ve.VortexCoreManager._monitor_loop = orig
+
+        for flag, brand_arg, expected_tag in (
+            ("is_lenovo", "lenovo", "TURBO (LENOVO)"),
+            ("is_asus", "asus", "TURBO (ASUS)"),
+            ("is_dell", "dell", "TURBO (DELL)"),
+        ):
+            m.system_specs = {"is_hp": False, "is_acer": False, flag: True, "ram_gb": 16}
+            m._oem_wmi_ok = True
+            calls = []
+
+            def fake_ok(cmd):
+                calls.append(cmd)
+                if "oem_fan_controller.ps1" in " ".join(cmd):
+                    return (True, f"OK: {brand_arg.upper()}")
+                return (True, "")
+
+            m._run_cmd = fake_ok
+            self.assertTrue(m.set_fan("max"))
+            self.assertEqual(m.fan_mode, expected_tag)
+            self.assertTrue(any("-Brand" in c and brand_arg in c for c in calls))
+
+        # Si un modelo (p. ej. ThinkPad / ZenBook) no tiene WMI gaming, cae limpiamente a Universal
+        m._run_cmd = lambda cmd: (False, "NO_WMI: no disponible")
+        m.set_fan("max")
+        self.assertFalse(m._oem_wmi_ok)
+        self.assertEqual(m.fan_mode, "TURBO (Universal)")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

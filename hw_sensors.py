@@ -112,6 +112,88 @@ _FREQ = r"\Processor Information(_Total)\Processor Frequency"
 _PERF = r"\Processor Information(_Total)\% Processor Performance"
 _CACHE = [r"\Memory\Standby Cache Core Bytes", r"\Memory\Standby Cache Normal Priority Bytes",
           r"\Memory\Standby Cache Reserve Bytes", r"\Memory\Modified Page List Bytes"]
+_GPU_ENG = r"\GPU Engine(*engtype_3D)\Utilization Percentage"
+_GPU_MEM = r"\GPU Adapter Memory(*)\Dedicated Usage"
+
+
+class _PDH_FMT_COUNTERVALUE_ITEM(ctypes.Structure):
+    _fields_ = [
+        ("szName", wintypes.LPWSTR),
+        ("CStatus", wintypes.DWORD),
+        ("doubleValue", ctypes.c_double),
+    ]
+
+
+class PdhWildcardSum:
+    """Suma todas las instancias de contadores PDH con comodín (ej. GPU Intel/AMD/NVIDIA)."""
+
+    def __init__(self, paths):
+        self.ok = False
+        self._counters = {}
+        self._query = wintypes.HANDLE()
+        if not IS_WINDOWS:
+            return
+        try:
+            pdh = ctypes.windll.pdh
+            pdh.PdhOpenQueryW.argtypes = [wintypes.LPCWSTR, ctypes.c_void_p, ctypes.POINTER(wintypes.HANDLE)]
+            pdh.PdhAddEnglishCounterW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, ctypes.c_void_p, ctypes.POINTER(wintypes.HANDLE)]
+            pdh.PdhCollectQueryData.argtypes = [wintypes.HANDLE]
+            pdh.PdhGetFormattedCounterArrayW.argtypes = [
+                wintypes.HANDLE, wintypes.DWORD,
+                ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p,
+            ]
+            for fn in ("PdhOpenQueryW", "PdhAddEnglishCounterW", "PdhCollectQueryData", "PdhGetFormattedCounterArrayW"):
+                getattr(pdh, fn).restype = wintypes.LONG
+            self._pdh = pdh
+            if pdh.PdhOpenQueryW(None, None, ctypes.byref(self._query)) != 0:
+                return
+            for p in paths:
+                h = wintypes.HANDLE()
+                if pdh.PdhAddEnglishCounterW(self._query, p, None, ctypes.byref(h)) == 0:
+                    self._counters[p] = h
+            if not self._counters:
+                return
+            pdh.PdhCollectQueryData(self._query)
+            self.ok = True
+        except Exception:
+            self.ok = False
+
+    def collect(self) -> dict:
+        if not self.ok:
+            return {}
+        try:
+            if self._pdh.PdhCollectQueryData(self._query) != 0:
+                return {}
+        except Exception:
+            return {}
+        out = {}
+        PDH_MORE_DATA = 0x800007D2
+        for path, h in self._counters.items():
+            buf_sz = wintypes.DWORD(0)
+            item_cnt = wintypes.DWORD(0)
+            rc = self._pdh.PdhGetFormattedCounterArrayW(
+                h, PDH_FMT_DOUBLE | PDH_FMT_NOCAP100,
+                ctypes.byref(buf_sz), ctypes.byref(item_cnt), None,
+            )
+            if rc != PDH_MORE_DATA and buf_sz.value == 0:
+                continue
+            buf = (ctypes.c_byte * buf_sz.value)()
+            rc = self._pdh.PdhGetFormattedCounterArrayW(
+                h, PDH_FMT_DOUBLE | PDH_FMT_NOCAP100,
+                ctypes.byref(buf_sz), ctypes.byref(item_cnt), buf,
+            )
+            if rc != 0:
+                continue
+            items = ctypes.cast(buf, ctypes.POINTER(_PDH_FMT_COUNTERVALUE_ITEM))
+            total = 0.0
+            valid = False
+            for i in range(item_cnt.value):
+                if items[i].CStatus in (0, 1) and math.isfinite(items[i].doubleValue):
+                    total += max(0.0, items[i].doubleValue)
+                    valid = True
+            if valid:
+                out[path] = total
+        return out
 
 
 class SystemCounters:
@@ -119,10 +201,12 @@ class SystemCounters:
     - Frecuencia efectiva de CPU en MHz = Processor Frequency (base) x % Processor Performance / 100
       (supera la base cuando hay Turbo Boost; es lo que muestra el Administrador de tareas).
     - Memoria en caché = listas Standby + Modified (lo que el Administrador de tareas llama "En caché").
+    - Uso y VRAM de GPU WDDM (funciona en Intel Iris/UHD, AMD Radeon y NVIDIA sin drivers externos).
     """
 
     def __init__(self):
         self._pdh = PdhCounters([_FREQ, _PERF] + _CACHE)
+        self._gpu_pdh = PdhWildcardSum([_GPU_ENG, _GPU_MEM])
 
     def read(self):
         vals = self._pdh.collect()
@@ -131,7 +215,15 @@ class SystemCounters:
             cpu_mhz = int(round(vals[_FREQ] * vals[_PERF] / 100.0))
         cache_parts = [vals[c] for c in _CACHE if c in vals]
         cached_bytes = sum(cache_parts) if cache_parts else None
-        return {"cpu_mhz": cpu_mhz, "cached_bytes": cached_bytes}
+        gvals = self._gpu_pdh.collect()
+        gpu_usage_pct = int(round(min(100.0, max(0.0, gvals[_GPU_ENG])))) if _GPU_ENG in gvals else None
+        gpu_vram_mb = int(round(gvals[_GPU_MEM] / (1024 * 1024))) if _GPU_MEM in gvals and gvals[_GPU_MEM] > 0 else None
+        return {
+            "cpu_mhz": cpu_mhz,
+            "cached_bytes": cached_bytes,
+            "gpu_usage_pct": gpu_usage_pct,
+            "gpu_vram_mb": gpu_vram_mb,
+        }
 
 
 # ==============================================================================
@@ -1048,12 +1140,16 @@ class _NativeLhmReader:
         with self._lock:
             if self._comp is None:
                 try:
-                    from HardwareMonitor.Hardware import Computer, SensorType
+                    from HardwareMonitor.Hardware import Computer, HardwareType, SensorType
                     comp = Computer()
                     comp.IsCpuEnabled = True
+                    comp.IsGpuEnabled = True
+                    comp.IsMotherboardEnabled = True
+                    comp.IsControllerEnabled = True
                     comp.Open()
                     self._comp = comp
                     self._sensor_type = SensorType
+                    self._hw_type = HardwareType
                 except Exception:
                     self._unavailable = True
                     return None
@@ -1061,30 +1157,57 @@ class _NativeLhmReader:
                 raw_temps = []
                 pkg_temp = None
                 vcore_mv = None
-                for hw in self._comp.Hardware:
-                    hw.Update()
-                    for sub in hw.SubHardware:
-                        sub.Update()
-                    for s in hw.Sensors:
+                gpu_data = {}
+                fan_rpms = []
+
+                def _walk(hw_node):
+                    hw_node.Update()
+                    for sub in hw_node.SubHardware:
+                        _walk(sub)
+                    ht = hw_node.HardwareType
+                    is_cpu = (ht == self._hw_type.Cpu)
+                    is_gpu = ht in (self._hw_type.GpuNvidia, self._hw_type.GpuAmd, self._hw_type.GpuIntel)
+                    for s in hw_node.Sensors:
                         val = s.Value
                         if val is None or not math.isfinite(float(val)):
                             continue
+                        fval = float(val)
                         st = s.SensorType
                         sname = str(s.Name or "")
-                        if st == self._sensor_type.Temperature:
-                            raw_temps.append((sname, float(val)))
-                            if sname in ("CPU Package", "Core (Tctl/Tdie)", "Tctl/Tdie") and 0 < float(val) < 130:
-                                pkg_temp = round(float(val), 1)
-                        elif st == self._sensor_type.Voltage and sname in ("CPU Core", "Core (SVI2 TFN)", "Vcore"):
-                            if 0.2 < float(val) < 2.2:
-                                vcore_mv = int(round(float(val) * 1000))
+                        if is_cpu:
+                            if st == self._sensor_type.Temperature:
+                                raw_temps.append((sname, fval))
+                                if sname in ("CPU Package", "Core (Tctl/Tdie)", "Tctl/Tdie") and 0 < fval < 130:
+                                    pkg_temp = round(fval, 1)
+                            elif st == self._sensor_type.Voltage and sname in ("CPU Core", "Core (SVI2 TFN)", "Vcore"):
+                                if 0.2 < fval < 2.2:
+                                    vcore_mv = int(round(fval * 1000))
+                        elif is_gpu:
+                            if st == self._sensor_type.Temperature and 0 < fval < 130 and "hot spot" not in sname.lower():
+                                gpu_data.setdefault("temp", int(round(fval)))
+                            elif st == self._sensor_type.Load and "core" in sname.lower():
+                                gpu_data.setdefault("usage", int(round(min(100.0, max(0.0, fval)))))
+                            elif st == self._sensor_type.Clock and "core" in sname.lower() and fval > 0:
+                                gpu_data.setdefault("freq_mhz", int(round(fval)))
+                            elif st == self._sensor_type.Clock and "memory" in sname.lower() and fval > 0:
+                                gpu_data.setdefault("mem_freq_mhz", int(round(fval)))
+                            elif st == self._sensor_type.Power and fval >= 0:
+                                gpu_data.setdefault("power_w", f"{fval:.1f}")
+                        if st == self._sensor_type.Fan and 100 <= fval <= 12000:
+                            fan_rpms.append(int(round(fval)))
+
+                for hw in self._comp.Hardware:
+                    _walk(hw)
+
                 cores = extract_lhm_core_temps(raw_temps)
-                if not cores and pkg_temp is None and vcore_mv is None:
+                if not cores and pkg_temp is None and vcore_mv is None and not gpu_data and not fan_rpms:
                     return None
                 return {
                     "cores": cores,
                     "package_c": pkg_temp,
                     "vcore_mv": vcore_mv,
+                    "gpu": gpu_data,
+                    "fans": fan_rpms[:2],
                     "source": "PawnIO (Nativo)",
                 }
             except Exception:

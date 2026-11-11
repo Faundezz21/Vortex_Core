@@ -31,6 +31,7 @@ hub_files = [
 added_datas = hub_files + [
     (os.path.join(project_dir, 'hp_fan_controller.ps1'), '.'),
     (os.path.join(project_dir, 'acer_fan_controller.ps1'), '.'),
+    (os.path.join(project_dir, 'oem_fan_controller.ps1'), '.'),
     (os.path.join(project_dir, 'vortex_icon.ico'), '.'),
     (os.path.join(project_dir, 'VERSION'), '.'),
 ]

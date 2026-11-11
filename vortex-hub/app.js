@@ -602,7 +602,13 @@ async function updateTelemetry() {
           ? "HP BIOS WMI Activo"
           : s.is_acer
             ? "Acer Nitro / Predator WMI Activo"
-            : `Control Térmico (${s.manufacturer})`;
+            : s.is_lenovo
+              ? "Lenovo Gamezone WMI Activo"
+              : s.is_asus
+                ? "ASUS ATK Thermal WMI Activo"
+                : s.is_dell
+                  ? "Dell / Alienware AWCC WMI Activo"
+                  : `Control Térmico (${s.manufacturer})`;
       }
 
       const coolLabel = document.getElementById("cooling-hero-label");
@@ -611,7 +617,13 @@ async function updateTelemetry() {
           ? "Control por BIOS (HP WMI)"
           : s.is_acer
             ? "Control por BIOS (Acer Gaming WMI)"
-            : `Control térmico universal (${s.manufacturer})`;
+            : s.is_lenovo
+              ? "Control por BIOS (Lenovo Gamezone)"
+              : s.is_asus
+                ? "Control por BIOS (ASUS WMI)"
+                : s.is_dell
+                  ? "Control por BIOS (Dell / AWCC)"
+                  : `Modo de energía Windows (${s.manufacturer})`;
       }
 
       const coolDesc = document.getElementById("cooling-hero-desc");
@@ -620,7 +632,13 @@ async function updateTelemetry() {
           ? 'Llamada directa mediante Opcode 0x27 en `root\\wmi:hpqBIntM` con firma de seguridad "SECU". Compatible nativamente con HP Victus y OMEN.'
           : s.is_acer
             ? 'Control directo mediante `root\\wmi:AcerGamingFunction` (SetGamingFanBehavior / SetGamingFanSpeed). Compatible con Acer Nitro y Predator.'
-            : `Gobernador de energía, límites de CPU y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
+            : s.is_lenovo
+              ? 'Perfil térmico mediante `root\\wmi:LENOVO_GAMEZONE_DATA` (SetSmartFanMode) + modo de energía Windows Modern Standby.'
+              : s.is_asus
+                ? 'Perfil térmico mediante `root\\wmi:AsusAtkWmi_WMNB` (DEVS/DSTS) + modo de energía Windows Modern Standby.'
+                : s.is_dell
+                  ? 'Control térmico mediante `root\\wmi:AWCCWmiMethodFunction` (Thermal_Control) + modo de energía Windows Modern Standby.'
+                  : `Control universal mediante Windows Power Overlay (Modern Standby), límites de CPU y Turbo Boost sincronizados para ${s.manufacturer}.`;
       }
     }
 
@@ -861,9 +879,14 @@ async function updateTelemetry() {
 
     const diagGpu = document.getElementById("diag-gpu-desc");
     if (diagGpu) {
-      diagGpu.textContent = gTemp === null
-        ? "No hay datos de la GPU (se necesita una gráfica NVIDIA)."
-        : `La GPU está a ${gTemp} °C` + (hasNum(d.gpu_power) ? ` y consume ${d.gpu_power} W.` : ".");
+      if (gTemp !== null) {
+        diagGpu.textContent = `La GPU está a ${gTemp} °C` + (hasNum(d.gpu_power) ? ` y consume ${d.gpu_power} W.` : ".");
+      } else if (hasNum(d.gpu_usage)) {
+        const gpuTitle = (d.system_specs && d.system_specs.gpu) ? d.system_specs.gpu : "Gráfica";
+        diagGpu.textContent = `${gpuTitle}: carga actual del ${d.gpu_usage}%` + (hasNum(d.gpu_vram_mb) ? ` (${(d.gpu_vram_mb / 1024).toFixed(1)} GB VRAM dedicada).` : ".");
+      } else {
+        diagGpu.textContent = "Esta GPU no expone sensor térmico directo a Windows; el uso se monitorea por WDDM.";
+      }
     }
 
     // Tarjetas de diagnóstico (solo datos reales)
@@ -880,8 +903,8 @@ async function updateTelemetry() {
     else setStatus("diag-cpu-status", cTemp < 75 ? "Normal" : cTemp < 85 ? "Elevada" : "Crítica", cTemp < 75 ? "green" : cTemp < 85 ? "orange" : "red");
 
     if (gTemp === null) {
-      setStatus("diag-gpu-status", ND, "");
-      setText("diag-gpu-meta", "Sin telemetría NVIDIA");
+      setStatus("diag-gpu-status", hasNum(d.gpu_usage) ? `${d.gpu_usage}% uso` : ND, hasNum(d.gpu_usage) ? "green" : "");
+      setText("diag-gpu-meta", hasNum(d.gpu_vram_mb) ? `VRAM dedicada: ${(d.gpu_vram_mb / 1024).toFixed(1)} GB · Lectura WDDM` : "Sin sensor térmico directo");
     } else {
       setStatus("diag-gpu-status", gTemp < 75 ? "Normal" : gTemp < 85 ? "Elevada" : "Crítica", gTemp < 75 ? "green" : gTemp < 85 ? "orange" : "red");
       setText("diag-gpu-meta", `Límite de potencia: ${fmtVal(d.gpu_power_limit, "W")} • Estado: ${d.gpu_pstate || ND}`);
@@ -895,11 +918,18 @@ async function updateTelemetry() {
 
     if (d.fans_readable) {
       const fansOk = f1 !== null || f2 !== null;
-      setStatus("diag-fan-status", fansOk ? "Leyendo" : "Sin lectura", fansOk ? "green" : "orange");
+      const sp = d.system_specs || {};
+      const proto = sp.is_hp ? "HP BIOS WMI (hpqBIntM)"
+        : sp.is_acer ? "Acer Gaming WMI (AcerGamingFunction)"
+        : sp.is_lenovo ? "Lenovo Gamezone WMI"
+        : sp.is_asus ? "ASUS ATK WMI"
+        : sp.is_dell ? "Dell / Alienware AWCC WMI"
+        : "Sensor OEM / PawnIO";
+      setStatus("diag-fan-status", fansOk ? "Leyendo" : "Control activo", fansOk ? "green" : "orange");
       setText("diag-fan-desc", fansOk
-        ? `Tacómetro del BIOS HP: Fan 1 ${fmtVal(f1, "RPM")}, Fan 2 ${fmtVal(f2, "RPM")}.`
-        : "El BIOS HP no devolvió RPM en la última lectura (requiere permisos de Administrador).");
-      setText("diag-fan-meta", "Protocolo: HP BIOS WMI (hpqBIntM)");
+        ? `Tacómetro real del equipo: Fan 1 ${fmtVal(f1, "RPM")}, Fan 2 ${fmtVal(f2, "RPM")}.`
+        : "Este modelo aplica perfiles de ventilación OEM, pero el firmware no expone lectura directa de RPM.");
+      setText("diag-fan-meta", `Protocolo: ${proto}`);
     } else {
       setStatus("diag-fan-status", ND, "");
       setText("diag-fan-desc", "Este equipo no expone las RPM de los ventiladores a Windows; los controla el firmware del fabricante.");
@@ -2991,7 +3021,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.9.0 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.10.0 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");

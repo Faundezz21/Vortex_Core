@@ -248,6 +248,25 @@ class DefaultGUIDs:
     THROTTLE_MAX = "bc5038f7-23e0-4960-96da-33abaf5935ec"
     THROTTLE_MIN = "893dee8e-2bef-41e0-89c6-b55d0929964c"
     TURBO_BOOST = "be337238-0d82-4146-a960-4f3749d470c7"
+    # Windows 10/11 Modern Standby Power Mode Overlays (Slider de Energía)
+    OVERLAY_SAVER = "961cc777-2547-4f9d-8174-7d86181b8a7a"
+    OVERLAY_BALANCED = "00000000-0000-0000-0000-000000000000"
+    OVERLAY_HIGH_PERF = "ded574b5-45a0-4f42-8737-46345c09c238"
+
+
+def set_windows_power_overlay(guid_str: str) -> bool:
+    """Cambia el modo de energía moderno de Windows (funciona en laptops Modern Standby)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import uuid
+        raw = uuid.UUID(guid_str).bytes_le
+        buf = ctypes.create_string_buffer(raw, 16)
+        powrprof = ctypes.WinDLL("powrprof")
+        rc = powrprof.PowerSetActiveOverlayScheme(buf)
+        return rc == 0
+    except Exception:
+        return False
 
 
 # ==============================================================================
@@ -326,11 +345,16 @@ def get_system_specs() -> dict:
     mfg_lower = mfg.lower()
     model_lower = model.lower()
     is_hp = any(k in mfg_lower for k in ["hp", "hewlett"]) or any(k in model_lower for k in ["victus", "omen", "pavilion", "envy", "elitebook"])
-    is_asus = "asus" in mfg_lower or "rog" in model_lower or "tuf" in model_lower
-    is_lenovo = "lenovo" in mfg_lower or "legion" in model_lower or "loq" in model_lower or "ideapad" in model_lower
-    is_dell = "dell" in mfg_lower or "alienware" in model_lower
-    is_acer = "acer" in mfg_lower or "nitro" in model_lower or "predator" in model_lower
+    is_asus = "asus" in mfg_lower or "rog" in model_lower or "tuf" in model_lower or "zenbook" in model_lower or "vivobook" in model_lower
+    is_lenovo = "lenovo" in mfg_lower or "legion" in model_lower or "loq" in model_lower or "ideapad" in model_lower or "thinkpad" in model_lower
+    is_dell = "dell" in mfg_lower or "alienware" in model_lower or "inspiron" in model_lower or "xps" in model_lower or "latitude" in model_lower
+    is_acer = "acer" in mfg_lower or "nitro" in model_lower or "predator" in model_lower or "swift" in model_lower or "aspire" in model_lower
     is_msi = "msi" in mfg_lower or "micro-star" in mfg_lower
+    is_huawei = "huawei" in mfg_lower or "matebook" in model_lower
+    is_samsung = "samsung" in mfg_lower or "galaxy book" in model_lower
+    is_lg = "lg electronics" in mfg_lower or "gram" in model_lower
+    is_gigabyte = "gigabyte" in mfg_lower or "aorus" in model_lower or "aero" in model_lower
+    is_razer = "razer" in mfg_lower or "blade" in model_lower
 
     if is_hp: brand = "HP"
     elif is_asus: brand = "ASUS"
@@ -338,7 +362,22 @@ def get_system_specs() -> dict:
     elif is_dell: brand = "Dell / Alienware"
     elif is_acer: brand = "Acer"
     elif is_msi: brand = "MSI"
+    elif is_huawei: brand = "Huawei"
+    elif is_samsung: brand = "Samsung"
+    elif is_lg: brand = "LG"
+    elif is_gigabyte: brand = "Gigabyte / AORUS"
+    elif is_razer: brand = "Razer"
     else: brand = mfg
+
+    gpu_low = gpu_name.lower()
+    if any(k in gpu_low for k in ["nvidia", "geforce", "rtx", "gtx", "quadro"]):
+        gpu_vendor = "nvidia"
+    elif any(k in gpu_low for k in ["amd", "radeon"]):
+        gpu_vendor = "amd"
+    elif "intel" in gpu_low:
+        gpu_vendor = "intel"
+    else:
+        gpu_vendor = "other"
 
     # Versiones amigables cortas
     cpu_short = cpu_name
@@ -364,13 +403,15 @@ def get_system_specs() -> dict:
         "ram": f"{ram_gb} GB",
         "ram_gb": ram_gb,
         "os": os_name,
+        "arch": platform.machine() or "AMD64",
+        "gpu_vendor": gpu_vendor,
         "is_hp": is_hp,
         "is_asus": is_asus,
         "is_lenovo": is_lenovo,
         "is_dell": is_dell,
         "is_acer": is_acer,
         "is_msi": is_msi,
-        "fans_supported": is_hp or is_acer
+        "fans_supported": is_hp or is_acer or is_lenovo or is_asus or is_dell
     }
 
 
@@ -921,7 +962,9 @@ class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
         self.acer_fan_script = os.path.join(get_app_dir(), "acer_fan_controller.ps1")
+        self.oem_fan_script = os.path.join(get_app_dir(), "oem_fan_controller.ps1")
         self._acer_wmi_ok = True
+        self._oem_wmi_ok = True
         self._acer_last_manual = None
         self.current_profile = "STANDARD"
         self.fan_mode = "AUTO"
@@ -982,7 +1025,7 @@ class VortexCoreManager:
             "fan2_rpm": None,
             "fan_target_pct": None,
             "fan_dba": None,          # no existe sensor acústico: se deja sin valor
-            "fans_readable": bool(self.system_specs.get("is_hp") or self.system_specs.get("is_acer")),
+            "fans_readable": bool(self.system_specs.get("fans_supported")),
             "current_profile": self.current_profile,
             "fan_mode": self.fan_mode,
             "system_specs": self.system_specs,
@@ -1301,18 +1344,38 @@ class VortexCoreManager:
                         except Exception:
                             pass
 
-                # 2c. Lectura nativa PawnIO / SHM (Core Temp / HWiNFO) cada 1s, ping cada 6s y WMI/ACPI cada 5s
+                # 2c. Lectura nativa PawnIO (CPU, GPU AMD/Intel, ventiladores EC) / SHM cada 1s, ping cada 6s y WMI/ACPI cada 5s
                 if tick % 2 == 0:
                     try:
                         native = hw_sensors.read_native_cpu_sensors()
-                        if native and native.get("cores"):
-                            self.telemetry["cpu_core_temps"] = native["cores"]
-                            self.telemetry["cpu_temp_source"] = native["source"]
+                        if native:
+                            if native.get("cores"):
+                                self.telemetry["cpu_core_temps"] = native["cores"]
+                                self.telemetry["cpu_temp_source"] = native["source"]
                             if self.telemetry.get("cpu_temp") is None and native.get("package_c") is not None:
                                 self.telemetry["cpu_temp"] = int(round(native["package_c"]))
                             if native.get("vcore_mv") is not None:
                                 self.telemetry["cpu_volt_mv"] = native["vcore_mv"]
-                        else:
+                            ngpu = native.get("gpu") or {}
+                            if ngpu and (not self._has_nvidia_smi or self.telemetry.get("gpu_temp") is None):
+                                if ngpu.get("temp") is not None:
+                                    self.telemetry["gpu_temp"] = ngpu["temp"]
+                                if ngpu.get("usage") is not None:
+                                    self.telemetry["gpu_usage"] = ngpu["usage"]
+                                if ngpu.get("freq_mhz") is not None:
+                                    self.telemetry["gpu_freq_mhz"] = ngpu["freq_mhz"]
+                                if ngpu.get("mem_freq_mhz") is not None:
+                                    self.telemetry["gpu_mem_freq_mhz"] = ngpu["mem_freq_mhz"]
+                                if ngpu.get("power_w") is not None:
+                                    self.telemetry["gpu_power"] = ngpu["power_w"]
+                            nfans = native.get("fans") or []
+                            if nfans:
+                                if self.telemetry.get("fan1_rpm") is None and len(nfans) >= 1:
+                                    self.telemetry["fan1_rpm"] = nfans[0]
+                                if self.telemetry.get("fan2_rpm") is None and len(nfans) >= 2:
+                                    self.telemetry["fan2_rpm"] = nfans[1]
+                                self.telemetry["fans_readable"] = True
+                        if not (native and native.get("cores")):
                             shm_cores, shm_src = hw_sensors.read_shm_core_temps()
                             if shm_cores:
                                 self.telemetry["cpu_core_temps"] = shm_cores
@@ -1340,6 +1403,12 @@ class VortexCoreManager:
                     live_mhz = int(freq.current) if freq and freq.current > 0 else None
                 self.telemetry["cpu_freq_mhz"] = live_mhz
                 self.telemetry["cpu_freq"] = f"{live_mhz / 1000.0:.2f}" if live_mhz else None
+                # Respaldo universal WDDM GPU (Intel Iris/UHD, AMD Radeon o si falla nvidia-smi)
+                if not self._has_nvidia_smi:
+                    if counters.get("gpu_usage_pct") is not None:
+                        self.telemetry["gpu_usage"] = counters["gpu_usage_pct"]
+                    if counters.get("gpu_vram_mb") is not None and self.telemetry.get("gpu_vram_mb") is None:
+                        self.telemetry["gpu_vram_mb"] = counters["gpu_vram_mb"]
 
                 # 3. GPU NVIDIA cada 1s (Temp, Uso, Power, Clock MHz, Mem MHz)
                 # (Aislado en su propio try: en equipos sin NVIDIA, nvidia-smi no existe y antes
@@ -1413,6 +1482,34 @@ class VortexCoreManager:
                     if "NO_WMI:" in out:
                         self._acer_wmi_ok = False
                     elif ok and "CPU_TEMP=" in out:
+                        for item in out.strip().splitlines()[-1].split("|"):
+                            try:
+                                k, v = item.strip().split("=", 1)
+                                v = int(v)
+                            except ValueError:
+                                continue
+                            if k == "CPU_TEMP" and 0 < v <= 115:
+                                self.telemetry["cpu_temp"] = v
+                            elif k == "FAN1_RPM" and v > 0:
+                                self.telemetry["fan1_rpm"] = v
+                            elif k == "FAN2_RPM" and v > 0:
+                                self.telemetry["fan2_rpm"] = v
+                elif tick % 3 == 0 and self._oem_wmi_ok and any(
+                    self.system_specs.get(k, False) for k in ("is_lenovo", "is_asus", "is_dell")
+                ):
+                    oem_brand = (
+                        "lenovo" if self.system_specs.get("is_lenovo")
+                        else "asus" if self.system_specs.get("is_asus")
+                        else "dell"
+                    )
+                    ok, out = self._run_cmd([
+                        "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                        "-File", self.oem_fan_script, "-Brand", oem_brand, "-Mode", "query",
+                    ])
+                    if "NO_WMI:" in out:
+                        self._oem_wmi_ok = False
+                        self.telemetry["fans_readable"] = False
+                    elif ok and "FAN1_RPM=" in out:
                         for item in out.strip().splitlines()[-1].split("|"):
                             try:
                                 k, v = item.strip().split("=", 1)
@@ -1548,6 +1645,32 @@ class VortexCoreManager:
                 else:
                     self.fan_mode = "AUTO (Nitro)"
                 return True
+        elif self._oem_wmi_ok and any(
+            getattr(self, "system_specs", {}).get(k, False) for k in ("is_lenovo", "is_asus", "is_dell")
+        ):
+            oem_brand = (
+                "lenovo" if self.system_specs.get("is_lenovo")
+                else "asus" if self.system_specs.get("is_asus")
+                else "dell"
+            )
+            ok, out = self._run_cmd([
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", self.oem_fan_script, "-Brand", oem_brand, "-Mode", mode,
+            ])
+            if "NO_WMI:" in out:
+                self._oem_wmi_ok = False
+            elif ok and "OK:" in out:
+                tag = oem_brand.upper()
+                if mode == "max":
+                    self.fan_mode = f"TURBO ({tag})"
+                    self.set_scheme("high")
+                    self.set_cpu_limit(100)
+                    self.set_turbo(2)
+                elif mode == "cool":
+                    self.fan_mode = f"SILENCIOSO ({tag})"
+                else:
+                    self.fan_mode = f"AUTO ({tag})"
+                return True
         if mode == "max":
             self.fan_mode = "TURBO (Universal)"
             self.set_scheme("high")
@@ -1582,10 +1705,13 @@ class VortexCoreManager:
 
     def set_scheme(self, scheme_name: str) -> bool:
         if scheme_name == "saver":
+            set_windows_power_overlay(DefaultGUIDs.OVERLAY_SAVER)
             self._run_cmd(["powercfg", "/setactive", DefaultGUIDs.SAVER])
         elif scheme_name == "high":
+            set_windows_power_overlay(DefaultGUIDs.OVERLAY_HIGH_PERF)
             self._run_cmd(["powercfg", "/setactive", DefaultGUIDs.HIGH_PERF])
         else:
+            set_windows_power_overlay(DefaultGUIDs.OVERLAY_BALANCED)
             self._run_cmd(["powercfg", "/setactive", DefaultGUIDs.BALANCED])
         return True
 

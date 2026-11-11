@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.10.0
+
+### Soporte Multi-Marca Universal para todos los notebooks
+- **Control WMI para Lenovo, ASUS y Dell/Alienware (`oem_fan_controller.ps1`):** soporte nativo para perfiles térmicos de **Lenovo Legion/LOQ** (`LENOVO_GAMEZONE_DATA`), **ASUS ROG/TUF** (`AsusAtkWmi_WMNB` `DEVS`/`DSTS`) y **Dell/Alienware** (`AWCCWmiMethodFunction`), con degradación segura a modo universal si el modelo no expone WMI gaming.
+- **Soporte para Windows 11 Modern Standby (`PowerSetActiveOverlayScheme`):** los perfiles de energía ahora también conmutan el *Power Mode* real de Windows 10/11 (Ahorro / Equilibrado / Máximo rendimiento) en notebooks modernos que no tienen los planes clásicos S3 (ASUS ZenBook, Lenovo ThinkPad, Huawei, Samsung, LG, etc.).
+- **Gráficas AMD Radeon e Intel Iris/UHD/Arc:** lectura universal de uso (%) y VRAM dedicada vía contadores WDDM PDH nativos de Windows (`PdhWildcardSum`), además de sensores de GPU y ventiladores EC vía `HardwareMonitor` (PawnIO).
+- **Detección ampliada de fabricantes:** añade Huawei, Samsung, LG, Gigabyte/AORUS y Razer.
+
 ## 7.9.0
 
 ### Intensificador de red real
