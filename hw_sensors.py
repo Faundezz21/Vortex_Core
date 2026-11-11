@@ -659,6 +659,202 @@ def measure_ping_ms(host: str = "1.1.1.1"):
     return parse_ping_ms(out)
 
 
+DNS_PRESETS = {
+    "auto": {"label": "Automático (DHCP / Router)", "servers": []},
+    "cloudflare": {"label": "Cloudflare DNS", "servers": ["1.1.1.1", "1.0.0.1"]},
+    "google": {"label": "Google DNS", "servers": ["8.8.8.8", "8.8.4.4"]},
+    "adguard": {"label": "AdGuard DNS (Anti-Ads)", "servers": ["94.140.14.14", "94.140.14.15"]},
+    "quad9": {"label": "Quad9 (Seguridad)", "servers": ["9.9.9.9", "149.112.112.112"]},
+}
+
+
+def parse_ping_stats(output: str, sent: int = 5) -> dict:
+    """Extrae latencia media, mínima, máxima, jitter y pérdida real de varios paquetes ICMP."""
+    if not output:
+        return {"avg_ms": None, "min_ms": None, "max_ms": None, "jitter_ms": None, "loss_pct": 100, "samples": []}
+    samples = []
+    for sym, num in _PING_MS_RE.findall(output):
+        try:
+            v = int(num)
+            samples.append(1 if sym == "<" and v <= 1 else v)
+        except ValueError:
+            pass
+    if not samples:
+        return {"avg_ms": None, "min_ms": None, "max_ms": None, "jitter_ms": None, "loss_pct": 100, "samples": []}
+
+    avg_ms = round(sum(samples) / len(samples), 1)
+    min_ms = min(samples)
+    max_ms = max(samples)
+    if len(samples) >= 2:
+        diffs = [abs(b - a) for a, b in zip(samples, samples[1:])]
+        jitter_ms = round(sum(diffs) / len(diffs), 1)
+    else:
+        jitter_ms = 0.0
+    total_sent = max(sent, len(samples))
+    loss_pct = int(round(((total_sent - len(samples)) / float(total_sent)) * 100))
+    return {
+        "avg_ms": avg_ms,
+        "min_ms": min_ms,
+        "max_ms": max_ms,
+        "jitter_ms": jitter_ms,
+        "loss_pct": max(0, min(100, loss_pct)),
+        "samples": samples,
+    }
+
+
+def measure_network_quality(host: str = "1.1.1.1", count: int = 5) -> dict:
+    """Ejecuta una prueba real de latencia, jitter y pérdida de paquetes."""
+    if not IS_WINDOWS:
+        return parse_ping_stats("", sent=count)
+    n = max(1, min(10, int(count)))
+    _code, out = _run(["ping", "-n", str(n), "-w", "1000", host], timeout=8)
+    return parse_ping_stats(out, sent=n)
+
+
+def benchmark_dns_servers() -> list[dict]:
+    """Mide en paralelo la latencia real de los principales servidores DNS públicos."""
+    results = []
+    lock = threading.Lock()
+
+    def _probe(key, cfg):
+        ip = cfg["servers"][0]
+        ms = measure_ping_ms(ip)
+        with lock:
+            results.append({"id": key, "label": cfg["label"], "primary_ip": ip, "ping_ms": ms})
+
+    threads = []
+    for k, cfg in DNS_PRESETS.items():
+        if cfg["servers"]:
+            t = threading.Thread(target=_probe, args=(k, cfg), daemon=True)
+            t.start()
+            threads.append(t)
+    for t in threads:
+        t.join(timeout=4)
+
+    results.sort(key=lambda r: (r["ping_ms"] is None, r["ping_ms"] if r["ping_ms"] is not None else 9999))
+    return results
+
+
+def get_network_boost_status(iface_name: str | None = None) -> dict:
+    """Lee la configuración real de red de Windows (DNS actual, Throttling Multimedia, TCP)."""
+    if not IS_WINDOWS:
+        return {"boost_active": False, "throttling_disabled": False, "tcp_autotuning": None, "dns_servers": [], "is_admin": False}
+
+    throttling_val = 10
+    if winreg is not None:
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile") as k:
+                throttling_val, _ = winreg.QueryValueEx(k, "NetworkThrottlingIndex")
+        except OSError:
+            pass
+    throttling_disabled = (throttling_val == 0xFFFFFFFF)
+
+    dns_servers = []
+    if iface_name:
+        safe_iface = iface_name.replace("'", "''")
+        code, out = _run([
+            "powershell", "-NoProfile", "-Command",
+            f"(Get-DnsClientServerAddress -InterfaceAlias '{safe_iface}' -AddressFamily IPv4 -ErrorAction SilentlyContinue).ServerAddresses | ConvertTo-Json -Compress",
+        ], timeout=4)
+        if code == 0 and out.strip():
+            try:
+                parsed = json.loads(out)
+                dns_servers = [parsed] if isinstance(parsed, str) else list(parsed)
+            except Exception:
+                pass
+
+    tcp_auto = None
+    code, out = _run(["netsh", "int", "tcp", "show", "global"], timeout=4)
+    if code == 0 and out:
+        m = re.search(r"(?:Auto-Tuning Level|Nivel de ajuste autom[aá]tico.*?)\s*:\s*(\S+)", out, re.IGNORECASE)
+        if m:
+            tcp_auto = m.group(1).strip().lower()
+
+    return {
+        "boost_active": bool(throttling_disabled),
+        "throttling_disabled": bool(throttling_disabled),
+        "tcp_autotuning": tcp_auto,
+        "dns_servers": dns_servers,
+        "iface": iface_name,
+        "is_admin": is_admin(),
+    }
+
+
+def apply_network_boost(enable: bool, dns_preset: str = "keep", iface_name: str | None = None) -> dict:
+    """Aplica o revierte optimizaciones reales de red en Windows (sin valores placebo)."""
+    if not IS_WINDOWS:
+        return {"status": "error", "message": "Solo disponible en Windows."}
+
+    actions = []
+    errors = []
+
+    if not is_admin():
+        # Sin elevación solo podemos limpiar caché DNS del usuario
+        _run(["ipconfig", "/flushdns"], timeout=4)
+        return {
+            "status": "error",
+            "needs_admin": True,
+            "message": "Se limpió la caché DNS, pero para modificar TCP/Wi-Fi, DNS del adaptador y Multimedia Throttling abre VortexCore como Administrador.",
+        }
+
+    # 1. Eliminar o restaurar límite de paquetes NetworkThrottlingIndex (10 pkt/ms -> ilimitado)
+    if winreg is not None:
+        try:
+            key_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
+            with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as k:
+                val = 0xFFFFFFFF if enable else 10
+                winreg.SetValueEx(k, "NetworkThrottlingIndex", 0, winreg.REG_DWORD, val)
+                if enable:
+                    winreg.SetValueEx(k, "SystemResponsiveness", 0, winreg.REG_DWORD, 0)
+                else:
+                    winreg.SetValueEx(k, "SystemResponsiveness", 0, winreg.REG_DWORD, 20)
+            actions.append("Throttling de red multimedia desactivado" if enable else "Throttling estándar restaurado")
+        except OSError as e:
+            errors.append(f"Registro: {e}")
+
+    # 2. TCP Receive Window Auto-Tuning normal + Rendimiento Wi-Fi en AC y DC (evita microcortes)
+    _run(["netsh", "int", "tcp", "set", "global", "autotuninglevel=normal"], timeout=5)
+    actions.append("TCP Auto-Tuning en modo normal")
+
+    wifi_sub = "19cbb8fa-5279-450e-9fac-8a3d5fedd0c1"
+    wifi_set = "12bbebe6-58d6-4636-95bb-3217ef867c1a"
+    wifi_val = "0" if enable else "2"
+    _run(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", wifi_sub, wifi_set, "0"], timeout=4)
+    _run(["powercfg", "/setdcvalueindex", "SCHEME_CURRENT", wifi_sub, wifi_set, wifi_val], timeout=4)
+    _run(["powercfg", "/setactive", "SCHEME_CURRENT"], timeout=4)
+    actions.append("Adaptador inalámbrico en máximo rendimiento" if enable else "Ahorro Wi-Fi en batería restaurado")
+
+    # 3. Cambio de DNS en la interfaz activa (solo presets validados)
+    if dns_preset in DNS_PRESETS and iface_name:
+        safe_iface = iface_name.replace("'", "''")
+        if dns_preset == "auto":
+            c, _ = _run(["powershell", "-NoProfile", "-Command",
+                         f"Set-DnsClientServerAddress -InterfaceAlias '{safe_iface}' -ResetServerAddresses"], timeout=6)
+            if c == 0:
+                actions.append(f"DNS automático (DHCP) en {iface_name}")
+        else:
+            srvs = ",".join(f"'{s}'" for s in DNS_PRESETS[dns_preset]["servers"])
+            c, _ = _run(["powershell", "-NoProfile", "-Command",
+                         f"Set-DnsClientServerAddress -InterfaceAlias '{safe_iface}' -ServerAddresses @({srvs})"], timeout=6)
+            if c == 0:
+                actions.append(f"{DNS_PRESETS[dns_preset]['label']} aplicado en {iface_name}")
+            else:
+                errors.append(f"No se pudo fijar DNS en {iface_name}")
+
+    # 4. Vaciar caché DNS
+    _run(["ipconfig", "/flushdns"], timeout=5)
+    actions.append("Caché DNS vaciada")
+
+    status_info = get_network_boost_status(iface_name)
+    return {
+        "status": "ok" if not errors else "partial",
+        "actions": actions,
+        "errors": errors,
+        "boost_status": status_info,
+        "message": " · ".join(actions),
+    }
+
+
 _HWINFO_CORE_RE = re.compile(
     r"^(?:(?:CPU\s+)?(?:P-?Core|E-?Core|Core)\s*#?\d+\b|Core\s*#?\d+\s*\(|CCD\s*\d+\b)",
     re.IGNORECASE,

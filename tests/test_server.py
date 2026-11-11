@@ -192,6 +192,10 @@ class ServerTests(unittest.TestCase):
             self.assertIn("memory_mb", first)
             self.assertIn("mem_mb", first)
 
+    def test_network_boost_rejects_unknown_dns(self):
+        st, _, _ = self.req("POST", "/api/network/boost", {"enable": True, "dns_preset": "evil_dns"})
+        self.assertEqual(st, 400)
+
 
 class HelperTests(unittest.TestCase):
     def test_clamp_int(self):

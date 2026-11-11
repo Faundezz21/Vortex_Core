@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.9.0
+
+### Intensificador de red real
+- **Medidor real de latencia, jitter y DNS (`/api/network/benchmark`):** prueba en paralelo Cloudflare (`1.1.1.1`), Google (`8.8.8.8`), AdGuard (`94.140.14.14`) y Quad9 (`9.9.9.9`), además de calcular ping promedio, *jitter* y pérdida de paquetes ICMP reales, preseleccionando el DNS más rápido para tu conexión.
+- **Boost reversible en 1 clic (`/api/network/boost`):** desactiva `NetworkThrottlingIndex` multimedia de Windows (`0xFFFFFFFF`), asegura `netsh int tcp` Auto-Tuning `normal`, configura el adaptador inalámbrico en máximo rendimiento (AC y batería para evitar picos de latencia), aplica el DNS elegido y vacía la caché DNS (`ipconfig /flushdns`), con botón para restaurar valores estándar en cualquier momento.
+
 ## 7.8.9
 
 ### Correcciones

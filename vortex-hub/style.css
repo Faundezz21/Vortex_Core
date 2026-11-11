@@ -5932,6 +5932,75 @@ button:active:not(:disabled),
   padding: 12px 0;
 }
 
+.net-boost-box {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.net-boost-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.net-boost-top strong {
+  font-size: 13px;
+  color: var(--text-primary);
+  display: block;
+}
+.net-boost-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.vc-deep-badge.active {
+  background: var(--accent-soft);
+  border-color: rgba(0, 240, 255, 0.4);
+  color: var(--accent-cyan);
+}
+.net-boost-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.net-dns-select {
+  flex: 1 1 180px;
+  min-width: 0;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.net-dns-select:focus {
+  border-color: var(--accent-cyan);
+}
+.net-bench-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+}
+.net-bench-pill {
+  font-family: var(--font-mono);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text-primary);
+}
+.net-bench-pill.best {
+  border-color: rgba(0, 240, 255, 0.45);
+  color: var(--accent-cyan);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

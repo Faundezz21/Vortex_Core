@@ -1799,6 +1799,14 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(scan_disk_cleanup())
         elif path == "/api/top_processes":
             self._send_json({"processes": get_top_memory_processes(8)})
+        elif path == "/api/network/status":
+            iface = (manager.telemetry.get("network") or {}).get("iface")
+            self._send_json(hw_sensors.get_network_boost_status(iface))
+        elif path == "/api/network/benchmark":
+            self._send_json({
+                "dns": hw_sensors.benchmark_dns_servers(),
+                "quality": hw_sensors.measure_network_quality(),
+            })
         else:
             self._send_json({"status": "error", "message": "Not found"}, code=404)
 
@@ -2091,6 +2099,15 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 threading.Timer(0.25, lambda: os._exit(0)).start()
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, code=500)
+        elif self.path == "/api/network/boost":
+            enable = bool(data.get("enable", True))
+            dns_preset = str(data.get("dns_preset", "keep")).lower().strip()
+            if dns_preset not in ("keep", *hw_sensors.DNS_PRESETS.keys()):
+                return self._reject(400, "Preset de DNS no válido")
+            iface = (manager.telemetry.get("network") or {}).get("iface")
+            res = hw_sensors.apply_network_boost(enable=enable, dns_preset=dns_preset, iface_name=iface)
+            code = 200 if res.get("status") in ("ok", "partial") else (403 if res.get("needs_admin") else 500)
+            self._send_json(res, code=code)
         elif self.path == "/api/focus_window":
             launch_or_focus_window()
             self._send_json({"status": "ok", "action": "focused"})

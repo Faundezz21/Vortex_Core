@@ -246,6 +246,26 @@ class CoreAndNetworkTelemetryTests(unittest.TestCase):
         self.assertFalse(m._acer_wmi_ok)
         self.assertEqual(m.fan_mode, "TURBO (Universal)")
 
+    def test_parse_ping_stats(self):
+        sample = "\n".join([
+            "Respuesta desde 1.1.1.1: bytes=32 tiempo=10ms TTL=56",
+            "Respuesta desde 1.1.1.1: bytes=32 tiempo=14ms TTL=56",
+            "Respuesta desde 1.1.1.1: bytes=32 tiempo=12ms TTL=56",
+            "Respuesta desde 1.1.1.1: bytes=32 tiempo=20ms TTL=56",
+            "Tiempo de espera agotado para esta solicitud.",
+        ])
+        st = hw_sensors.parse_ping_stats(sample, sent=5)
+        self.assertEqual(st["samples"], [10, 14, 12, 20])
+        self.assertEqual(st["avg_ms"], 14.0)
+        self.assertEqual(st["min_ms"], 10)
+        self.assertEqual(st["max_ms"], 20)
+        self.assertEqual(st["jitter_ms"], 4.7)
+        self.assertEqual(st["loss_pct"], 20)
+
+        empty = hw_sensors.parse_ping_stats("", sent=5)
+        self.assertIsNone(empty["avg_ms"])
+        self.assertEqual(empty["loss_pct"], 100)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

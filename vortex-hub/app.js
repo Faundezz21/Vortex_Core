@@ -449,6 +449,123 @@ function renderNetworkStats(d) {
   if (linkEl) linkEl.textContent = hasNum(net.link_mbps) ? `Enlace: ${net.link_mbps} Mbps` : `Enlace: ${ND}`;
 }
 
+async function loadNetworkBoostStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/api/network/status`);
+    if (!res.ok) return;
+    renderNetworkBoostStatus(await res.json());
+  } catch (e) {}
+}
+
+function renderNetworkBoostStatus(st) {
+  if (!st) return;
+  const pill = document.getElementById("net-boost-pill");
+  if (pill) {
+    pill.textContent = st.boost_active ? "Boost activo" : "Estándar";
+    pill.classList.toggle("active", Boolean(st.boost_active));
+  }
+  const meta = document.getElementById("net-boost-meta");
+  if (meta) {
+    const dnsStr = Array.isArray(st.dns_servers) && st.dns_servers.length
+      ? `DNS actual: ${st.dns_servers.join(", ")}`
+      : "DNS actual: Automático (DHCP)";
+    const tcpStr = st.tcp_autotuning ? ` · TCP: ${st.tcp_autotuning}` : "";
+    meta.textContent = `${dnsStr}${tcpStr}`;
+  }
+}
+
+async function applyNetworkBoost(enable) {
+  const boostBtn = document.getElementById("btn-net-boost");
+  const resetBtn = document.getElementById("btn-net-reset");
+  const select = document.getElementById("net-dns-select");
+  const dnsPreset = enable ? (select ? select.value : "keep") : "auto";
+
+  if (boostBtn) boostBtn.disabled = true;
+  if (resetBtn) resetBtn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/network/boost`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enable: Boolean(enable), dns_preset: dnsPreset })
+    });
+    const out = await res.json();
+    if (out.boost_status) renderNetworkBoostStatus(out.boost_status);
+    showToast({
+      icon: res.ok ? "check-circle" : "alert-triangle",
+      title: enable ? "Intensificador de red" : "Red restaurada",
+      message: out.message || "Configuración actualizada.",
+      type: res.ok ? "success" : "error",
+      duration: 5000
+    });
+    if (res.ok) {
+      logConsole(out.message || "Boost de red aplicado.");
+    }
+  } catch (e) {
+    showToast({ icon: "alert-triangle", title: "Error de red", message: "No se pudo aplicar el intensificador.", type: "error" });
+  } finally {
+    if (boostBtn) boostBtn.disabled = false;
+    if (resetBtn) resetBtn.disabled = false;
+  }
+}
+
+async function runNetworkBenchmark() {
+  const btn = document.getElementById("btn-net-bench");
+  const box = document.getElementById("net-bench-results");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Midiendo…";
+  }
+  if (box) {
+    box.style.display = "flex";
+    box.replaceChildren();
+    const wait = document.createElement("span");
+    wait.className = "net-bench-pill";
+    wait.textContent = "Probando latencia real, jitter y DNS…";
+    box.appendChild(wait);
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/network/benchmark`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!box) return;
+    box.replaceChildren();
+
+    const q = data.quality || {};
+    const qPill = document.createElement("span");
+    qPill.className = "net-bench-pill";
+    qPill.textContent = hasNum(q.avg_ms)
+      ? `Ping: ${q.avg_ms} ms · Jitter: ${q.jitter_ms ?? 0} ms · Pérdida: ${q.loss_pct ?? 0}%`
+      : "Sin respuesta ICMP";
+    box.appendChild(qPill);
+
+    const dnsList = Array.isArray(data.dns) ? data.dns : [];
+    let bestId = null;
+    dnsList.forEach((d, idx) => {
+      const p = document.createElement("span");
+      const isBest = idx === 0 && hasNum(d.ping_ms);
+      if (isBest) bestId = d.id;
+      p.className = "net-bench-pill" + (isBest ? " best" : "");
+      p.textContent = `${d.label}: ${hasNum(d.ping_ms) ? d.ping_ms + " ms" : ND}`;
+      box.appendChild(p);
+    });
+    const sel = document.getElementById("net-dns-select");
+    if (sel && bestId) sel.value = bestId;
+  } catch (e) {
+    if (box) {
+      box.replaceChildren();
+      const err = document.createElement("span");
+      err.className = "net-bench-pill";
+      err.textContent = "No se pudo completar la medición de red.";
+      box.appendChild(err);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Medir ping / DNS";
+    }
+  }
+}
+
 // -------------------------------------------------------------
 // 1. TELEMETRÍA ULTRA-RÁPIDA (500 ms)
 // -------------------------------------------------------------
@@ -2874,11 +2991,12 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8.9 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.9.0 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");
   updateTelemetry();
+  loadNetworkBoostStatus();
   checkAutostart();
   refreshTopProcesses();
   refreshAudioMixer();
