@@ -104,23 +104,24 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          import os, re
+          import os, re, textwrap
           version, tag = os.environ["VERSION"], os.environ["TAG"]
           text = open("CHANGELOG.md", encoding="utf-8").read()
           m = re.search(rf"^## {re.escape(version)}\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
           if not m:
               raise SystemExit(f"CHANGELOG.md no tiene una sección '## {version}'")
           base = f"https://github.com/${{ github.repository }}/releases/download/{tag}"
-          notes = f"""# 🌀 VortexCore Hub {tag}
+          notes = textwrap.dedent(f"""\
+          # VortexCore Hub {tag}
 
           **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**
 
-          ### 📦 Descargas Oficiales
+          ### Descargas Oficiales
           * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`]({base}/Vortex-core-hub-Setup.exe) *(asistente de instalación, accesos directos y desinstalador limpio)*.
           * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-{tag}-Portable.zip`]({base}/VortexCoreHub-{tag}-Portable.zip).
           * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`]({base}/checksums-sha256.txt).
 
-          > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**.
+          > **Nota:** Esta suite viene 100% empaquetada y **no requiere tener Python instalado**.
 
           ---
 
@@ -129,10 +130,10 @@ jobs:
 
           ---
 
-          ### 💻 Requisitos del Sistema
+          ### Requisitos del Sistema
           * **Sistema Operativo**: Windows 11 o Windows 10 (64 bits).
-          * **Permisos**: Requiere permisos de Administrador para controlar ventiladores, inicio y memoria RAM.
-          """
+          * **Permisos**: Requiere permisos de Administrador para controlar ventiladores, inicio y sensores por núcleo.
+          """).strip()
           notes = notes.replace("{changes}", m.group(1).strip())
           open("release_notes.md", "w", encoding="utf-8").write(notes)
           print(notes)
