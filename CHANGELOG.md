@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.8.8
+
+### Refrigeración Acer Nitro / Predator
+- Control nativo de ventiladores mediante WMI (`root\wmi:AcerGamingFunction`): en modo **Rendimiento** / **Turbo** envía `SetGamingFanBehavior (0x820009)` (con respaldo en `SetGamingFanSpeed` al 100 %), en **Auto / Silencioso** restaura `0x410009` y en **Modo Manual** aplica el porcentaje de la curva de 8 puntos de forma continua.
+- Lectura de RPM de ventiladores y temperatura desde `GetGamingSysInfo` (`0x0101`, `0x0201`, `0x0601`) cuando el equipo expone `AcerGamingFunction`.
+- Corregidas notificaciones toast del asistente PawnIO en la interfaz.
+
 ## 7.8.7
 
 ### Seguridad

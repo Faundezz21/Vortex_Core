@@ -370,7 +370,7 @@ def get_system_specs() -> dict:
         "is_dell": is_dell,
         "is_acer": is_acer,
         "is_msi": is_msi,
-        "fans_supported": is_hp
+        "fans_supported": is_hp or is_acer
     }
 
 
@@ -920,6 +920,9 @@ def select_primary_net_iface(stats: dict, addrs: dict, per_nic_io: dict) -> dict
 class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
+        self.acer_fan_script = os.path.join(get_app_dir(), "acer_fan_controller.ps1")
+        self._acer_wmi_ok = True
+        self._acer_last_manual = None
         self.current_profile = "STANDARD"
         self.fan_mode = "AUTO"
         self.system_specs = get_system_specs()
@@ -979,7 +982,7 @@ class VortexCoreManager:
             "fan2_rpm": None,
             "fan_target_pct": None,
             "fan_dba": None,          # no existe sensor acústico: se deja sin valor
-            "fans_readable": bool(self.system_specs.get("is_hp")),
+            "fans_readable": bool(self.system_specs.get("is_hp") or self.system_specs.get("is_acer")),
             "current_profile": self.current_profile,
             "fan_mode": self.fan_mode,
             "system_specs": self.system_specs,
@@ -1389,10 +1392,27 @@ class VortexCoreManager:
                 if tick % 8 == 0 and self._has_nvidia_smi:
                     self.telemetry["gpu_volt_mv"] = hw_sensors.read_nvidia_voltage_mv()
 
-                # 4. Telemetría BIOS HP (WMI RPM & Temp) cada 1.5s
+                # 4. Telemetría BIOS HP / Acer Nitro WMI (RPM & Temp) cada 1.5s
                 if tick % 3 == 0 and self.system_specs.get("is_hp", False):
                     ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", "query"])
                     if ok and "CPU_TEMP=" in out:
+                        for item in out.strip().splitlines()[-1].split("|"):
+                            try:
+                                k, v = item.strip().split("=", 1)
+                                v = int(v)
+                            except ValueError:
+                                continue
+                            if k == "CPU_TEMP" and 0 < v <= 115:
+                                self.telemetry["cpu_temp"] = v
+                            elif k == "FAN1_RPM" and v > 0:
+                                self.telemetry["fan1_rpm"] = v
+                            elif k == "FAN2_RPM" and v > 0:
+                                self.telemetry["fan2_rpm"] = v
+                elif tick % 3 == 0 and self.system_specs.get("is_acer", False) and self._acer_wmi_ok:
+                    ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.acer_fan_script, "-Mode", "query"])
+                    if "NO_WMI:" in out:
+                        self._acer_wmi_ok = False
+                    elif ok and "CPU_TEMP=" in out:
                         for item in out.strip().splitlines()[-1].split("|"):
                             try:
                                 k, v = item.strip().split("=", 1)
@@ -1471,14 +1491,29 @@ class VortexCoreManager:
                     # Objetivo de la curva (las RPM mostradas siguen siendo las leídas del BIOS)
                     self.telemetry["fan_target_pct"] = max(target_cpu_fan_pct, target_gpu_fan_pct)
 
-                    # Conmutar turbina física WMI cada 3s si la curva exige >= 75% en la temperatura actual
+                    # Conmutar turbina física WMI cada 3s si la curva exige >= 75% (o curva manual directa en Acer Nitro)
                     if tick % 6 == 0:
-                        want_max = max(target_cpu_fan_pct, target_gpu_fan_pct) >= 75
-                        if want_max and "TURBO" not in self.fan_mode:
-                            self.set_fan("max")
-                        elif not want_max and "TURBO" in self.fan_mode:
-                            self.set_fan("auto")
+                        if self.system_specs.get("is_acer", False) and self._acer_wmi_ok:
+                            pair = (target_cpu_fan_pct, target_gpu_fan_pct)
+                            if pair != self._acer_last_manual:
+                                ok, out = self._run_cmd([
+                                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                                    "-File", self.acer_fan_script, "-Mode", "manual",
+                                    "-CpuPct", str(target_cpu_fan_pct), "-GpuPct", str(target_gpu_fan_pct),
+                                ])
+                                if "NO_WMI:" in out:
+                                    self._acer_wmi_ok = False
+                                elif ok:
+                                    self._acer_last_manual = pair
+                                    self.fan_mode = f"MANUAL ({max(pair)}% Nitro)"
+                        else:
+                            want_max = max(target_cpu_fan_pct, target_gpu_fan_pct) >= 75
+                            if want_max and "TURBO" not in self.fan_mode:
+                                self.set_fan("max")
+                            elif not want_max and "TURBO" in self.fan_mode:
+                                self.set_fan("auto")
                 else:
+                    self._acer_last_manual = None
                     self.telemetry["fan_target_pct"] = None
 
                 self.telemetry["current_profile"] = self.current_profile
@@ -1492,6 +1527,7 @@ class VortexCoreManager:
     def set_fan(self, mode: str) -> bool:
         if mode not in ("max", "auto", "cool"):
             mode = "auto"
+        self._acer_last_manual = None
         if getattr(self, "system_specs", {}).get("is_hp", False):
             ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", mode])
             if mode == "max":
@@ -1499,18 +1535,30 @@ class VortexCoreManager:
             else:
                 self.fan_mode = "AUTO"
             return ok
+        elif getattr(self, "system_specs", {}).get("is_acer", False) and self._acer_wmi_ok:
+            ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.acer_fan_script, "-Mode", mode])
+            if "NO_WMI:" in out:
+                self._acer_wmi_ok = False
+            elif ok and "OK:" in out:
+                if mode == "max":
+                    self.fan_mode = "TURBO (100% Nitro)"
+                    self.set_scheme("high")
+                    self.set_cpu_limit(100)
+                    self.set_turbo(2)
+                else:
+                    self.fan_mode = "AUTO (Nitro)"
+                return True
+        if mode == "max":
+            self.fan_mode = "TURBO (Universal)"
+            self.set_scheme("high")
+            self.set_cpu_limit(100)
+            self.set_turbo(2)
         else:
-            if mode == "max":
-                self.fan_mode = "TURBO (Universal)"
-                self.set_scheme("high")
-                self.set_cpu_limit(100)
-                self.set_turbo(2)
-            else:
-                self.fan_mode = "AUTO (Universal)"
-                self.set_scheme("balanced")
-                self.set_cpu_limit(95)
-                self.set_turbo(2)
-            return True
+            self.fan_mode = "AUTO (Universal)"
+            self.set_scheme("balanced")
+            self.set_cpu_limit(95)
+            self.set_turbo(2)
+        return True
 
     def set_cpu_limit(self, max_pct: int) -> bool:
         val = str(max(50, min(100, max_pct)))

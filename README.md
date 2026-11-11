@@ -1,7 +1,7 @@
 # VortexCore Hub
 
 [![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
-[![Release](https://img.shields.io/badge/Release-v7.8.7-00a8b5?style=flat-square)](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v7.8.8-00a8b5?style=flat-square)](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-2ea043?style=flat-square)](LICENSE)
 
 Centro de control y telemetría de hardware para Windows 10/11, pensado como alternativa ligera a suites pesadas de fabricantes (*OMEN Gaming Hub*, *Armoury Crate*, *Lenovo Vantage*).
@@ -27,7 +27,7 @@ VortexCore Hub sigue dos reglas simples:
 - **Temperaturas por núcleo y red en vivo:**
   - Lectura nativa de núcleos físicos (`P-Cores` / `E-Cores`) mediante `LibreHardwareMonitorLib` + **PawnIO**, además de lectura directa en memoria compartida de **Core Temp** o **HWiNFO** y zonas térmicas ACPI reales.
   - Monitor de red en tiempo real con descarga/subida, totales de sesión, enlace Mbps, IPv4 y ping.
-- **Control térmico y perfiles de energía:** modos *Windows*, *Silencioso*, *Equilibrado*, *Rendimiento* y *Manual* (límites CPU, GPU offset/TGP NVIDIA y curva de ventilación). En portátiles **HP Victus y OMEN** controla los ventiladores directamente vía BIOS WMI (`root\wmi:hpqBIntM`); en el resto de marcas opera mediante el gobernador universal de energía de Windows.
+- **Control térmico y perfiles de energía:** modos *Windows*, *Silencioso*, *Equilibrado*, *Rendimiento* y *Manual* (límites CPU, GPU offset/TGP NVIDIA y curva de ventilación). En portátiles **HP Victus / OMEN** (`root\wmi:hpqBIntM`) y **Acer Nitro / Predator** (`root\wmi:AcerGamingFunction`) controla los ventiladores directamente por BIOS WMI; en el resto de marcas opera mediante el gobernador universal de energía de Windows.
 - **Diagnóstico y salud de batería:** índice de salud en vivo, recomendaciones accionables y lectura real de capacidad de fábrica vs. carga completa (`mWh`), nivel de desgaste y ciclos desde ACPI WMI y `powercfg`.
 - **Optimización y mantenimiento:**
   - Liberación de memoria en espera (*Standby RAM* vía Win32) y listado de procesos con mayor consumo de RAM.
@@ -42,7 +42,8 @@ VortexCore Hub sigue dos reglas simples:
 | Equipo | Ventiladores / RPM | CPU, Turbo y Energía | GPU NVIDIA (`nvidia-smi`) | RAM, Batería, Audio y Limpieza |
 | :--- | :---: | :---: | :---: | :---: |
 | **HP Victus / OMEN** | Nativo (BIOS WMI) | Sí (`powercfg`) | Sí | Sí |
-| **ASUS / Lenovo / Acer / Dell / MSI / PC armados** | `N/D` (regulado por BIOS OEM) | Sí (`powercfg`) | Sí (con GPU NVIDIA) | Sí |
+| **Acer Nitro / Predator** | Nativo (`AcerGamingFunction` WMI) | Sí (`powercfg`) | Sí (con GPU NVIDIA) | Sí |
+| **ASUS / Lenovo / Dell / MSI / PC armados** | `N/D` (regulado por BIOS OEM) | Sí (`powercfg`) | Sí (con GPU NVIDIA) | Sí |
 
 ---
 
@@ -53,7 +54,7 @@ VortexCore Hub sigue dos reglas simples:
 Desde la página de **[Releases](https://github.com/Faundezz21/VortexCore-Hub/releases/latest)**:
 
 - **`Vortex-core-hub-Setup.exe`**: instalador oficial para Windows con accesos directos y desinstalador.
-- **`VortexCoreHub-v7.8.7-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
+- **`VortexCoreHub-v7.8.8-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
 
 > **SmartScreen:** al no contar con un certificado comercial de firma de código, Windows Defender SmartScreen puede mostrar un aviso la primera vez (*Más información → Ejecutar de todas formas*). Todo el código fuente y los hashes SHA-256 de cada release son públicos en este repositorio.
 

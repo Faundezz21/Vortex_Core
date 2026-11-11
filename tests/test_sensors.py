@@ -217,6 +217,35 @@ class CoreAndNetworkTelemetryTests(unittest.TestCase):
         self.assertIsInstance(hw_sensors.is_admin(), bool)
         self.assertIsInstance(hw_sensors.is_pawnio_installed(), bool)
 
+    def test_acer_fan_control_and_fallback(self):
+        orig = ve.VortexCoreManager._monitor_loop
+        ve.VortexCoreManager._monitor_loop = lambda self: None
+        try:
+            m = ve.VortexCoreManager()
+        finally:
+            ve.VortexCoreManager._monitor_loop = orig
+
+        m.system_specs = {"is_hp": False, "is_acer": True, "ram_gb": 16}
+        m._acer_wmi_ok = True
+        calls = []
+
+        def fake_cmd(cmd):
+            calls.append(cmd)
+            if "-File" in cmd and "acer_fan_controller.ps1" in cmd[cmd.index("-File") + 1]:
+                return (True, "OK: ACER_FAN_MAX")
+            return (True, "")
+
+        m._run_cmd = fake_cmd
+        self.assertTrue(m.set_fan("max"))
+        self.assertEqual(m.fan_mode, "TURBO (100% Nitro)")
+        self.assertTrue(any("acer_fan_controller.ps1" in " ".join(c) and "max" in c for c in calls))
+
+        # Si el modelo Acer no expone AcerGamingFunction, degrada a modo Universal sin romperse
+        m._run_cmd = lambda cmd: (False, "NO_WMI: AcerGamingFunction no disponible")
+        m.set_fan("max")
+        self.assertFalse(m._acer_wmi_ok)
+        self.assertEqual(m.fan_mode, "TURBO (Universal)")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

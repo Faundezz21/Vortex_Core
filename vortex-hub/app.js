@@ -243,7 +243,7 @@ async function installPawnIODriver() {
     btn.disabled = true;
     btn.textContent = "Instalando PawnIO…";
   }
-  showToast("Instalando soporte térmico por núcleo (PawnIO)…", "info");
+  showToast({ icon: "cpu", title: "Sensores por núcleo", message: "Instalando controlador PawnIO…", type: "info" });
   try {
     const res = await fetch(`${API_BASE}/api/install_pawnio`, {
       method: "POST",
@@ -251,9 +251,15 @@ async function installPawnIODriver() {
       body: JSON.stringify({})
     });
     const out = await res.json();
-    showToast(out.message || "Listo.", res.ok ? "success" : "error", 5000);
+    showToast({
+      icon: res.ok ? "check-circle" : "alert-triangle",
+      title: res.ok ? "PawnIO listo" : "Aviso PawnIO",
+      message: out.message || "Operación completada.",
+      type: res.ok ? "success" : "error",
+      duration: 5000
+    });
   } catch (e) {
-    showToast("No se pudo iniciar la instalación de PawnIO.", "error");
+    showToast({ icon: "alert-triangle", title: "Error", message: "No se pudo iniciar la instalación de PawnIO.", type: "error" });
   } finally {
     _pawnioActionBusy = false;
   }
@@ -273,9 +279,9 @@ async function relaunchAsAdmin() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({})
     });
-    showToast("Acepta el aviso de Windows (UAC) para activar sensores por núcleo.", "info", 5000);
+    showToast({ icon: "shield", title: "Elevación UAC", message: "Acepta el aviso de Windows para activar sensores por núcleo.", type: "info", duration: 5000 });
   } catch (e) {
-    showToast("No se pudo solicitar elevación.", "error");
+    showToast({ icon: "alert-triangle", title: "Error", message: "No se pudo solicitar elevación.", type: "error" });
     _pawnioActionBusy = false;
   }
 }
@@ -475,19 +481,29 @@ async function updateTelemetry() {
 
       const fanSub = document.getElementById("hero-fan-sub");
       if (fanSub) {
-        fanSub.textContent = s.is_hp ? "HP BIOS WMI Activo" : `Control Térmico (${s.manufacturer})`;
+        fanSub.textContent = s.is_hp
+          ? "HP BIOS WMI Activo"
+          : s.is_acer
+            ? "Acer Nitro / Predator WMI Activo"
+            : `Control Térmico (${s.manufacturer})`;
       }
 
       const coolLabel = document.getElementById("cooling-hero-label");
       if (coolLabel) {
-        coolLabel.textContent = s.is_hp ? "Control por BIOS (HP WMI)" : `Control térmico universal (${s.manufacturer})`;
+        coolLabel.textContent = s.is_hp
+          ? "Control por BIOS (HP WMI)"
+          : s.is_acer
+            ? "Control por BIOS (Acer Gaming WMI)"
+            : `Control térmico universal (${s.manufacturer})`;
       }
 
       const coolDesc = document.getElementById("cooling-hero-desc");
       if (coolDesc) {
         coolDesc.textContent = s.is_hp
           ? 'Llamada directa mediante Opcode 0x27 en `root\\wmi:hpqBIntM` con firma de seguridad "SECU". Compatible nativamente con HP Victus y OMEN.'
-          : `Gobernador de energía, límites de CPU y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
+          : s.is_acer
+            ? 'Control directo mediante `root\\wmi:AcerGamingFunction` (SetGamingFanBehavior / SetGamingFanSpeed). Compatible con Acer Nitro y Predator.'
+            : `Gobernador de energía, límites de CPU y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
       }
     }
 
@@ -2839,7 +2855,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8.7 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.8.8 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");
