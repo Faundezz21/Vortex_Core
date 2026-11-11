@@ -5,7 +5,12 @@
 ; ==============================================================================
 
 #define MyAppName "VortexCore Hub"
-#define MyAppVersion "7.8.6"
+; La versión se lee del archivo VERSION (o se pasa con /DMyAppVersion=x.y.z)
+#ifndef MyAppVersion
+  #define VersionFile FileOpen(AddBackslash(SourcePath) + "VERSION")
+  #define MyAppVersion Trim(FileRead(VersionFile))
+  #expr FileClose(VersionFile)
+#endif
 #define MyAppPublisher "Faundezz21"
 #define MyAppURL "https://github.com/Faundezz21/VortexCore-Hub"
 #define MyAppExeName "VortexCoreHub.exe"
@@ -31,6 +36,10 @@ PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\vortex_icon.ico
 UninstallDisplayName={#MyAppName} v{#MyAppVersion}
+VersionInfoVersion={#MyAppVersion}
+; Cerrar la app (bandeja incluida) si está abierta al actualizar
+CloseApplications=force
+RestartApplications=no
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -49,7 +58,14 @@ Name: "{autoprograms}\{#MyAppName}\Desinstalar {#MyAppName}"; Filename: "{uninst
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\vortex_icon.ico"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VortexCoreHub"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Flags: uninsdeletevalue; Tasks: autostart
+; Limpieza del auto-inicio antiguo (<= 7.8.6) basado en la clave Run: no funcionaba con apps de Administrador
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VortexCoreHub"; Flags: deletevalue uninsdeletevalue
 
 [Run]
+; Auto-inicio: tarea programada "al iniciar sesión" con privilegios elevados (sin UAC en cada arranque)
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--set-autostart on"; StatusMsg: "Configurando inicio automático..."; Flags: runhidden waituntilterminated; Tasks: autostart
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: shellexec nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{sys}\taskkill.exe"; Parameters: "/IM {#MyAppExeName} /F"; Flags: runhidden; RunOnceId: "KillVortex"
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN VortexCoreHub /F"; Flags: runhidden; RunOnceId: "DelVortexTask"

@@ -1,4 +1,4 @@
 psutil>=5.9.0
-pycaw>=20260927
+pycaw>=20240210
 comtypes>=1.4.0
-pyinstaller>=6.0.0
+HardwareMonitor>=1.2.1

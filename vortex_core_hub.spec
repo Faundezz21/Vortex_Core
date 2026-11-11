@@ -2,29 +2,56 @@
 
 import os
 import sys
+from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
 
 project_dir = os.path.abspath(SPECPATH)
 
-added_datas = [
-    (os.path.join(project_dir, 'vortex-hub'), 'vortex-hub'),
+extra_datas = []
+extra_binaries = []
+extra_hiddenimports = []
+for _pkg in ('HardwareMonitor', 'pythonnet', 'clr_loader'):
+    try:
+        _d, _b, _h = collect_all(_pkg)
+        extra_datas += _d
+        extra_binaries += _b
+        extra_hiddenimports += _h
+    except Exception:
+        pass
+
+# Solo los archivos de la interfaz web (sin carpetas de desarrollo)
+hub_dir = os.path.join(project_dir, 'vortex-hub')
+hub_files = [
+    (os.path.join(hub_dir, f), 'vortex-hub')
+    for f in os.listdir(hub_dir)
+    if os.path.isfile(os.path.join(hub_dir, f))
+]
+
+added_datas = hub_files + [
     (os.path.join(project_dir, 'hp_fan_controller.ps1'), '.'),
     (os.path.join(project_dir, 'vortex_icon.ico'), '.'),
-    (os.path.join(project_dir, 'tray_manager.py'), '.'),
+    (os.path.join(project_dir, 'VERSION'), '.'),
 ]
 
 a = Analysis(
     ['vortex_engine.py'],
     pathex=[project_dir],
-    binaries=[],
-    datas=added_datas,
+    binaries=extra_binaries,
+    datas=added_datas + extra_datas,
     hiddenimports=[
+        'hw_sensors',
+        'tray_manager',
         'psutil',
         'pycaw',
         'pycaw.pycaw',
         'comtypes',
         'comtypes.client',
+        'HardwareMonitor',
+        'HardwareMonitor.Hardware',
+        'pythonnet',
+        'clr_loader',
+        'cffi',
         'ctypes',
         'ctypes.wintypes',
         'winreg',
@@ -36,7 +63,7 @@ a = Analysis(
         'time',
         'sys',
         'os',
-    ],
+    ] + extra_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

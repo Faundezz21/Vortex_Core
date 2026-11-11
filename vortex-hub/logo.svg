@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- VortexCore Hub: monograma "V" de dos aspas (azul + cian) -->
+  <defs>
+    <linearGradient id="a-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#111c31"/><stop offset="1" stop-color="#070d18"/>
+    </linearGradient>
+    <linearGradient id="a-l" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0a6cff"/><stop offset="1" stop-color="#0047c2"/>
+    </linearGradient>
+    <linearGradient id="a-r" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5ff6ff"/><stop offset="1" stop-color="#00c2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#a-tile)"/>
+  <rect x="18" y="18" width="476" height="476" rx="114" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="4"/>
+  <!-- brazo izquierdo (azul) -->
+  <path d="M120 132 H214 C226 132 236 139 240 150 L292 300 L256 392 Z" fill="url(#a-l)"/>
+  <!-- brazo derecho (cian), curvado como un aspa -->
+  <path d="M392 132 H298 C286 132 276 139 272 150 L220 300 L256 392 C300 372 352 300 392 132 Z" fill="url(#a-r)"/>
+</svg>

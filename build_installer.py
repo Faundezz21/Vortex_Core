@@ -34,9 +34,17 @@ def main():
     print("  VORTEXCORE HUB // GENERADOR DE INSTALADOR OFICIAL")
     print("=====================================================")
 
+    with open(os.path.join(root_dir, "VERSION"), encoding="utf-8") as vf:
+        version = vf.read().strip()
+    print(f"  Versión: {version}")
+
+    # 0. Pruebas automáticas antes de compilar
+    if not run_command([sys.executable, "-m", "unittest", "discover", "-s", "tests"], "Ejecutando pruebas automáticas"):
+        return
+
     # 1. Asegurar PyInstaller
     try:
-        import PyInstaller
+        import PyInstaller  # noqa: F401
         print("[OK] PyInstaller detectado.")
     except ImportError:
         print("[!] PyInstaller no encontrado. Instalando en entorno local...")
@@ -61,7 +69,7 @@ def main():
     print("\n[OK] Binario standalone compilado exitosamente en: dist/VortexCoreHub/")
 
     # 3. Generar versión portable .zip
-    zip_path = os.path.join(root_dir, "dist", "VortexCoreHub-v7.8.6-Portable.zip")
+    zip_path = os.path.join(root_dir, "dist", f"VortexCoreHub-v{version}-Portable.zip")
     print(f"[+] Creando paquete portátil: {zip_path}...")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for folder, _, files in os.walk(output_dir):
@@ -83,7 +91,7 @@ def main():
     if iscc:
         print(f"\n[OK] Inno Setup encontrado en: {iscc}")
         iss_file = os.path.join(root_dir, "installer.iss")
-        if run_command([iscc, iss_file], "Compilando Instalador Oficial Setup.exe"):
+        if run_command([iscc, f"/DMyAppVersion={version}", iss_file], "Compilando Instalador Oficial Setup.exe"):
             setup_exe = os.path.join(root_dir, "dist", "Vortex-core-hub-Setup.exe")
             print("\n" + "=" * 55)
             print("  ¡ÉXITO TOTAL! INSTALADOR CREADO CON ÉXITO:")
@@ -94,7 +102,7 @@ def main():
         print("    Para generar el instalador 'Vortex-core-hub-Setup.exe' en tu máquina local:")
         print("    1. Descarga e instala Inno Setup gratis desde: https://jrsoftware.org/isdl.php")
         print("    2. Vuelve a ejecutar este script.")
-        print("    Alternativa: Sube un tag a GitHub (ej. git tag v7.8.0 && git push origin v7.8.0)")
+        print(f"    Alternativa: Sube un tag a GitHub (ej. git tag v{version} && git push origin v{version})")
         print("    y GitHub Actions compilará el Setup.exe automáticamente en la nube.")
 
 if __name__ == "__main__":

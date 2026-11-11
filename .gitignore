@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.pytest_cache/
 *.py[cod]
 *$py.class
 *.log
@@ -12,9 +13,6 @@ env/
 # Editores e IDEs
 .vscode/
 .idea/
-
-# Rust / Tauri build artifacts
-vortex-hub/src-tauri/target/
 
 # Paquetes y binarios compilados
 build/

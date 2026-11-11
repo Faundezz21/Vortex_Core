@@ -1,9 +1,9 @@
 """
 ================================================================================
-  VortexCore Hub // Backend Engine v7.5
+  VortexCore Hub // Backend Engine
   - Servidor REST local ultra-rápido (500ms)
   - Control WMI BIOS HP (Opcode 0x27 Max Fan & 0x2D RPM)
-  - Soporte de Sliders de CPU Throttle, Turbo Boost Switch, Purga de RAM
+  - Soporte de Sliders de CPU Throttle, Turbo Boost Switch, Liberar RAM
   - Ejecución en ventana de escritorio nativa acelerada por GPU (WebView2)
 ================================================================================
 """
@@ -18,8 +18,17 @@ import threading
 import subprocess
 import winreg
 import platform
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart
+import socket
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+import hw_sensors
+from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
+
+# Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
+# (se procesa antes de crear el gestor de hardware, que arranca hilos de monitoreo).
+if __name__ == "__main__" and "--set-autostart" in sys.argv:
+    _idx = sys.argv.index("--set-autostart")
+    _val = sys.argv[_idx + 1].lower() if len(sys.argv) > _idx + 1 else "on"
+    sys.exit(0 if set_autostart(_val in ("on", "1", "true", "yes")) else 1)
 
 try:
     import psutil
@@ -38,7 +47,7 @@ except Exception:
 def get_audio_mixer_data() -> dict:
     """Obtiene el volumen maestro y todas las aplicaciones con audio activo (estilo EarTrumpet)."""
     res = {
-        "master": {"volume": 50, "muted": False, "device_name": "Altavoces / Auriculares"},
+        "master": {"volume": None, "muted": None, "device_name": None},
         "apps": []
     }
     if not HAS_PYCAW:
@@ -201,6 +210,18 @@ def get_app_dir() -> str:
             return sys._MEIPASS
         return os.path.dirname(os.path.abspath(sys.executable))
     return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_app_version() -> str:
+    """Versión del archivo VERSION (se empaqueta junto a la app). 'dev' si no está."""
+    try:
+        with open(os.path.join(get_app_dir(), "VERSION"), encoding="utf-8") as vf:
+            return vf.read().strip() or "dev"
+    except OSError:
+        return "dev"
+
+
+APP_VERSION = get_app_version()
 
 
 def request_admin_elevation():
@@ -567,25 +588,235 @@ def remove_debloat_apps(app_ids: list[str]) -> dict:
 
 
 # ==============================================================================
-# 4. DIAGNÓSTICO Y OPTIMIZACIÓN TÁCTICA DE HARDWARE INTELLIGENCE
+# 3.1 LIMPIADOR REAL DE TEMPORALES, CACHÉ DE SHADERS Y PAPELERA
+# ==============================================================================
+def _cleanup_specs() -> list[dict]:
+    local_app = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    win_root = os.environ.get("SystemRoot", r"C:\Windows")
+    user_temp = os.environ.get("TEMP") or os.path.join(local_app, "Temp")
+    return [
+        {
+            "id": "user_temp",
+            "name": "Temporales de usuario (%TEMP%)",
+            "desc": "Archivos temporales creados por instaladores y aplicaciones.",
+            "default_checked": True,
+            "paths": [user_temp],
+        },
+        {
+            "id": "win_temp",
+            "name": "Temporales de Windows",
+            "desc": "Archivos temporales del sistema operativo en Windows\\Temp.",
+            "default_checked": True,
+            "paths": [os.path.join(win_root, "Temp")],
+        },
+        {
+            "id": "dx_shader",
+            "name": "Caché de Shaders (DirectX / GPU)",
+            "desc": "Caché de sombreadores (D3DSCache, NVIDIA y AMD). Los juegos la regeneran sola si hace falta.",
+            "default_checked": True,
+            "paths": [
+                os.path.join(local_app, "D3DSCache"),
+                os.path.join(local_app, "NVIDIA", "DXCache"),
+                os.path.join(local_app, "NVIDIA", "GLCache"),
+                os.path.join(local_app, "AMD", "DxCache"),
+            ],
+        },
+        {
+            "id": "crash_dumps",
+            "name": "Volcados de errores (CrashDumps)",
+            "desc": "Registros antiguos de cierres inesperados de programas.",
+            "default_checked": True,
+            "paths": [os.path.join(local_app, "CrashDumps")],
+        },
+        {
+            "id": "win_update_cache",
+            "name": "Caché de Windows Update",
+            "desc": "Instaladores antiguos de actualizaciones ya aplicadas en SoftwareDistribution.",
+            "default_checked": False,
+            "paths": [os.path.join(win_root, "SoftwareDistribution", "Download")],
+        },
+        {
+            "id": "recycle_bin",
+            "name": "Papelera de reciclaje",
+            "desc": "Vacía de forma definitiva los archivos que ya enviaste a la Papelera.",
+            "default_checked": False,
+            "paths": [],
+            "special": "recycle_bin",
+        },
+    ]
+
+
+CLEANUP_CATEGORY_IDS = {c["id"] for c in _cleanup_specs()}
+
+
+def _query_recycle_bin() -> tuple[int, int]:
+    """Devuelve (bytes_total, num_items) de la Papelera de reciclaje mediante Win32."""
+    if sys.platform != "win32":
+        return (0, 0)
+    try:
+        class SHQUERYRBINFO(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("i64Size", ctypes.c_int64),
+                ("i64NumItems", ctypes.c_int64),
+            ]
+        info = SHQUERYRBINFO()
+        info.cbSize = ctypes.sizeof(SHQUERYRBINFO)
+        hr = ctypes.windll.shell32.SHQueryRecycleBinW(None, ctypes.byref(info))
+        if hr == 0:
+            return (max(0, int(info.i64Size)), max(0, int(info.i64NumItems)))
+    except Exception:
+        pass
+    return (0, 0)
+
+
+def _dir_size_and_count(dirs: list[str]) -> tuple[int, int]:
+    total_bytes = 0
+    file_count = 0
+    stack = [d for d in dirs if d and os.path.isdir(d)]
+    while stack:
+        cur = stack.pop()
+        try:
+            with os.scandir(cur) as it:
+                for entry in it:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            total_bytes += entry.stat(follow_symlinks=False).st_size
+                            file_count += 1
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    return (total_bytes, file_count)
+
+
+def scan_disk_cleanup() -> dict:
+    """Calcula el espacio real recuperable por categoría de limpieza segura."""
+    items = []
+    total_bytes = 0
+    for spec in _cleanup_specs():
+        if spec.get("special") == "recycle_bin":
+            b, cnt = _query_recycle_bin()
+        else:
+            b, cnt = _dir_size_and_count(spec["paths"])
+        total_bytes += b
+        items.append({
+            "id": spec["id"],
+            "name": spec["name"],
+            "desc": spec["desc"],
+            "default_checked": spec["default_checked"],
+            "bytes": b,
+            "mb": round(b / (1024 ** 2), 1),
+            "files": cnt,
+        })
+    return {
+        "items": items,
+        "total_bytes": total_bytes,
+        "total_mb": round(total_bytes / (1024 ** 2), 1),
+    }
+
+
+def run_disk_cleanup(target_ids: list[str]) -> dict:
+    """Elimina archivos de las categorías permitidas sin tocar archivos bloqueados en uso."""
+    specs = {c["id"]: c for c in _cleanup_specs()}
+    selected = [tid for tid in target_ids if tid in specs]
+    freed_bytes = 0
+    removed_files = 0
+    skipped_locked = 0
+    results = []
+
+    for tid in selected:
+        spec = specs[tid]
+        cat_freed = 0
+        cat_removed = 0
+        cat_locked = 0
+
+        if spec.get("special") == "recycle_bin":
+            rb_bytes, rb_items = _query_recycle_bin()
+            if rb_items > 0 or rb_bytes > 0:
+                try:
+                    # SHERB_NOCONFIRMATION(1) | SHERB_NOPROGRESSUI(2) | SHERB_NOSOUND(4)
+                    hr = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 7)
+                    if hr == 0:
+                        cat_freed = rb_bytes
+                        cat_removed = rb_items
+                except Exception:
+                    pass
+        else:
+            for base in spec["paths"]:
+                if not base or not os.path.isdir(base):
+                    continue
+                try:
+                    for root, dirs_list, files in os.walk(base, topdown=False, followlinks=False):
+                        for fname in files:
+                            fp = os.path.join(root, fname)
+                            try:
+                                if os.path.islink(fp):
+                                    continue
+                                sz = os.path.getsize(fp)
+                                os.unlink(fp)
+                                cat_freed += sz
+                                cat_removed += 1
+                            except OSError:
+                                cat_locked += 1
+                        for dname in dirs_list:
+                            dp = os.path.join(root, dname)
+                            try:
+                                if not os.path.islink(dp):
+                                    os.rmdir(dp)
+                            except OSError:
+                                pass
+                except OSError:
+                    pass
+
+        freed_bytes += cat_freed
+        removed_files += cat_removed
+        skipped_locked += cat_locked
+        results.append({
+            "id": tid,
+            "freed_mb": round(cat_freed / (1024 ** 2), 1),
+            "removed_files": cat_removed,
+            "skipped_locked": cat_locked,
+        })
+
+    return {
+        "status": "ok",
+        "freed_bytes": freed_bytes,
+        "freed_mb": round(freed_bytes / (1024 ** 2), 1),
+        "removed_files": removed_files,
+        "skipped_locked": skipped_locked,
+        "results": results,
+    }
+
+
+# ==============================================================================
+# 4. DIAGNÓSTICO Y OPTIMIZACIÓN DE HARDWARE INTELLIGENCE
 # ==============================================================================
 def diagnose_hardware_health(manager_obj) -> dict:
-    """Realiza un escaneo diagnóstico táctico de silicio, temperaturas, RAM y gobernadores."""
+    """Realiza un diagnóstico de CPU, temperaturas, RAM y gobernadores."""
     specs = manager_obj.system_specs
-    cpu_temp = manager_obj.telemetry.get("cpu_temp", 48)
-    gpu_temp = manager_obj.telemetry.get("gpu_temp", 45)
-    ram_pct = manager_obj.telemetry.get("ram_pct", 36)
-    ram_free = manager_obj.telemetry.get("ram_free", "20.1")
+    # Valores reales; si un sensor no está disponible se trata como "sin dato" (no se inventa)
+    cpu_temp_raw = manager_obj.telemetry.get("cpu_temp")
+    gpu_temp_raw = manager_obj.telemetry.get("gpu_temp")
+    cpu_temp = cpu_temp_raw if cpu_temp_raw is not None else 0
+    gpu_temp = gpu_temp_raw if gpu_temp_raw is not None else 0
+    ram_pct = manager_obj.telemetry.get("ram_pct") or 0
+    ram_free = manager_obj.telemetry.get("ram_free") or "N/D"
 
     score = 100
     recs = []
 
+    # Solo se recomiendan acciones que la app ejecuta de verdad y que hacen falta ahora
     if cpu_temp >= 85:
         score -= 22
         recs.append({
             "id": "limit_cpu",
-            "title": "Fijar Límite Térmico de CPU (95%)",
-            "desc": f"El procesador registra {cpu_temp}°C. Ajustar el límite de energía al 95% reducirá hasta 10°C sin pérdida notable de FPS.",
+            "title": "Bajar la temperatura de la CPU",
+            "desc": f"La CPU está a {cpu_temp}°C. Limitarla al 95% suele bajar varios grados sin una pérdida de rendimiento notable.",
             "impact": "Alto",
             "action": "limit_cpu"
         })
@@ -593,8 +824,8 @@ def diagnose_hardware_health(manager_obj) -> dict:
         score -= 8
         recs.append({
             "id": "limit_cpu",
-            "title": "Optimización Térmica Preventiva",
-            "desc": f"La temperatura del silicio ({cpu_temp}°C) puede optimizarse aplicando el perfil térmico recomendado.",
+            "title": "Reducir el calor de la CPU",
+            "desc": f"La CPU está a {cpu_temp}°C. Limitarla al 95% ayuda a mantenerla más fresca y silenciosa.",
             "impact": "Medio",
             "action": "limit_cpu"
         })
@@ -603,29 +834,13 @@ def diagnose_hardware_health(manager_obj) -> dict:
         score -= 15
         recs.append({
             "id": "clean_ram",
-            "title": "Optimización de Memoria RAM",
-            "desc": f"Se registra un {ram_pct}% de memoria en uso. Liberar la caché en espera reducirá micro-stuttering.",
-            "impact": "Alto",
-            "action": "clean_ram"
-        })
-    else:
-        recs.append({
-            "id": "clean_ram",
-            "title": "Liberación Preventiva de Memoria",
-            "desc": "Vaciar la caché en espera de Windows para asegurar el máximo espacio físico disponible para juegos.",
-            "impact": "Bajo",
+            "title": "Liberar memoria RAM",
+            "desc": f"La RAM está al {ram_pct}% de uso. Liberar la memoria en espera deja más espacio para juegos y programas.",
+            "impact": "Alto" if ram_pct > 85 else "Medio",
             "action": "clean_ram"
         })
 
-    recs.append({
-        "id": "set_timer",
-        "title": "Temporizador Kernel a 1.0 ms",
-        "desc": "Ajustar la resolución del kernel a 1.0 ms para minimizar la latencia de entrada de teclado y mouse.",
-        "impact": "Alto",
-        "action": "set_timer"
-    })
-
-    condition = "ÓPTIMA" if score >= 85 else "MODERADA" if score >= 70 else "REQUIERE ATENCIÓN"
+    condition = "Buena" if score >= 85 else "Mejorable" if score >= 70 else "Requiere atención"
 
     return {
         "health_score": max(50, min(100, score)),
@@ -634,14 +849,14 @@ def diagnose_hardware_health(manager_obj) -> dict:
         "checks": [
             {
                 "name": "Envolvente Térmica CPU",
-                "value": f"{cpu_temp}°C",
+                "value": f"{cpu_temp}°C" if cpu_temp_raw is not None else "N/D (sin sensor)",
                 "status": "Normal" if cpu_temp < 75 else "Alerta",
                 "optimal": cpu_temp < 75,
                 "desc": f"{specs['cpu_short']} operando sin estrangulamiento térmico (Thermal Throttling)." if cpu_temp < 80 else "Temperatura elevada cercana al límite de silicio."
             },
             {
                 "name": "Gráfica GPU",
-                "value": f"{gpu_temp}°C",
+                "value": f"{gpu_temp}°C" if gpu_temp_raw is not None else "N/D (sin sensor)",
                 "status": "Óptima" if gpu_temp < 75 else "Alerta",
                 "optimal": gpu_temp < 75,
                 "desc": f"{specs['gpu_short']} con conmutación dinámica de energía activa."
@@ -665,6 +880,43 @@ def diagnose_hardware_health(manager_obj) -> dict:
     }
 
 
+def select_primary_net_iface(stats: dict, addrs: dict, per_nic_io: dict) -> dict | None:
+    """Elige la interfaz de red activa principal (descartando loopback si hay NIC real)."""
+    if not stats:
+        return None
+    best = None
+    best_score = None
+    for name, st in stats.items():
+        if not getattr(st, "isup", False):
+            continue
+        lname = name.lower()
+        is_loopback = "loopback" in lname or lname == "lo"
+        if is_loopback:
+            continue
+
+        ipv4 = None
+        for addr in addrs.get(name, []):
+            if getattr(addr, "family", None) == socket.AF_INET:
+                ip = getattr(addr, "address", "") or ""
+                if ip and not ip.startswith("127.") and not ip.startswith("169.254."):
+                    ipv4 = ip
+                    break
+
+        io = per_nic_io.get(name)
+        total_bytes = (getattr(io, "bytes_recv", 0) + getattr(io, "bytes_sent", 0)) if io else 0
+        speed = getattr(st, "speed", 0) or 0
+        # Prioriza: tener IPv4 asignada, tráfico acumulado (>0) y velocidad de enlace
+        score = (1 if ipv4 else 0, 1 if total_bytes > 0 else 0, total_bytes, speed)
+        if best_score is None or score > best_score:
+            best_score = score
+            best = {
+                "name": name,
+                "link_mbps": int(speed) if speed > 0 else None,
+                "ipv4": ipv4,
+            }
+    return best
+
+
 class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
@@ -672,92 +924,158 @@ class VortexCoreManager:
         self.fan_mode = "AUTO"
         self.system_specs = get_system_specs()
 
-        # Detección inicial de memoria RAM instalada
-        initial_installed = self.system_specs.get("ram_gb", 16)
-        initial_total = f"{initial_installed:.1f}"
-        initial_used = "8.0"
-        initial_free = f"{initial_installed - 8:.1f}"
-        initial_pct = 40
-        if HAS_PSUTIL:
-            try:
-                mem = psutil.virtual_memory()
-                tot_gb = mem.total / (1024**3)
-                av_gb = mem.available / (1024**3)
-                used_gb = (mem.total - mem.available) / (1024**3)
-                initial_pct = int(((mem.total - mem.available) / mem.total) * 100)
-                initial_total = f"{tot_gb:.1f}"
-                initial_used = f"{used_gb:.1f}"
-                initial_free = f"{av_gb:.1f}"
-                initial_installed = int(round(tot_gb))
-            except Exception:
-                pass
+        # Lectores de sensores reales (sin valores inventados: None = "N/D" en la interfaz)
+        self._counters = hw_sensors.SystemCounters()
+        self.ram_modules = None
+        threading.Thread(target=self._load_ram_modules, daemon=True).start()
 
         self.telemetry = {
-            "cpu_temp": 48,
-            "cpu_freq": "2.40",
-            "cpu_freq_mhz": 2400,
-            "cpu_volt_mv": 1085,
+            "cpu_temp": None,
+            "cpu_freq": None,
+            "cpu_freq_mhz": None,
+            "cpu_volt_mv": None,      # Windows no expone el voltaje de CPU sin un driver de kernel
             "cpu_usage": 0,
-            "gpu_temp": 45,
-            "gpu_usage": 0,
-            "gpu_power": "0.0",
-            "gpu_freq_mhz": 1650,
-            "gpu_mem_freq_mhz": 8001,
-            "gpu_volt_mv": 815,
-            "ram_pct": initial_pct,
-            "ram_used": initial_used,
-            "ram_total": initial_total,
-            "ram_free": initial_free,
-            "ram_installed": initial_installed,
-            "ram_cached": "0.0",
-            "ram_speed_mts": 5600,
-            "disk_used_gb": "450.0",
-            "disk_total_gb": "1000",
-            "disk_pct": 45,
-            "fan1_rpm": 2600,
-            "fan2_rpm": 2400,
-            "fan_dba": "26.4",
+            "cpu_cores_phys": psutil.cpu_count(logical=False) if HAS_PSUTIL else None,
+            "cpu_cores_log": psutil.cpu_count(logical=True) if HAS_PSUTIL else None,
+            "cpu_per_core": [],
+            "cpu_core_temps": [],
+            "cpu_acpi_zones": [],
+            "cpu_temp_source": None,
+            "cpu_msr_status": {
+                "pawnio_installed": hw_sensors.is_pawnio_installed(),
+                "is_admin": hw_sensors.is_admin(),
+            },
+            "network": {
+                "iface": None,
+                "link_mbps": None,
+                "ipv4": None,
+                "rx_bps": 0,
+                "tx_bps": 0,
+                "rx_total_mb": 0.0,
+                "tx_total_mb": 0.0,
+                "ping_ms": None,
+            },
+            "gpu_temp": None,
+            "gpu_usage": None,
+            "gpu_power": None,
+            "gpu_freq_mhz": None,
+            "gpu_mem_freq_mhz": None,
+            "gpu_volt_mv": None,
+            "gpu_vram_mb": None,
+            "gpu_pcie": None,
+            "gpu_power_limit": None,
+            "gpu_pstate": None,
+            "ram_pct": None,
+            "ram_used": None,
+            "ram_total": None,
+            "ram_free": None,
+            "ram_installed": self.system_specs.get("ram_gb"),
+            "ram_cached": None,
+            "ram_speed_mts": None,
+            "disk_used_gb": None,
+            "disk_total_gb": None,
+            "disk_pct": None,
+            "fan1_rpm": None,
+            "fan2_rpm": None,
+            "fan_target_pct": None,
+            "fan_dba": None,          # no existe sensor acústico: se deja sin valor
+            "fans_readable": bool(self.system_specs.get("is_hp")),
             "current_profile": self.current_profile,
             "fan_mode": self.fan_mode,
             "system_specs": self.system_specs,
-            "battery_devices": self._get_battery_devices()
+            "battery_devices": []
         }
 
+        self.manual_config = None
+        self._has_nvidia_smi = True
+        self._net_prev = None
+        self._ping_ms = None
+        self._ping_busy = False
+        self._core_temp_busy = False
+        if HAS_PSUTIL:
+            try:
+                psutil.cpu_percent(interval=None, percpu=True)
+            except Exception:
+                pass
         self.running = True
         threading.Thread(target=self._monitor_loop, daemon=True).start()
 
+    def _refresh_ping(self):
+        try:
+            ms = hw_sensors.measure_ping_ms()
+            self._ping_ms = ms
+            net = dict(self.telemetry.get("network") or {})
+            net["ping_ms"] = ms if net.get("iface") else None
+            self.telemetry["network"] = net
+        except Exception:
+            pass
+        finally:
+            self._ping_busy = False
+
+    def _refresh_core_temps(self):
+        try:
+            res = hw_sensors.read_per_core_temps()
+            cores = res.get("cores") or []
+            zones = res.get("acpi_zones") or []
+            self.telemetry["cpu_core_temps"] = cores
+            self.telemetry["cpu_acpi_zones"] = zones
+            self.telemetry["cpu_temp_source"] = res.get("source")
+            if self.telemetry.get("cpu_temp") is None:
+                if cores:
+                    v = int(round(max(c["temp_c"] for c in cores)))
+                    if 0 < v <= 115:
+                        self.telemetry["cpu_temp"] = v
+                elif zones:
+                    v = int(round(zones[0]["temp_c"]))
+                    if 0 < v <= 115:
+                        self.telemetry["cpu_temp"] = v
+        except Exception:
+            pass
+        finally:
+            self._core_temp_busy = False
+
+    def _load_ram_modules(self):
+        info = hw_sensors.read_ram_modules()
+        if info:
+            self.ram_modules = info
+            self.telemetry["ram_installed"] = info["installed_gb"]
+            self.telemetry["ram_speed_mts"] = info["speed_mts"]
+            self.system_specs["ram_gb"] = info["installed_gb"]
+            self.system_specs["ram"] = f"{info['installed_gb']} GB" + (f" @ {info['speed_mts']} MT/s" if info["speed_mts"] else "")
+
     def _get_battery_devices(self) -> list[dict]:
-        """Escaneo instantáneo (<25ms) de batería y periféricos activos en 2.4 GHz, Bluetooth y USB."""
+        """
+        Batería y periféricos conectados. Solo valores reales:
+          - "percent": % informado por el dispositivo / Windows, o None si no lo informa.
+          - "level": nivel aproximado que entrega XInput (Vacía/Baja/Media/Llena), si aplica.
+        """
         devs = []
-        # 1. Batería interna de Laptop o PC de sobremesa
+
+        def add(name, dtype, percent=None, plugged=False, status="Conectado", level=None):
+            if any(d["name"].lower() == name.lower() for d in devs):
+                return
+            devs.append({"name": name, "type": dtype, "percent": percent, "level": level,
+                         "plugged": plugged, "icon": dtype, "status": status})
+
+        # 1. Batería interna (laptop) o alimentación directa (sobremesa)
         if HAS_PSUTIL:
             try:
                 bat = psutil.sensors_battery()
                 if bat:
-                    mfg = getattr(self, "system_specs", {}).get("manufacturer", "Laptop")
-                    model_s = getattr(self, "system_specs", {}).get("model_short", "")
+                    mfg = self.system_specs.get("manufacturer", "Laptop")
+                    model_s = self.system_specs.get("model_short", "")
                     bname = f"Batería {mfg}" if not model_s else f"Batería {mfg} ({model_s})"
-                    devs.append({
-                        "name": bname,
-                        "type": "laptop",
-                        "percent": int(bat.percent),
-                        "plugged": bool(bat.power_plugged),
-                        "icon": "laptop",
-                        "status": f"{int(bat.percent)}% • {'Cargando (AC)' if bat.power_plugged else 'En Batería'}"
-                    })
+                    pct = int(round(bat.percent))
+                    add(bname, "laptop", pct, bool(bat.power_plugged),
+                        f"{pct}% • {'Cargando (AC)' if bat.power_plugged else 'En Batería'}")
                 else:
-                    devs.append({
-                        "name": "Alimentación de Red AC",
-                        "type": "desktop",
-                        "percent": 100,
-                        "plugged": True,
-                        "icon": "desktop",
-                        "status": "PC de Sobremesa (Directo AC)"
-                    })
+                    add("Alimentación de Red AC", "desktop", None, True, "PC de Sobremesa (Directo AC)")
             except Exception:
                 pass
 
-        # 2. XInput: Mandos Xbox, Dongles 2.4 GHz de PC y mandos Bluetooth en modo XInput (Latencia 0.01ms)
+        # 2. XInput: mandos Xbox y compatibles (cable, 2.4 GHz o Bluetooth).
+        #    XInput solo entrega un NIVEL (no un %): se muestra tal cual.
+        xinput_levels = {0: "Vacía", 1: "Baja", 2: "Media", 3: "Llena"}
         for dll in ["xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"]:
             try:
                 xi = ctypes.windll.LoadLibrary(dll)
@@ -768,28 +1086,53 @@ class VortexCoreManager:
 
                 for i in range(4):
                     st = XINPUT_STATE()
-                    if xi.XInputGetState(i, ctypes.byref(st)) == 0:
-                        bat_info = XINPUT_BAT()
-                        try:
-                            xi.XInputGetBatteryInformation(i, 0, ctypes.byref(bat_info))
-                            levels = {0: 15, 1: 40, 2: 75, 3: 100}
-                            pct = levels.get(bat_info.BatteryLevel, 85)
-                            wired = (bat_info.BatteryType == 1)
-                        except Exception:
-                            pct, wired = 85, False
-                        devs.append({
-                            "name": f"Mando Inalámbrico Xbox / 2.4GHz #{i+1}",
-                            "type": "gamepad",
-                            "percent": 100 if wired else pct,
-                            "plugged": wired,
-                            "icon": "gamepad",
-                            "status": "Conectado por Cable USB" if wired else f"{pct}% Batería • Activo (2.4G / BT)"
-                        })
+                    if xi.XInputGetState(i, ctypes.byref(st)) != 0:
+                        continue
+                    level, wired = None, False
+                    bat_info = XINPUT_BAT()
+                    try:
+                        if xi.XInputGetBatteryInformation(i, 0, ctypes.byref(bat_info)) == 0:
+                            btype = bat_info.BatteryType & 0xFF
+                            wired = (btype == 1)  # BATTERY_TYPE_WIRED
+                            if btype in (2, 3):   # alcalina / NiMH: nivel real
+                                level = xinput_levels.get(bat_info.BatteryLevel)
+                    except Exception:
+                        pass
+                    if wired:
+                        status = "Conectado por cable USB"
+                    elif level:
+                        status = f"Batería {level} • Inalámbrico"
+                    else:
+                        status = "Inalámbrico"
+                    add(f"Mando Xbox / XInput #{i+1}", "gamepad", None, wired, status, level)
                 break
             except Exception:
                 pass
 
-        # 3. WinMM: Mandos DirectInput activos (DualSense PS5, DualShock PS4, Switch, 2.4GHz)
+        # 3. Bluetooth: dispositivos conectados con el % de batería que informa Windows
+        bt_battery = {}
+        try:
+            for bt in hw_sensors.read_bluetooth_devices():
+                name = bt["name"]
+                nl = name.lower()
+                if any(w in nl for w in ["controller", "dualsense", "dualshock", "gamepad", "xbox", "joystick"]):
+                    dtype = "gamepad"
+                elif any(w in nl for w in ["buds", "airpods", "headphone", "auricular", "headset", "soundcore", "redmi", "jbl", "sony wh", "sony wf"]):
+                    dtype = "headphone"
+                elif any(w in nl for w in ["mouse", "raton", "ratón"]):
+                    dtype = "mouse"
+                elif any(w in nl for w in ["keyboard", "teclado"]):
+                    dtype = "keyboard"
+                else:
+                    dtype = "bluetooth"
+                pct = bt["battery"]
+                bt_battery[nl] = pct
+                status = f"{pct}% Batería • Bluetooth" if pct is not None else "Conectado (Bluetooth)"
+                add(name, dtype, pct, False, status)
+        except Exception:
+            pass
+
+        # 4. WinMM: mandos DirectInput (DualSense, DualShock, Switch, receptores 2.4 GHz)
         try:
             winmm = ctypes.windll.winmm
             class JOYINFOEX(ctypes.Structure):
@@ -804,133 +1147,30 @@ class VortexCoreManager:
                 if winmm.joyGetPosEx(j, ctypes.byref(info)) == 0:
                     caps = JOYCAPSW()
                     winmm.joyGetDevCapsW(j, ctypes.byref(caps), ctypes.sizeof(caps))
-                    pname = (caps.szPname or f"Mando Inalámbrico #{j+1}").strip()
+                    pname = (caps.szPname or f"Mando #{j+1}").strip()
                     if "wireless controller" in pname.lower():
                         pname = "Mando Sony DualSense / Wireless Controller"
-                    if not any(d["type"] == "gamepad" and (d["name"].lower() == pname.lower() or "xbox" in d["name"].lower()) for d in devs):
-                        devs.append({
-                            "name": pname,
-                            "type": "gamepad",
-                            "percent": 88,
-                            "plugged": False,
-                            "icon": "gamepad",
-                            "status": "88% Batería • Activo (BT / 2.4GHz)"
-                        })
+                    already = any(d["type"] == "gamepad" and (d["name"].lower() == pname.lower()
+                                  or "xbox" in d["name"].lower() or "dualsense" in d["name"].lower()
+                                  or "controller" in d["name"].lower()) for d in devs)
+                    if not already:
+                        add(pname, "gamepad", None, False, "Mando conectado")
         except Exception:
             pass
 
-        # 4. CfgMgr32: Escaneo nativo instantáneo de dispositivos de hardware PRESENTES (1ms)
+        # 5. Periféricos USB (ratón, teclado, auriculares, mandos, receptores 2.4 GHz).
+        #    Detección genérica por la clase de Windows de cada dispositivo; nombre real del dispositivo.
         try:
-            cfg = ctypes.windll.cfgmgr32
-            buf_len = wintypes.ULONG()
-            if cfg.CM_Get_Device_ID_List_SizeW(ctypes.byref(buf_len), None, 0x00000100) == 0:
-                buf = ctypes.create_unicode_buffer(buf_len.value)
-                if cfg.CM_Get_Device_ID_ListW(None, buf, buf_len.value, 0x00000100) == 0:
-                    present = set(d.upper() for d in buf[:buf_len.value].split("\x00") if d)
-
-                    # DualSense PS5 / PS4
-                    if any("054C&PID_0CE6" in d or "054C&PID_0DF2" in d or "054C&PID_05C4" in d or "DUALSENSE" in d for d in present):
-                        if not any("dualsense" in d["name"].lower() for d in devs):
-                            devs.append({
-                                "name": "Mando Sony DualSense PS5",
-                                "type": "gamepad",
-                                "percent": 88,
-                                "plugged": False,
-                                "icon": "gamepad",
-                                "status": "88% Batería • Conectado (BT / 2.4GHz)"
-                            })
-
-                    # Mando Xbox Wireless Adapter / Bluetooth
-                    if any("045E&PID_02E0" in d or "045E&PID_02EA" in d or "045E&PID_0B12" in d or "045E&PID_0B13" in d for d in present):
-                        if not any("xbox" in d["name"].lower() for d in devs):
-                            devs.append({
-                                "name": "Mando Xbox Wireless Controller",
-                                "type": "gamepad",
-                                "percent": 90,
-                                "plugged": False,
-                                "icon": "gamepad",
-                                "status": "90% Batería • Conectado (2.4GHz / BT)"
-                            })
-
-                    # Auriculares Razer Barracuda X (2.4 GHz Dongle: VID 1532 PID 0552 / 0527)
-                    if any("VID_1532&PID_0552" in d or "VID_1532&PID_0527" in d for d in present):
-                        if not any("barracuda" in d["name"].lower() for d in devs):
-                            devs.append({
-                                "name": "Auriculares Razer Barracuda X",
-                                "type": "headphone",
-                                "percent": 90,
-                                "plugged": False,
-                                "icon": "headphone",
-                                "status": "Conectado (2.4 GHz Ultra-Low Latency)"
-                            })
-
-                    # Ratón Gaming Logitech (G502 HERO, LightSpeed, etc.)
-                    if any("VID_046D&PID_C08B" in d for d in present):
-                        if not any("g502" in d["name"].lower() for d in devs):
-                            devs.append({
-                                "name": "Ratón Logitech G502 HERO",
-                                "type": "mouse",
-                                "percent": 100,
-                                "plugged": True,
-                                "icon": "mouse",
-                                "status": "Conectado (USB 1000Hz)"
-                            })
+            for usb in hw_sensors.read_usb_peripherals():
+                # Un mando ya detectado por XInput/WinMM (con su nivel de batería) no se repite
+                if usb["type"] == "gamepad" and any(d["type"] == "gamepad" for d in devs):
+                    continue
+                conn = "Inalámbrico 2.4 GHz (receptor USB)" if usb["wireless"] else "Conectado por USB"
+                add(usb["name"], usb["type"], None, not usb["wireless"], conn)
         except Exception:
             pass
 
-        # 5. BTHENUM: Verificación en tiempo real de dispositivos Bluetooth realmente ENCENDIDOS y CONECTADOS
-        try:
-            cfg = ctypes.windll.cfgmgr32
-            base = r"SYSTEM\CurrentControlSet\Enum\BTHENUM"
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base, 0, winreg.KEY_READ) as k:
-                for i in range(winreg.QueryInfoKey(k)[0]):
-                    dev = winreg.EnumKey(k, i)
-                    with winreg.OpenKey(k, dev, 0, winreg.KEY_READ) as dk:
-                        for j in range(winreg.QueryInfoKey(dk)[0]):
-                            inst = winreg.EnumKey(dk, j)
-                            full_id = f"BTHENUM\\{dev}\\{inst}"
-                            node = wintypes.DWORD()
-                            # CM_Locate_DevNodeW(..., 0) devuelve 0 SOLO si el dispositivo está encendido y conectado ahora mismo
-                            if cfg.CM_Locate_DevNodeW(ctypes.byref(node), full_id, 0) == 0:
-                                name = None
-                                with winreg.OpenKey(dk, inst, 0, winreg.KEY_READ) as ik:
-                                    try:
-                                        name, _ = winreg.QueryValueEx(ik, "FriendlyName")
-                                    except Exception:
-                                        try:
-                                            name, _ = winreg.QueryValueEx(ik, "DeviceDesc")
-                                        except Exception:
-                                            pass
-                                if name and not name.startswith("@") and not any(d["name"].lower() == name.lower() for d in devs):
-                                    nl = name.lower()
-                                    if any(w in nl for w in ["controller", "dualsense", "gamepad", "xbox", "joystick"]):
-                                        dtype = "gamepad"
-                                        pct = 88
-                                    elif any(w in nl for w in ["buds", "airpods", "headphone", "auricular", "headset", "audio", "soundcore", "redmi"]):
-                                        dtype = "headphone"
-                                        pct = 90
-                                    elif any(w in nl for w in ["mouse", "raton"]):
-                                        dtype = "mouse"
-                                        pct = 95
-                                    elif any(w in nl for w in ["keyboard", "teclado"]):
-                                        dtype = "keyboard"
-                                        pct = 95
-                                    else:
-                                        dtype = "bluetooth"
-                                        pct = 85
-
-                                    devs.append({
-                                        "name": name,
-                                        "type": dtype,
-                                        "percent": pct,
-                                        "plugged": False,
-                                        "icon": dtype,
-                                        "status": f"{pct}% Batería • Conectado (Bluetooth)"
-                                    })
-        except Exception:
-            pass
-
-        # 6. Endpoints de Audio Activos en Windows (MMDevices Render: 2.4GHz y Bluetooth)
+        # 6. Auriculares activos como salida de audio (MMDevices): se asocia la batería Bluetooth si existe
         try:
             mm_base = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render"
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, mm_base, 0, winreg.KEY_READ) as mk:
@@ -939,21 +1179,19 @@ class VortexCoreManager:
                     try:
                         with winreg.OpenKey(mk, guid, 0, winreg.KEY_READ) as gk:
                             state, _ = winreg.QueryValueEx(gk, "DeviceState")
-                            if state == 1:
-                                with winreg.OpenKey(gk, "Properties", 0, winreg.KEY_READ) as pk:
-                                    ep_name, _ = winreg.QueryValueEx(pk, "{a45c254e-df1c-4efd-8020-67d146a850e0},2")
-                                    ep_lower = ep_name.lower()
-                                    if any(k in ep_lower for k in ["barracuda", "razer", "hyperx", "headset", "audífono", "auricular", "headphone", "buds", "airpods", "redmi", "soundcore"]):
-                                        if not any("barracuda" in d["name"].lower() for d in devs if "barracuda" in ep_lower) and not any(d["name"].lower() == ep_name.lower() for d in devs):
-                                            conn_type = "2.4 GHz Dongle" if any(x in ep_lower for x in ["2.4", "barracuda", "hyperx", "wireless"]) else "Audio Activo"
-                                            devs.append({
-                                                "name": ep_name,
-                                                "type": "headphone",
-                                                "percent": 90,
-                                                "plugged": False,
-                                                "icon": "headphone",
-                                                "status": f"Conectado ({conn_type})"
-                                            })
+                            if state != 1:
+                                continue
+                            with winreg.OpenKey(gk, "Properties", 0, winreg.KEY_READ) as pk:
+                                ep_name, _ = winreg.QueryValueEx(pk, "{a45c254e-df1c-4efd-8020-67d146a850e0},2")
+                            ep_lower = ep_name.lower()
+                            if not any(k in ep_lower for k in ["barracuda", "razer", "hyperx", "headset", "audífono", "auricular", "headphone", "buds", "airpods", "redmi", "soundcore"]):
+                                continue
+                            if any(d["name"].lower() in ep_lower or ep_lower in d["name"].lower() for d in devs):
+                                continue
+                            pct = next((v for n, v in bt_battery.items() if n in ep_lower or ep_lower in n), None)
+                            conn = "2.4 GHz" if any(x in ep_lower for x in ["2.4", "barracuda", "hyperx", "wireless"]) else "Audio activo"
+                            status = f"{pct}% Batería • {conn}" if pct is not None else f"Conectado ({conn})"
+                            add(ep_name, "headphone", pct, False, status)
                     except Exception:
                         pass
         except Exception:
@@ -984,32 +1222,18 @@ class VortexCoreManager:
                     used_gb = (mem.total - mem.available) / (1024**3)
                     ram_pct = int(((mem.total - mem.available) / mem.total) * 100)
 
-                    if total_gb <= 8.5:
-                        inst_gb = 8
-                    elif total_gb <= 16.5:
-                        inst_gb = 16
-                    elif total_gb <= 24.5:
-                        inst_gb = 24
-                    elif total_gb <= 32.5:
-                        inst_gb = 32
-                    elif total_gb <= 48.5:
-                        inst_gb = 48
-                    elif total_gb <= 64.5:
-                        inst_gb = 64
-                    else:
-                        inst_gb = int(round(total_gb))
+                    # Capacidad instalada real (módulos físicos vía WMI); si aún no está, la visible del sistema
+                    inst_gb = self.ram_modules["installed_gb"] if self.ram_modules else int(round(total_gb))
 
-                    cached_gb = max(0.0, (mem.total - mem.free - (mem.total - mem.available)) / (1024**3))
 
                     self.telemetry["ram_pct"] = ram_pct
                     self.telemetry["ram_used"] = f"{used_gb:.1f}"
                     self.telemetry["ram_total"] = f"{total_gb:.1f}"
                     self.telemetry["ram_free"] = f"{available_gb:.1f}"
                     self.telemetry["ram_installed"] = inst_gb
-                    self.telemetry["ram_cached"] = f"{cached_gb:.1f}"
 
                     # Almacenamiento total cada 5s
-                    if tick % 10 == 0:
+                    if tick % 10 == 0 or self.telemetry.get("disk_total_gb") is None:
                         try:
                             d_tot = 0
                             d_used = 0
@@ -1028,33 +1252,108 @@ class VortexCoreManager:
                         except Exception:
                             pass
 
-                    # 2. CPU (Frecuencia en MHz y GHz + Voltaje estimado)
+                    # 2. CPU (uso global y por hilo lógico)
                     c_usage = int(psutil.cpu_percent(interval=None))
                     self.telemetry["cpu_usage"] = c_usage
-                    freq = psutil.cpu_freq()
-                    if freq and freq.current > 0:
-                        # Si Windows reporta frecuencia base fija, modular con carga hacia boost
-                        base_mhz = int(freq.current)
-                        if freq.max and freq.max > 0 and abs(freq.current - freq.max) < 50:
-                            live_mhz = int(base_mhz + (c_usage / 100.0) * 1800)
-                        else:
-                            live_mhz = base_mhz
-                        self.telemetry["cpu_freq_mhz"] = live_mhz
-                        self.telemetry["cpu_freq"] = f"{live_mhz / 1000.0:.2f}"
-                    else:
-                        live_mhz = int(2400 + (c_usage / 100.0) * 2100)
-                        self.telemetry["cpu_freq_mhz"] = live_mhz
-                        self.telemetry["cpu_freq"] = f"{live_mhz / 1000.0:.2f}"
+                    per_cpu = psutil.cpu_percent(interval=None, percpu=True)
+                    if per_cpu:
+                        self.telemetry["cpu_per_core"] = [round(float(v), 1) for v in per_cpu]
 
-                    self.telemetry["cpu_volt_mv"] = int(960 + (c_usage / 100.0) * 310)
+                    # 2b. Uso de red en tiempo real cada 1s (tick % 2 == 0)
+                    if tick % 2 == 0:
+                        try:
+                            net_io = psutil.net_io_counters(pernic=True)
+                            net_stats = psutil.net_if_stats()
+                            net_addrs = psutil.net_if_addrs()
+                            primary = select_primary_net_iface(net_stats, net_addrs, net_io)
+                            if primary and primary["name"] in net_io:
+                                iface = primary["name"]
+                                io = net_io[iface]
+                                now_ts = time.monotonic()
+                                rx_bps = 0
+                                tx_bps = 0
+                                if self._net_prev and self._net_prev[3] == iface:
+                                    dt = now_ts - self._net_prev[0]
+                                    if dt > 0.1:
+                                        rx_bps = max(0, int((io.bytes_recv - self._net_prev[1]) / dt))
+                                        tx_bps = max(0, int((io.bytes_sent - self._net_prev[2]) / dt))
+                                self._net_prev = (now_ts, io.bytes_recv, io.bytes_sent, iface)
+                                self.telemetry["network"] = {
+                                    "iface": iface,
+                                    "link_mbps": primary["link_mbps"],
+                                    "ipv4": primary["ipv4"],
+                                    "rx_bps": rx_bps,
+                                    "tx_bps": tx_bps,
+                                    "rx_total_mb": round(io.bytes_recv / (1024 * 1024), 1),
+                                    "tx_total_mb": round(io.bytes_sent / (1024 * 1024), 1),
+                                    "ping_ms": self._ping_ms,
+                                }
+                            else:
+                                self._net_prev = None
+                                self.telemetry["network"] = {
+                                    "iface": None, "link_mbps": None, "ipv4": None,
+                                    "rx_bps": 0, "tx_bps": 0, "rx_total_mb": 0.0, "tx_total_mb": 0.0,
+                                    "ping_ms": None,
+                                }
+                        except Exception:
+                            pass
+
+                # 2c. Lectura nativa PawnIO / SHM (Core Temp / HWiNFO) cada 1s, ping cada 6s y WMI/ACPI cada 5s
+                if tick % 2 == 0:
+                    try:
+                        native = hw_sensors.read_native_cpu_sensors()
+                        if native and native.get("cores"):
+                            self.telemetry["cpu_core_temps"] = native["cores"]
+                            self.telemetry["cpu_temp_source"] = native["source"]
+                            if self.telemetry.get("cpu_temp") is None and native.get("package_c") is not None:
+                                self.telemetry["cpu_temp"] = int(round(native["package_c"]))
+                            if native.get("vcore_mv") is not None:
+                                self.telemetry["cpu_volt_mv"] = native["vcore_mv"]
+                        else:
+                            shm_cores, shm_src = hw_sensors.read_shm_core_temps()
+                            if shm_cores:
+                                self.telemetry["cpu_core_temps"] = shm_cores
+                                self.telemetry["cpu_temp_source"] = shm_src
+                    except Exception:
+                        pass
+                if tick % 10 == 0:
+                    self.telemetry["cpu_msr_status"] = {
+                        "pawnio_installed": hw_sensors.is_pawnio_installed(),
+                        "is_admin": hw_sensors.is_admin(),
+                    }
+                if tick % 12 == 0 and not self._ping_busy:
+                    self._ping_busy = True
+                    threading.Thread(target=self._refresh_ping, daemon=True).start()
+                if tick % 10 == 0 and not self._core_temp_busy:
+                    self._core_temp_busy = True
+                    threading.Thread(target=self._refresh_core_temps, daemon=True).start()
+                # Contadores de Windows: frecuencia efectiva de CPU (incluye Turbo) y memoria en caché
+                counters = self._counters.read()
+                if counters["cached_bytes"] is not None:
+                    self.telemetry["ram_cached"] = f"{counters['cached_bytes'] / (1024**3):.1f}"
+                live_mhz = counters["cpu_mhz"]
+                if live_mhz is None and HAS_PSUTIL:
+                    freq = psutil.cpu_freq()
+                    live_mhz = int(freq.current) if freq and freq.current > 0 else None
+                self.telemetry["cpu_freq_mhz"] = live_mhz
+                self.telemetry["cpu_freq"] = f"{live_mhz / 1000.0:.2f}" if live_mhz else None
 
                 # 3. GPU NVIDIA cada 1s (Temp, Uso, Power, Clock MHz, Mem MHz)
-                if tick % 2 == 0:
-                    gpu_proc = subprocess.run(
-                        ["nvidia-smi", "--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,clocks.mem", "--format=csv,noheader,nounits"],
-                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                        creationflags=CREATE_NO_WINDOW, timeout=2
-                    )
+                # (Aislado en su propio try: en equipos sin NVIDIA, nvidia-smi no existe y antes
+                #  congelaba toda la telemetría porque la excepción saltaba el resto del ciclo.)
+                gpu_proc = None
+                if tick % 2 == 0 and self._has_nvidia_smi:
+                    try:
+                        gpu_proc = subprocess.run(
+                            ["nvidia-smi", "--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,clocks.mem,memory.total,pcie.link.gen.current,pcie.link.width.current,power.limit,pstate", "--format=csv,noheader,nounits"],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            creationflags=CREATE_NO_WINDOW, timeout=2
+                        )
+                    except FileNotFoundError:
+                        self._has_nvidia_smi = False
+                    except Exception:
+                        gpu_proc = None
+                if gpu_proc is not None:
                     if gpu_proc.returncode == 0 and gpu_proc.stdout:
                         parts = [p.strip() for p in gpu_proc.stdout.strip().split(",")]
                         if len(parts) >= 3:
@@ -1069,32 +1368,58 @@ class VortexCoreManager:
                                 g_clk = int(float(parts[3]))
                                 m_clk = int(float(parts[4]))
                                 self.telemetry["gpu_freq_mhz"] = g_clk
-                                self.telemetry["gpu_mem_freq_mhz"] = m_clk if m_clk > 1000 else 8001
-                                self.telemetry["gpu_volt_mv"] = int(720 + min(300, (g_clk / 2600.0) * 260))
+                                self.telemetry["gpu_mem_freq_mhz"] = m_clk if m_clk > 0 else None
                             except Exception:
                                 pass
+                        if len(parts) >= 10:
+                            def _num(x):
+                                try:
+                                    return float(x)
+                                except ValueError:
+                                    return None  # "[N/A]" u otros: el driver no lo informa
+                            vram = _num(parts[5])
+                            gen, width = _num(parts[6]), _num(parts[7])
+                            plim = _num(parts[8])
+                            self.telemetry["gpu_vram_mb"] = int(vram) if vram else None
+                            self.telemetry["gpu_pcie"] = f"PCIe Gen{int(gen)} x{int(width)}" if gen and width else None
+                            self.telemetry["gpu_power_limit"] = f"{plim:.0f}" if plim else None
+                            self.telemetry["gpu_pstate"] = parts[9] if parts[9].startswith("P") else None
+
+                # Voltaje real del núcleo GPU (si el driver NVIDIA lo expone) cada 4s
+                if tick % 8 == 0 and self._has_nvidia_smi:
+                    self.telemetry["gpu_volt_mv"] = hw_sensors.read_nvidia_voltage_mv()
 
                 # 4. Telemetría BIOS HP (WMI RPM & Temp) cada 1.5s
-                if tick % 3 == 0:
+                if tick % 3 == 0 and self.system_specs.get("is_hp", False):
                     ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", "query"])
                     if ok and "CPU_TEMP=" in out:
-                        for item in out.split("|"):
-                            k, v = item.split("=")
-                            if k == "CPU_TEMP" and int(v) > 0:
-                                self.telemetry["cpu_temp"] = int(v)
-                            elif k == "FAN1_RPM" and int(v) > 0:
-                                self.telemetry["fan1_rpm"] = int(v)
-                            elif k == "FAN2_RPM" and int(v) > 0:
-                                self.telemetry["fan2_rpm"] = int(v)
+                        for item in out.strip().splitlines()[-1].split("|"):
+                            try:
+                                k, v = item.strip().split("=", 1)
+                                v = int(v)
+                            except ValueError:
+                                continue
+                            if k == "CPU_TEMP" and 0 < v <= 115:
+                                self.telemetry["cpu_temp"] = v
+                            elif k == "FAN1_RPM" and v > 0:
+                                self.telemetry["fan1_rpm"] = v
+                            elif k == "FAN2_RPM" and v > 0:
+                                self.telemetry["fan2_rpm"] = v
 
-                    if self.fan_mode == "TURBO (100%)" and self.telemetry["fan1_rpm"] < 4000:
-                        self.telemetry["fan1_rpm"] = 5400
-                        self.telemetry["fan2_rpm"] = 5200
+                elif tick % 6 == 0:
+                    # Equipos no-HP: temperatura de la zona térmica ACPI (si el firmware la expone)
+                    ok, out = self._run_cmd(["powershell", "-NoProfile", "-Command",
+                        "$t=Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1; if($t){[int](($t.CurrentTemperature-2732)/10)}"])
+                    if ok and out.strip().lstrip("-").isdigit():
+                        v = int(out.strip())
+                        if 0 < v <= 115:
+                            self.telemetry["cpu_temp"] = v
+
 
                 # 5. Cálculo de Diagnóstico e Inteligencia de Hardware (Health Score)
-                c_temp = self.telemetry.get("cpu_temp", 45)
-                g_temp = self.telemetry.get("gpu_temp", 40)
-                r_pct = self.telemetry.get("ram_pct", 35)
+                c_temp = self.telemetry.get("cpu_temp") or 0
+                g_temp = self.telemetry.get("gpu_temp") or 0
+                r_pct = self.telemetry.get("ram_pct") or 0
 
                 health = 100
                 if c_temp > 85: health -= 25
@@ -1120,8 +1445,12 @@ class VortexCoreManager:
                     curve_temps = [30, 49, 57, 62, 70, 80, 90, 100]
                     cpu_curve = manual_cfg.get("fan_curve") or [10, 16, 23, 29, 34, 39, 55, 67]
                     gpu_curve = manual_cfg.get("gpu_fan_curve") or cpu_curve
-                    c_t = self.telemetry.get("cpu_temp", 48)
-                    g_t = self.telemetry.get("gpu_temp", 45)
+                    c_t = self.telemetry.get("cpu_temp")
+                    g_t = self.telemetry.get("gpu_temp")
+                    if c_t is None:
+                        c_t = g_t if g_t is not None else 0
+                    if g_t is None:
+                        g_t = c_t
 
                     def _interp_curve(temp_val, curve_pts):
                         if not curve_pts or len(curve_pts) < 8:
@@ -1139,8 +1468,8 @@ class VortexCoreManager:
 
                     target_cpu_fan_pct = _interp_curve(c_t, cpu_curve)
                     target_gpu_fan_pct = _interp_curve(g_t, gpu_curve)
-                    self.telemetry["fan1_rpm"] = int(1400 + (target_cpu_fan_pct / 100.0) * 4000)
-                    self.telemetry["fan2_rpm"] = int(1400 + (target_gpu_fan_pct / 100.0) * 3800)
+                    # Objetivo de la curva (las RPM mostradas siguen siendo las leídas del BIOS)
+                    self.telemetry["fan_target_pct"] = max(target_cpu_fan_pct, target_gpu_fan_pct)
 
                     # Conmutar turbina física WMI cada 3s si la curva exige >= 75% en la temperatura actual
                     if tick % 6 == 0:
@@ -1149,32 +1478,21 @@ class VortexCoreManager:
                             self.set_fan("max")
                         elif not want_max and "TURBO" in self.fan_mode:
                             self.set_fan("auto")
-                elif not getattr(self, "system_specs", {}).get("is_hp", True):
-                    c_temp = self.telemetry.get("cpu_temp", 48)
-                    if "TURBO" in self.fan_mode or self.current_profile == "PERFORMANCE":
-                        base_rpm = 4900
-                    elif self.current_profile == "ECO":
-                        base_rpm = 1900
-                    else:
-                        base_rpm = int(2000 + (max(0, c_temp - 40) / 45.0) * 2400)
-                    self.telemetry["fan1_rpm"] = base_rpm
-                    self.telemetry["fan2_rpm"] = max(1800, base_rpm - 150)
-
-                # Acústica del ventilador en dBA basada en RPM
-                avg_rpm = (self.telemetry.get("fan1_rpm", 2500) + self.telemetry.get("fan2_rpm", 2400)) / 2.0
-                dba = 21.0 + max(0.0, (avg_rpm - 1500.0) / 3800.0) * 22.5
-                self.telemetry["fan_dba"] = f"{dba:.1f}"
+                else:
+                    self.telemetry["fan_target_pct"] = None
 
                 self.telemetry["current_profile"] = self.current_profile
                 self.telemetry["fan_mode"] = self.fan_mode
-                tick += 1
             except Exception:
                 pass
-
+            # El contador SIEMPRE avanza (antes, una excepción lo dejaba fijo y el ciclo se repetía fallando)
+            tick += 1
             time.sleep(0.5)
 
     def set_fan(self, mode: str) -> bool:
-        if getattr(self, "system_specs", {}).get("is_hp", True):
+        if mode not in ("max", "auto", "cool"):
+            mode = "auto"
+        if getattr(self, "system_specs", {}).get("is_hp", False):
             ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", mode])
             if mode == "max":
                 self.fan_mode = "TURBO (100%)"
@@ -1202,7 +1520,13 @@ class VortexCoreManager:
         return True
 
     def set_turbo(self, turbo_val: int) -> bool:
-        val = "2" if turbo_val == 2 else "0"
+        # PERFBOOSTMODE de Windows: 0=Desactivado 1=Activado 2=Agresivo 3=Eficiente 4=Eficiente agresivo
+        # (antes cualquier valor distinto de 2 apagaba Turbo Boost, incluido el modo 3 del Laboratorio Manual)
+        try:
+            turbo_val = int(turbo_val)
+        except (TypeError, ValueError):
+            turbo_val = 2
+        val = str(turbo_val if turbo_val in (0, 1, 2, 3, 4) else 2)
         self._run_cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", DefaultGUIDs.SUBGROUP_PROC, DefaultGUIDs.TURBO_BOOST, val])
         self._run_cmd(["powercfg", "/setdcvalueindex", "SCHEME_CURRENT", DefaultGUIDs.SUBGROUP_PROC, DefaultGUIDs.TURBO_BOOST, val])
         self._run_cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
@@ -1218,7 +1542,7 @@ class VortexCoreManager:
         return True
 
     def clean_ram(self) -> dict:
-        """Purga la memoria en caché y reduce el working set de los procesos."""
+        """Libera la memoria en caché y reduce el working set de los procesos."""
         try:
             mem_before = psutil.virtual_memory().available if HAS_PSUTIL else 0
             handle = ctypes.windll.kernel32.GetCurrentProcess()
@@ -1236,7 +1560,7 @@ class VortexCoreManager:
                 mem_after = psutil.virtual_memory().available
                 freed_mb = max(0, int((mem_after - mem_before) / (1024**2)))
             else:
-                freed_mb = 450
+                freed_mb = 0
             return {"status": "ok", "freed_mb": freed_mb}
         except Exception as e:
             return {"status": "error", "message": str(e), "freed_mb": 0}
@@ -1271,34 +1595,137 @@ class VortexCoreManager:
         self._run_cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
 
 
-manager = VortexCoreManager()
+# En modo prueba (tests automáticos) no se inicia el gestor de hardware real
+manager = None if os.environ.get("VORTEXCORE_TEST_MODE") == "1" else VortexCoreManager()
+
+
+def _clamp_int(value, lo: int, hi: int, default: int) -> int:
+    """Convierte a entero y acota al rango [lo, hi]. Valores inválidos -> default."""
+    try:
+        v = int(float(value))
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+def _clamp_float(value, lo: float, hi: float, default: float) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return default
+    if v != v:  # NaN
+        return default
+    return max(lo, min(hi, v))
+
+
+def _sanitize_curve(curve, default: list) -> list:
+    """Curva de ventilador: exactamente 8 puntos enteros entre 0 y 100."""
+    if not isinstance(curve, list) or len(curve) != 8:
+        return list(default)
+    return [_clamp_int(v, 0, 100, d) for v, d in zip(curve, default)]
+
+
+# Orígenes autorizados para hablar con la API local (la propia ventana de la app)
+ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"}
+MAX_BODY_BYTES = 64 * 1024
+
+APO_BASE_DIR = r"C:\Program Files\EqualizerAPO"
+APO_DOWNLOAD_URL = "https://sourceforge.net/projects/equalizerapo/"
+SENSOR_APP_URLS = {
+    "lhm": "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest",
+    "coretemp": "https://www.alcpu.com/CoreTemp/",
+}
+
+
+def get_apo_status() -> dict:
+    """Comprueba si Equalizer APO y su configurador están instalados en Windows."""
+    config_dir = os.path.join(APO_BASE_DIR, "config")
+    config_txt = os.path.join(config_dir, "config.txt")
+    configurator = os.path.join(APO_BASE_DIR, "Configurator.exe")
+    installed = os.path.isdir(config_dir) or os.path.isfile(configurator)
+    return {
+        "installed": installed,
+        "config_dir": config_dir,
+        "config_exists": os.path.isfile(config_txt),
+        "configurator_exists": os.path.isfile(configurator),
+        "download_url": APO_DOWNLOAD_URL,
+    }
 
 
 class VortexHttpHandler(SimpleHTTPRequestHandler):
+    # El servidor corre como Administrador: solo la interfaz propia puede usar la API.
+    # Cualquier página web abierta en el navegador podría, si no, mandar peticiones a
+    # 127.0.0.1:8765 (cambiar límites de GPU, desinstalar apps, tocar el registro...).
+
     def __init__(self, *args, **kwargs):
         directory = os.path.join(get_app_dir(), "vortex-hub")
         super().__init__(*args, directory=directory, **kwargs)
 
+    def _is_request_allowed(self) -> bool:
+        # Anti DNS-rebinding: el Host debe ser exactamente nuestro loopback
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host not in ALLOWED_HOSTS:
+            return False
+        # Anti CSRF: los navegadores envían Origin en peticiones entre sitios
+        origin = self.headers.get("Origin")
+        if origin is not None and origin.lower() not in ALLOWED_ORIGINS:
+            return False
+        sec_site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        if sec_site in ("cross-site", "same-site"):
+            return False
+        return True
+
+    def _reject(self, code: int = 403, message: str = "Forbidden"):
+        self._send_json({"status": "error", "message": message}, code=code)
+
+    def do_OPTIONS(self):
+        # No se ofrece CORS a terceros: cualquier preflight se rechaza
+        self._reject(403)
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        # Revalidar siempre: tras actualizar la app, la ventana no debe mostrar CSS/JS antiguos
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def do_GET(self):
-        if self.path == "/api/telemetry":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            self.wfile.write(json.dumps(manager.telemetry).encode("utf-8"))
-        elif self.path == "/api/specs":
+        if self.path.startswith("/api/"):
+            if not self._is_request_allowed():
+                return self._reject()
+            try:
+                self._handle_get()
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, code=500)
+        else:
+            if (self.headers.get("Host") or "").strip().lower() not in ALLOWED_HOSTS:
+                return self._reject()
+            super().do_GET()
+
+    def _handle_get(self):
+        path = self.path.split("?", 1)[0]
+        if path == "/api/telemetry":
+            self._send_json(manager.telemetry)
+        elif path == "/api/specs":
             self._send_json(manager.system_specs)
-        elif self.path == "/api/hardware_diagnose":
+        elif path == "/api/hardware_diagnose":
             self._send_json(diagnose_hardware_health(manager))
-        elif self.path == "/api/startup/apps":
+        elif path == "/api/startup/apps":
             self._send_json({"apps": get_startup_apps()})
-        elif self.path == "/api/debloat/apps":
+        elif path == "/api/debloat/apps":
             self._send_json({"apps": get_installed_debloat_apps()})
-        elif self.path == "/api/autostart":
+        elif path == "/api/autostart":
             self._send_json({"enabled": is_autostart_enabled()})
-        elif self.path == "/api/audio_mixer":
+        elif path == "/api/audio_mixer":
             self._send_json(get_audio_mixer_data())
-        elif self.path == "/api/top_processes":
+        elif path == "/api/apo_status":
+            self._send_json(get_apo_status())
+        elif path == "/api/battery_health":
+            self._send_json(hw_sensors.read_battery_health())
+        elif path == "/api/cleanup/scan":
+            self._send_json(scan_disk_cleanup())
+        elif path == "/api/top_processes":
             procs = []
             if HAS_PSUTIL:
                 for p in psutil.process_iter(['name', 'memory_info', 'pid']):
@@ -1311,28 +1738,54 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 procs.sort(key=lambda x: x['mem_mb'], reverse=True)
             self._send_json({"processes": procs[:8]})
         else:
-            super().do_GET()
+            self._send_json({"status": "error", "message": "Not found"}, code=404)
 
     def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
-        data = json.loads(body) if body else {}
+        if not self._is_request_allowed():
+            return self._reject()
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype not in ("application/json", ""):
+            return self._reject(415, "Content-Type debe ser application/json")
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            return self._reject(400, "Content-Length inválido")
+        if length < 0 or length > MAX_BODY_BYTES:
+            return self._reject(413, "Cuerpo demasiado grande")
+        try:
+            body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
+            data = json.loads(body) if body.strip() else {}
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return self._reject(400, "JSON inválido")
+        if not isinstance(data, dict):
+            return self._reject(400, "Se esperaba un objeto JSON")
+        try:
+            self._handle_post(data)
+        except (TypeError, ValueError) as e:
+            self._send_json({"status": "error", "message": f"Parámetros inválidos: {e}"}, code=400)
+        except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, code=500)
 
+    def _handle_post(self, data: dict):
         if self.path == "/api/profile":
-            prof = data.get("profile", "DEFAULT")
+            prof = str(data.get("profile", "DEFAULT")).upper()
+            if prof not in ("ECO", "SILENT", "DEFAULT", "PERFORMANCE"):
+                return self._reject(400, "Perfil desconocido")
             manager.set_profile(prof)
             self._send_json({"status": "ok", "profile": prof})
         elif self.path == "/api/manual_mode":
-            spl = int(data.get("spl", 35))
-            sppt = int(data.get("sppt", 45))
-            fppt = int(data.get("fppt", 60))
-            gpu_base = int(data.get("gpu_base", 50))
-            gpu_mem = int(data.get("gpu_mem", 100))
-            gpu_boost = int(data.get("gpu_boost", 25))
-            gpu_temp = int(data.get("gpu_temp", 87))
-            gpu_tgp = int(data.get("gpu_tgp", 115))
-            fan_curve = data.get("fan_curve", [10, 16, 23, 29, 34, 39, 55, 67])
-            gpu_fan_curve = data.get("gpu_fan_curve", fan_curve)
+            # Todos los valores se acotan a rangos seguros antes de tocar el hardware
+            default_curve = [10, 16, 23, 29, 34, 39, 55, 67]
+            spl = _clamp_int(data.get("spl"), 15, 65, 35)
+            sppt = _clamp_int(data.get("sppt"), 15, 90, 45)
+            fppt = _clamp_int(data.get("fppt"), 15, 120, 60)
+            gpu_base = _clamp_int(data.get("gpu_base"), 0, 200, 50)
+            gpu_mem = _clamp_int(data.get("gpu_mem"), 0, 1500, 100)
+            gpu_boost = _clamp_int(data.get("gpu_boost"), 0, 200, 25)
+            gpu_temp = _clamp_int(data.get("gpu_temp"), 60, 90, 87)
+            gpu_tgp = _clamp_int(data.get("gpu_tgp"), 30, 175, 115)
+            fan_curve = _sanitize_curve(data.get("fan_curve"), default_curve)
+            gpu_fan_curve = _sanitize_curve(data.get("gpu_fan_curve", fan_curve), fan_curve)
 
             manager.current_profile = "MANUAL"
             manager.manual_config = {
@@ -1360,6 +1813,7 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 manager.set_scheme("high")
 
             # 3. GPU NVIDIA: Aplicar límite TGP (Watts) y Thermal Target (°C) mediante nvidia-smi
+            #    (el driver además rechaza valores fuera del rango que admite la tarjeta)
             try:
                 subprocess.Popen(
                     ["nvidia-smi", "-pl", str(gpu_tgp)],
@@ -1375,7 +1829,7 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 pass
 
             # 4. Ventiladores: Evaluar curva de 8 puntos de inmediato
-            c_temp = manager.telemetry.get("cpu_temp", 50)
+            c_temp = manager.telemetry.get("cpu_temp") or 0
             if isinstance(fan_curve, list) and len(fan_curve) >= 6:
                 high_curve = any(int(v) >= 75 for v in fan_curve[4:]) and c_temp >= 60
                 manager.set_fan("max" if high_curve else "auto")
@@ -1390,55 +1844,86 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 }
             })
         elif self.path == "/api/fan":
-            mode = data.get("mode", "auto")
+            mode = str(data.get("mode", "auto")).lower()
+            if mode not in ("max", "auto", "cool"):
+                return self._reject(400, "Modo de ventilador desconocido")
             manager.set_fan(mode)
             self._send_json({"status": "ok", "fan": mode})
         elif self.path == "/api/set_master_volume":
             vol = data.get("volume")
+            vol = None if vol is None else _clamp_float(vol, 0.0, 100.0, 50.0)
             muted = data.get("muted")
+            muted = None if muted is None else bool(muted)
             ok = set_master_volume_state(vol, muted)
             self._send_json({"status": "ok" if ok else "error"})
         elif self.path == "/api/set_app_volume":
             pid = data.get("pid")
             name = data.get("name")
+            pid = _clamp_int(pid, 0, 2**32 - 1, 0) if pid is not None else None
+            name = str(name)[:260] if name is not None else None
             vol = data.get("volume")
+            vol = None if vol is None else _clamp_float(vol, 0.0, 100.0, 50.0)
             muted = data.get("muted")
+            muted = None if muted is None else bool(muted)
             ok = set_app_volume_state(pid, name, vol, muted)
             self._send_json({"status": "ok" if ok else "error"})
         elif self.path == "/api/set_cpu_limit":
-            max_pct = int(data.get("max_pct", 100))
+            max_pct = _clamp_int(data.get("max_pct"), 50, 100, 100)
             manager.set_cpu_limit(max_pct)
             self._send_json({"status": "ok", "cpu_limit": max_pct})
         elif self.path == "/api/set_turbo":
-            turbo = int(data.get("turbo", 2))
+            turbo = _clamp_int(data.get("turbo"), 0, 4, 2)
             manager.set_turbo(turbo)
             self._send_json({"status": "ok", "turbo": turbo})
         elif self.path == "/api/set_scheme":
-            scheme = data.get("scheme", "balanced")
+            scheme = str(data.get("scheme", "balanced")).lower()
+            if scheme not in ("saver", "balanced", "high"):
+                scheme = "balanced"
             manager.set_scheme(scheme)
             self._send_json({"status": "ok", "scheme": scheme})
         elif self.path == "/api/clean_ram":
             res = manager.clean_ram()
             self._send_json({"status": "ok", "cleaned": res})
         elif self.path == "/api/hardware_apply_optimizations":
-            clean_res = manager.clean_ram()
-            if manager.telemetry.get("cpu_temp", 48) >= 75:
+            # Aplica exactamente las recomendaciones que muestra el diagnóstico (sin cambios ocultos)
+            actions = {r["action"] for r in diagnose_hardware_health(manager)["recommendations"]}
+            done = []
+            if "clean_ram" in actions:
+                freed = (manager.clean_ram() or {}).get("freed_mb")
+                done.append(f"RAM liberada ({freed} MB)" if isinstance(freed, (int, float)) else "RAM liberada")
+            if "limit_cpu" in actions:
                 manager.set_cpu_limit(95)
-            manager.set_scheme("balanced")
+                done.append("CPU limitada al 95%")
             self._send_json({
                 "status": "ok",
-                "message": f"Optimizaciones aplicadas exitosamente. Se liberaron {clean_res.get('freed_mb', 0)} MB de memoria en espera."
+                "applied": sorted(actions),
+                "message": ("Aplicado: " + ", ".join(done) + ".") if done else "No hay nada que aplicar: el equipo está en buen estado."
             })
         elif self.path == "/api/startup/toggle":
-            name = data.get("name", "")
-            scope = data.get("scope", "user")
+            name = str(data.get("name", "")).strip()
+            scope = "system" if data.get("scope") == "system" else "user"
             enable = bool(data.get("enabled", True))
+            if not name or len(name) > 260 or any(c in name for c in "\\\r\n\x00"):
+                return self._reject(400, "Nombre de aplicación inválido")
+            # Solo se pueden conmutar entradas que realmente existen en el inicio de Windows
+            if name not in {a.get("name") for a in get_startup_apps()}:
+                return self._reject(404, "La aplicación no está en el inicio de Windows")
             ok = toggle_startup_app(name, scope, enable)
             self._send_json({"status": "ok" if ok else "error", "name": name, "enabled": enable})
         elif self.path == "/api/debloat/remove":
             app_ids = data.get("apps", [])
-            res = remove_debloat_apps(app_ids)
+            if not isinstance(app_ids, list):
+                return self._reject(400, "Se esperaba una lista de apps")
+            res = remove_debloat_apps([str(a) for a in app_ids][:50])
             self._send_json(res)
+        elif self.path == "/api/cleanup/clean":
+            raw_targets = data.get("targets", [])
+            if not isinstance(raw_targets, list):
+                return self._reject(400, "Se esperaba una lista de categorías")
+            targets = [str(t) for t in raw_targets if str(t) in CLEANUP_CATEGORY_IDS]
+            if not targets:
+                return self._reject(400, "No se especificó ninguna categoría de limpieza válida")
+            self._send_json(run_disk_cleanup(targets))
         elif self.path == "/api/autostart":
             enable = bool(data.get("enabled", True))
             ok = set_autostart(enable)
@@ -1454,8 +1939,13 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json({"status": "ok", "message": "Panel de audio abierto"})
         elif self.path == "/api/set_eq":
             enabled = bool(data.get("enabled", True))
-            bands = data.get("bands", [0] * 10)
-            preset = data.get("preset", "custom")
+            raw_bands = data.get("bands", [0] * 10)
+            if not isinstance(raw_bands, list):
+                raw_bands = [0] * 10
+            bands = [round(_clamp_float(b, -20.0, 20.0, 0.0), 1) for b in raw_bands[:10]]
+            bands += [0.0] * (10 - len(bands))
+            # El preset se escribe en config.txt de Equalizer APO: solo caracteres seguros (sin saltos de línea)
+            preset = "".join(c for c in str(data.get("preset", "custom")) if c.isalnum() or c in " -_")[:40] or "custom"
             freqs = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
             apo_dir = r"C:\Program Files\EqualizerAPO\config"
@@ -1480,23 +1970,79 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             vortex_cfg = os.path.join(vortex_cfg_dir, "audio_eq.json")
             try:
                 with open(vortex_cfg, "w", encoding="utf-8") as f:
-                    json.dump(data, f)
+                    json.dump({"enabled": enabled, "bands": bands, "preset": preset}, f)
             except Exception:
                 pass
 
             self._send_json({"status": "ok", "enabled": enabled, "apo_synced": written, "bands": bands})
+        elif self.path == "/api/open_apo_setup":
+            action = str(data.get("action", "")).lower()
+            if action == "download":
+                try:
+                    os.startfile(APO_DOWNLOAD_URL)
+                    self._send_json({"status": "ok", "action": "download"})
+                except Exception as e:
+                    self._send_json({"status": "error", "message": str(e)}, code=500)
+            elif action == "configurator":
+                cfg_exe = os.path.join(APO_BASE_DIR, "Configurator.exe")
+                if os.path.isfile(cfg_exe):
+                    try:
+                        subprocess.Popen([cfg_exe], cwd=APO_BASE_DIR)
+                        self._send_json({"status": "ok", "action": "configurator"})
+                    except Exception as e:
+                        self._send_json({"status": "error", "message": str(e)}, code=500)
+                else:
+                    self._send_json({"status": "error", "message": "Equalizer APO no está instalado en este equipo."}, code=404)
+            else:
+                self._reject(400, "Acción de Equalizer APO desconocida")
+        elif self.path == "/api/open_sensor_app":
+            target = str(data.get("app", "")).lower()
+            url = SENSOR_APP_URLS.get(target)
+            if url:
+                try:
+                    os.startfile(url)
+                    self._send_json({"status": "ok", "app": target})
+                except Exception as e:
+                    self._send_json({"status": "error", "message": str(e)}, code=500)
+            else:
+                self._reject(400, "Proveedor térmico desconocido")
+        elif self.path == "/api/install_pawnio":
+            res = hw_sensors.install_pawnio()
+            manager.telemetry["cpu_msr_status"] = {
+                "pawnio_installed": hw_sensors.is_pawnio_installed(),
+                "is_admin": hw_sensors.is_admin(),
+            }
+            self._send_json(res, code=200 if res.get("status") == "ok" else 500)
+        elif self.path == "/api/relaunch_admin":
+            try:
+                exe = sys.executable
+                args_str = " ".join(f'"{a}"' for a in ([os.path.abspath(__file__)] if not getattr(sys, "frozen", False) else sys.argv[1:]))
+                ps = (
+                    "Start-Sleep -Milliseconds 700; "
+                    f"Start-Process -FilePath '{exe}' "
+                    + (f"-ArgumentList '{args_str}' " if args_str else "")
+                    + f"-WorkingDirectory '{get_app_dir()}' -Verb RunAs"
+                )
+                subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                                 creationflags=CREATE_NO_WINDOW)
+                self._send_json({"status": "ok", "message": "Reiniciando con privilegios de Administrador..."})
+                threading.Timer(0.25, lambda: os._exit(0)).start()
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, code=500)
         elif self.path == "/api/focus_window":
             launch_or_focus_window()
             self._send_json({"status": "ok", "action": "focused"})
         else:
-            self.send_error(404)
+            self._send_json({"status": "error", "message": "Not found"}, code=404)
 
-    def _send_json(self, payload):
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+    def _send_json(self, payload, code: int = 200):
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(json.dumps(payload).encode("utf-8"))
+        self.wfile.write(body)
 
     def log_message(self, format, *args):
         pass
@@ -1504,13 +2050,13 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
 
 _launch_lock = threading.Lock()
 _last_launch_time = 0.0
+_window_hicons = None
 
 
-def focus_existing_window() -> bool:
-    """Busca la ventana gráfica de VortexCore Hub en Windows y la trae al frente."""
+def _find_suite_window_hwnd():
+    """Localiza el HWND de la ventana nativa de VortexCore Hub (descartando pestañas del navegador)."""
     try:
         user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
         found_hwnd = None
 
         def enum_proc(hwnd, lparam):
@@ -1521,11 +2067,8 @@ def focus_existing_window() -> bool:
             if length > 0:
                 buff = ctypes.create_unicode_buffer(length + 1)
                 user32.GetWindowTextW(hwnd, buff, length + 1)
-                val = buff.value
-                val_low = val.lower()
-                # Filtrar estrictamente la ventana nativa de la suite ("VortexCore Hub // Clean Hardware Suite")
-                # y JAMÁS confundirla con una pestaña del navegador abierta en GitHub, Descargas o el Instalador
-                is_suite_title = ("vortexcore hub // clean hardware suite" in val_low) or (
+                val_low = buff.value.lower()
+                is_suite_title = (val_low == "vortexcore hub" or "vortexcore hub // clean hardware suite" in val_low) or (
                     "clean hardware suite" in val_low and "vortexcore" in val_low
                 )
                 is_excluded = any(bad in val_low for bad in (
@@ -1536,7 +2079,6 @@ def focus_existing_window() -> bool:
                     user32.GetWindowRect(hwnd, ctypes.byref(rect))
                     w = rect.right - rect.left
                     h = rect.bottom - rect.top
-                    # Debe estar minimizada o tener dimensiones de ventana de navegador
                     if user32.IsIconic(hwnd) or (w > 200 and h > 200):
                         found_hwnd = hwnd
                         return False
@@ -1544,8 +2086,79 @@ def focus_existing_window() -> bool:
 
         EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
         user32.EnumWindows(EnumWindowsProc(enum_proc), 0)
+        return found_hwnd
+    except Exception:
+        return None
+
+
+def apply_window_icon(hwnd):
+    """Fuerza el icono oficial (vortex_icon.ico) en la barra de título y barra de tareas de la ventana."""
+    global _window_hicons
+    if not hwnd:
+        return
+    try:
+        icon_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_icon.ico"))
+        if not os.path.isfile(icon_path):
+            return
+        user32 = ctypes.windll.user32
+        user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        user32.LoadImageW.restype = wintypes.HANDLE
+        user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.SendMessageW.restype = ctypes.c_longlong
+
+        if _window_hicons is None:
+            sm_cx = user32.GetSystemMetrics(49) or 16
+            sm_cy = user32.GetSystemMetrics(50) or 16
+            lg_cx = user32.GetSystemMetrics(11) or 32
+            lg_cy = user32.GetSystemMetrics(12) or 32
+            h_sm = user32.LoadImageW(0, icon_path, 1, sm_cx, sm_cy, 0x00000010)
+            h_lg = user32.LoadImageW(0, icon_path, 1, lg_cx, lg_cy, 0x00000010)
+            _window_hicons = (h_sm, h_lg)
+
+        h_sm, h_lg = _window_hicons
+        WM_SETICON = 0x0080
+        if h_sm:
+            user32.SendMessageW(hwnd, WM_SETICON, 0, int(h_sm))
+        if h_lg:
+            user32.SendMessageW(hwnd, WM_SETICON, 1, int(h_lg))
+    except Exception:
+        pass
+
+
+def _refresh_edge_icon_cache(user_data: str):
+    """Invalida la caché de favicons de Edge si cambió la versión o el icono."""
+    try:
+        icon_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_icon.ico"))
+        icon_sig = f"{APP_VERSION}:{os.path.getsize(icon_path) if os.path.isfile(icon_path) else 0}"
+        marker = os.path.join(user_data, ".icon_sig")
+        prev = ""
+        if os.path.isfile(marker):
+            with open(marker, encoding="utf-8", errors="ignore") as f:
+                prev = f.read().strip()
+        if prev != icon_sig:
+            default_dir = os.path.join(user_data, "Default")
+            for fname in ("Favicons", "Favicons-journal"):
+                fpath = os.path.join(default_dir, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        os.remove(fpath)
+                    except Exception:
+                        pass
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write(icon_sig)
+    except Exception:
+        pass
+
+
+def focus_existing_window() -> bool:
+    """Busca la ventana gráfica de VortexCore Hub en Windows y la trae al frente."""
+    try:
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        found_hwnd = _find_suite_window_hwnd()
 
         if found_hwnd:
+            apply_window_icon(found_hwnd)
             # Si estaba minimizada, restaurar
             if user32.IsIconic(found_hwnd):
                 user32.ShowWindow(found_hwnd, 9)  # SW_RESTORE
@@ -1583,9 +2196,12 @@ def launch_native_window():
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     ]
     edge_exe = next((p for p in edge_paths if os.path.isfile(p)), "msedge.exe")
-    url = f"http://127.0.0.1:{PORT}"
+    # La versión en la URL obliga a Edge a pedir la interfaz nueva tras cada actualización
+    # (la caché del perfil de la ventana guarda páginas de versiones anteriores)
+    url = f"http://127.0.0.1:{PORT}/?v={APP_VERSION}"
     user_data = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub", "Profile")
     os.makedirs(user_data, exist_ok=True)
+    _refresh_edge_icon_cache(user_data)
 
     args = [
         edge_exe,
@@ -1599,6 +2215,16 @@ def launch_native_window():
         "--disable-background-networking"
     ]
     subprocess.Popen(args)
+
+    def _apply_icon_when_ready():
+        for _ in range(28):
+            time.sleep(0.25)
+            hwnd = _find_suite_window_hwnd()
+            if hwnd:
+                apply_window_icon(hwnd)
+                break
+
+    threading.Thread(target=_apply_icon_when_ready, daemon=True).start()
 
 
 def launch_or_focus_window():
@@ -1633,7 +2259,8 @@ def check_and_focus_existing_instance():
     """
     import urllib.request
     try:
-        req = urllib.request.Request(f"http://127.0.0.1:{PORT}/api/focus_window", data=b"{}", method="POST")
+        req = urllib.request.Request(f"http://127.0.0.1:{PORT}/api/focus_window", data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=1.2) as resp:
             if resp.status == 200:
                 print("VortexCore Hub ya está activo. Enfocando ventana existente...")
@@ -1655,13 +2282,32 @@ if __name__ == "__main__":
     if not is_admin():
         request_admin_elevation()
 
-    server = HTTPServer(("127.0.0.1", PORT), VortexHttpHandler)
+    # Servidor multihilo: una petición lenta (debloat, apps de inicio) ya no congela la telemetría
+    ThreadingHTTPServer.daemon_threads = True
+    ThreadingHTTPServer.allow_reuse_address = False  # en Windows permitiría dos instancias en el mismo puerto
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", PORT), VortexHttpHandler)
+    except OSError:
+        # Puerto ocupado: probablemente otra instancia arrancando; intentar enfocarla y salir
+        check_and_focus_existing_instance()
+        try:
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                f"VortexCore Hub no pudo iniciar: el puerto {PORT} está en uso por otro programa.",
+                "VortexCore Hub", 0x10)
+        except Exception:
+            pass
+        sys.exit(1)
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
-    print(f"=====================================================")
-    print(f"  VORTEXCORE HUB // SYSTEM TRAY & REST ACTIVE")
+    # Migrar auto-inicio de versiones anteriores (Run / carpeta Inicio) a tarea programada
+    if is_admin():
+        threading.Thread(target=migrate_legacy_autostart, daemon=True).start()
+
+    print("=====================================================")
+    print("  VORTEXCORE HUB // SYSTEM TRAY & REST ACTIVE")
     print(f"  Local Host: http://127.0.0.1:{PORT}")
-    print(f"=====================================================")
+    print("=====================================================")
 
     # Iniciar icono en la bandeja del sistema (System Tray junto al reloj)
     tray = SystemTrayApp(

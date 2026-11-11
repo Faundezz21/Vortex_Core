@@ -11,6 +11,8 @@
 import os
 import sys
 import ctypes
+import subprocess
+import tempfile
 from ctypes import wintypes
 
 user32 = ctypes.windll.user32
@@ -45,6 +47,16 @@ user32.PostMessageW.restype = wintypes.BOOL
 
 user32.DestroyMenu.argtypes = [wintypes.HMENU]
 user32.DestroyMenu.restype = wintypes.BOOL
+
+# Handles de 64 bits: sin restype explícito ctypes los trunca a int de 32 bits
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+user32.LoadIconW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR]
+user32.LoadIconW.restype = wintypes.HICON
+user32.CreatePopupMenu.restype = wintypes.HMENU
+user32.RegisterClassExW.restype = wintypes.ATOM
+shell32.Shell_NotifyIconW.argtypes = [wintypes.DWORD, ctypes.c_void_p]
+shell32.Shell_NotifyIconW.restype = wintypes.BOOL
 
 # Habilitar soporte de Modo Oscuro nativo de Windows 11 (uxtheme)
 try:
@@ -93,7 +105,16 @@ CMD_PURGE_RAM = 1007
 CMD_AUTOSTART = 1008
 CMD_EXIT = 1009
 
+# Ubicaciones antiguas de auto-inicio (versiones <= 7.8.6). Se migran a la tarea programada.
 STARTUP_FILE = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\VortexCoreHub.vbs")
+LEGACY_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+LEGACY_RUN_VALUE = "VortexCoreHub"
+
+# Auto-inicio real: tarea programada "Al iniciar sesión" con privilegios más altos.
+# (Una app que requiere Administrador lanzada desde Run/Inicio muestra UAC en cada arranque
+#  o Windows directamente la bloquea; la tarea programada evita ambos problemas.)
+TASK_NAME = "VortexCoreHub"
+CREATE_NO_WINDOW = 0x08000000
 
 
 def get_app_dir() -> str:
@@ -105,32 +126,136 @@ def get_app_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
+def _launch_command() -> tuple:
+    """(ejecutable, argumentos) para arrancar VortexCore Hub minimizado en la bandeja."""
+    if getattr(sys, 'frozen', False):
+        return sys.executable, "--minimized"
+    script_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_engine.py"))
+    pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    if not os.path.isfile(pythonw):
+        pythonw = sys.executable
+    return pythonw, f'"{script_path}" --minimized'
+
+
+def _xml_escape(text: str) -> str:
+    return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace('"', "&quot;"))
+
+
+def _task_xml() -> str:
+    exe, args = _launch_command()
+    workdir = os.path.dirname(exe) if getattr(sys, 'frozen', False) else get_app_dir()
+    return f"""<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Author>Faundezz21</Author>
+    <Description>Inicia VortexCore Hub en la bandeja del sistema al iniciar sesion.</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT10S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>{_xml_escape(exe)}</Command>
+      <Arguments>{_xml_escape(args)}</Arguments>
+      <WorkingDirectory>{_xml_escape(workdir)}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"""
+
+
+def _schtasks(args: list) -> bool:
+    try:
+        res = subprocess.run(["schtasks"] + args, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=CREATE_NO_WINDOW, timeout=15)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def _remove_legacy_autostart():
+    try:
+        if os.path.isfile(STARTUP_FILE):
+            os.remove(STARTUP_FILE)
+    except Exception:
+        pass
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, LEGACY_RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, LEGACY_RUN_VALUE)
+    except Exception:
+        pass
+
+
 def is_autostart_enabled() -> bool:
-    return os.path.isfile(STARTUP_FILE)
+    return _schtasks(["/Query", "/TN", TASK_NAME])
 
 
 def set_autostart(enable: bool) -> bool:
+    """Activa/desactiva el auto-inicio. Requiere privilegios de Administrador (la app ya los tiene)."""
+    _remove_legacy_autostart()
+    if not enable:
+        if not is_autostart_enabled():
+            return True
+        return _schtasks(["/Delete", "/TN", TASK_NAME, "/F"])
+
+    xml_path = os.path.join(tempfile.gettempdir(), f"vortexcore_task_{os.getpid()}.xml")
     try:
-        if enable:
-            if getattr(sys, 'frozen', False):
-                exe_path = sys.executable
-                content = f'Set WshShell = CreateObject("WScript.Shell")\n'
-                content += f'WshShell.Run """{exe_path}"" --minimized", 0, False\n'
-            else:
-                script_path = os.path.abspath(os.path.join(get_app_dir(), "vortex_engine.py"))
-                pythonw = sys.executable.replace("python.exe", "pythonw.exe")
-                if not os.path.isfile(pythonw):
-                    pythonw = sys.executable
-                content = f'Set WshShell = CreateObject("WScript.Shell")\n'
-                content += f'WshShell.Run """{pythonw}"" ""{script_path}"" --minimized", 0, False\n'
-            with open(STARTUP_FILE, "w", encoding="utf-8") as f:
-                f.write(content)
-        else:
-            if os.path.isfile(STARTUP_FILE):
-                os.remove(STARTUP_FILE)
-        return True
+        with open(xml_path, "w", encoding="utf-16") as f:
+            f.write(_task_xml())
+        return _schtasks(["/Create", "/TN", TASK_NAME, "/XML", xml_path, "/F"])
     except Exception:
         return False
+    finally:
+        try:
+            os.remove(xml_path)
+        except Exception:
+            pass
+
+
+def migrate_legacy_autostart():
+    """Si una versión anterior dejó el auto-inicio en Run/Inicio, lo convierte en tarea programada."""
+    legacy = os.path.isfile(STARTUP_FILE)
+    if not legacy:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, LEGACY_RUN_KEY, 0, winreg.KEY_READ) as k:
+                winreg.QueryValueEx(k, LEGACY_RUN_VALUE)
+                legacy = True
+        except Exception:
+            pass
+    if legacy:
+        set_autostart(True)
 
 
 class GUID(ctypes.Structure):
@@ -200,9 +325,13 @@ class SystemTrayApp:
         if os.path.isfile(icon_path):
             user32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT, ctypes.c_int, ctypes.c_int, wintypes.UINT]
             user32.LoadImageW.restype = wintypes.HANDLE
-            hicon = user32.LoadImageW(0, icon_path, 1, 0, 0, 0x00000010 | 0x00000040) # IMAGE_ICON, LR_LOADFROMFILE | LR_DEFAULTSIZE
+            # Tamaño de icono pequeño del sistema (16/20/24 px según DPI): el .ico trae esas
+            # versiones dibujadas a medida, así la bandeja no reduce el de 32 px y se ve nítido
+            sm_cx = user32.GetSystemMetrics(49) or 16  # SM_CXSMICON
+            sm_cy = user32.GetSystemMetrics(50) or 16  # SM_CYSMICON
+            hicon = user32.LoadImageW(0, icon_path, 1, sm_cx, sm_cy, 0x00000010)  # IMAGE_ICON, LR_LOADFROMFILE
         if not hicon:
-            hicon = user32.LoadIconW(0, 32512)
+            hicon = user32.LoadIconW(None, ctypes.cast(ctypes.c_void_p(32512), wintypes.LPCWSTR))  # IDI_APPLICATION
 
         wndclass = WNDCLASSEXW()
         wndclass.cbSize = ctypes.sizeof(WNDCLASSEXW)
@@ -269,16 +398,16 @@ class SystemTrayApp:
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
         curr_prof = getattr(self.manager, "current_profile", "DEFAULT").upper()
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "ECO" else MF_UNCHECKED) | MF_STRING, CMD_ECO, "Modo ECO SILENT (60% CPU)")
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof in ("DEFAULT", "BALANCED") else MF_UNCHECKED) | MF_STRING, CMD_BALANCED, "Modo STANDARD BALANCE")
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "PERFORMANCE" else MF_UNCHECKED) | MF_STRING, CMD_TURBO, "Modo TURBO GAMING (100% CPU)")
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "ECO" else MF_UNCHECKED) | MF_STRING, CMD_ECO, "Modo Silencioso")
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof in ("DEFAULT", "BALANCED") else MF_UNCHECKED) | MF_STRING, CMD_BALANCED, "Modo Windows (por defecto)")
+        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "PERFORMANCE" else MF_UNCHECKED) | MF_STRING, CMD_TURBO, "Modo Rendimiento")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
         fan_mode = str(getattr(self.manager, "fan_mode", "auto")).lower()
         is_turbo = "max" in fan_mode or "turbo" in fan_mode
-        user32.AppendMenuW(menu, (MF_CHECKED if is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_MAX, "Turbina 100% (HP Overdrive)")
-        user32.AppendMenuW(menu, (MF_CHECKED if not is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_AUTO, "Ventiladores: Curva Automática")
-        user32.AppendMenuW(menu, MF_STRING, CMD_PURGE_RAM, "Purgar Memoria RAM en Standby")
+        user32.AppendMenuW(menu, (MF_CHECKED if is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_MAX, "Ventiladores al 100%")
+        user32.AppendMenuW(menu, (MF_CHECKED if not is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_AUTO, "Ventiladores en automático")
+        user32.AppendMenuW(menu, MF_STRING, CMD_PURGE_RAM, "Liberar memoria RAM")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
         autostart_state = MF_CHECKED if is_autostart_enabled() else MF_UNCHECKED

@@ -1,31 +1,61 @@
 // ==============================================================================
-// VortexCore Hub v7.8 - Clean Hardware Suite (High-Tech Tactical Controller)
+// VortexCore Hub - Panel de control de hardware
 // ==============================================================================
 
-const API_BASE = "http://127.0.0.1:8765";
+// Misma URL de origen que la ventana (el servidor rechaza peticiones de otros orígenes)
+const API_BASE = (location.protocol === "http:" && (location.hostname === "127.0.0.1" || location.hostname === "localhost"))
+  ? location.origin
+  : "http://127.0.0.1:8765";
 
 // Historial dinámico para la gráfica térmica
 let maxPoints = 30;
-let cpuHistory = new Array(maxPoints).fill(45);
-let gpuHistory = new Array(maxPoints).fill(40);
+// null = sin muestra todavía (la gráfica deja el hueco en vez de dibujar valores inventados)
+let cpuHistory = new Array(maxPoints).fill(null);
+let gpuHistory = new Array(maxPoints).fill(null);
+let maxFanRpmSeen = 5600;
 
 let timerCountdown = null;
 let secondsRemaining = 0;
 let autoTurboSafety = true;
+// Protección térmica: sube los ventiladores al 100% solo con calor real y los devuelve al BIOS al enfriarse
+const THERMAL_ON_CPU = 90;
+const THERMAL_ON_GPU = 85;
+const THERMAL_OFF = 75;
+let thermalProtectionEngaged = false;
 let latencyTweakActive = true;
 let autostartEnabled = false;
 
+// Nombres visibles de los perfiles (claves internas del motor -> etiqueta)
+const PROFILE_NAMES = {
+  DEFAULT: "Windows",
+  BALANCED: "Windows",
+  ECO: "Silencioso",
+  SILENT: "Equilibrado",
+  PERFORMANCE: "Rendimiento",
+  MANUAL: "Manual"
+};
+
 // Navegación en Sidebar
 const tabTitles = {
-  "tab-overview": { title: "Inicio", sub: "PANEL PRINCIPAL • HARDWARE SUITE" },
-  "tab-intelligence": { title: "Hardware Intelligence", sub: "DIAGNÓSTICO EN TIEMPO REAL & SALUD DE SILICIO" },
-  "tab-cooling": { title: "Laboratorio de Tuning Manual", sub: "SPL / SPPT / FPPT • GPU OFFSET & TGP • CURVA DE VENTILADORES" },
-  "tab-tuning": { title: "Tuning de CPU & Energía", sub: "LÍMITES DE PROCESADOR • TURBO BOOST • ESQUEMAS ACPI" },
-  "tab-booster": { title: "Memoria RAM & Game Boost", sub: "OPTIMIZACIÓN DE WORKING SET • PROCESOS • LATENCIA" },
-  "tab-audio": { title: "Audio Suite & EQ 10 Bandas", sub: "CALIBRACIÓN ACÚSTICA • GAMING TÁCTICO • PRESETS DE LATENCIA CERO" },
-  "tab-startup": { title: "Gestor de Inicio de Windows", sub: "APLICACIONES CON ARRANQUE AUTOMÁTICO • ACELERACIÓN DE INICIO" },
-  "tab-debloat": { title: "Debloat & Limpieza de Windows", sub: "DESINSTALACIÓN SEGURA DE APLICACIONES BASURA • MICROSOFT EDGE BLINDADO" }
+  "tab-overview": { title: "Inicio", sub: "Resumen del equipo" },
+  "tab-intelligence": { title: "Diagnóstico", sub: "Temperaturas, energía y memoria" },
+  "tab-cooling": { title: "Modo manual", sub: "Límites de potencia, GPU y curva de ventiladores" },
+  "tab-tuning": { title: "CPU y energía", sub: "Límite del procesador, Turbo Boost y plan de energía" },
+  "tab-booster": { title: "Memoria RAM", sub: "Liberar memoria y procesos que más consumen" },
+  "tab-audio": { title: "Audio y ecualizador", sub: "Volumen por aplicación y ecualizador de 10 bandas" },
+  "tab-startup": { title: "Inicio de Windows", sub: "Aplicaciones que se abren al encender el equipo" },
+  "tab-debloat": { title: "Limpieza de Windows", sub: "Quitar aplicaciones preinstaladas (Edge siempre protegido)" }
 };
+
+// Subtítulo de la cabecera: en Inicio muestra el equipo detectado; en el resto, la descripción de la pestaña
+let deviceLine = "";
+function updateBreadcrumb() {
+  const el = document.getElementById("nav-breadcrumb-tag");
+  const active = document.querySelector(".nav-item.active");
+  if (!el || !active) return;
+  const id = active.dataset.tab;
+  el.textContent = (id === "tab-overview" && deviceLine) ? deviceLine : (tabTitles[id] ? tabTitles[id].sub : "");
+}
 
 function switchTab(targetId) {
   const btn = document.querySelector(`.nav-item[data-tab="${targetId}"]`);
@@ -45,8 +75,12 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     if (tabTitles[targetId]) {
       const titleEl = document.getElementById("page-title");
       if (titleEl) titleEl.textContent = tabTitles[targetId].title;
+      updateBreadcrumb();
     }
 
+    if (targetId === "tab-intelligence") {
+      loadBatteryHealth();
+    }
     if (targetId === "tab-booster") {
       refreshTopProcesses();
     }
@@ -54,10 +88,12 @@ document.querySelectorAll(".nav-item").forEach(btn => {
       loadStartupApps();
     }
     if (targetId === "tab-debloat") {
+      scanDiskCleanup();
       loadDebloatApps();
     }
     if (targetId === "tab-audio") {
       refreshAudioMixer();
+      refreshApoStatus();
       if (!audioMixerInterval) {
         audioMixerInterval = setInterval(refreshAudioMixer, 3500);
       }
@@ -76,16 +112,21 @@ function logConsole(msg) {
 }
 
 // -------------------------------------------------------------
-// SISTEMA DE NOTIFICACIONES TOAST FLOTANTES HUD
+// NOTIFICACIONES FLOTANTES (TOAST)
 // -------------------------------------------------------------
-function showToast({ icon = "⚡", title = "VortexCore Hub", message = "", type = "info", duration = 3400 }) {
+// Iconos de línea definidos en el sprite de index.html (<symbol id="i-...">)
+function ic(name, cls = "") {
+  return `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+}
+
+function showToast({ icon = "zap", title = "VortexCore Hub", message = "", type = "info", duration = 3400 }) {
   const container = document.getElementById("vortex-toast-container");
   if (!container) return;
 
   const toast = document.createElement("div");
   toast.className = `vortex-toast toast-${type}`;
   toast.innerHTML = `
-    <div class="vortex-toast-icon">${icon}</div>
+    <div class="vortex-toast-icon">${ic(icon)}</div>
     <div class="vortex-toast-body">
       <span class="vortex-toast-title">${title}</span>
       <span class="vortex-toast-msg">${message}</span>
@@ -106,7 +147,7 @@ function updateClock() {
   const clockEl = document.getElementById("clock-display");
   if (clockEl) {
     const now = new Date();
-    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 }
 setInterval(updateClock, 1000);
@@ -125,8 +166,8 @@ document.querySelectorAll(".tr-btn").forEach(btn => {
       cpuHistory = cpuHistory.slice(-maxPoints);
       gpuHistory = gpuHistory.slice(-maxPoints);
     } else while (cpuHistory.length < maxPoints) {
-      cpuHistory.unshift(cpuHistory[0] || 45);
-      gpuHistory.unshift(gpuHistory[0] || 40);
+      cpuHistory.unshift(null);
+      gpuHistory.unshift(null);
     }
     drawLiveChart();
     logConsole(`Escala de gráfica térmica fijada a ${range} segundos.`);
@@ -134,6 +175,15 @@ document.querySelectorAll(".tr-btn").forEach(btn => {
 });
 
 // Ajuste del Tacómetro Arco SVG
+// Valores de sensores: null = el sensor no existe o no respondió -> se muestra "N/D" (nunca un número inventado)
+const ND = "N/D";
+function hasNum(v) {
+  return v !== null && v !== undefined && v !== "" && !Number.isNaN(Number(v));
+}
+function fmtVal(v, unit) {
+  return hasNum(v) ? `${v}${unit ? " " + unit : ""}` : ND;
+}
+
 function setTachoProgress(pathId, pct) {
   const path = document.getElementById(pathId);
   if (!path) return;
@@ -141,6 +191,256 @@ function setTachoProgress(pathId, pct) {
   const clamped = Math.min(100, Math.max(0, pct));
   const offset = totalLength - (totalLength * clamped) / 100;
   path.style.strokeDashoffset = offset;
+}
+
+function scrollToDeepMonitor() {
+  const el = document.getElementById("overview-deep-monitor");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function formatNetSpeed(bps) {
+  if (!hasNum(bps) || bps <= 0) return "0 KB/s";
+  if (bps < 1024) return `${Math.round(bps)} B/s`;
+  if (bps < 1048576) return `${(bps / 1024).toFixed(1)} KB/s`;
+  return `${(bps / 1048576).toFixed(2)} MB/s`;
+}
+
+function formatNetTotal(mb) {
+  if (!hasNum(mb) || mb <= 0) return "0 MB";
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${Number(mb).toFixed(1)} MB`;
+}
+
+let _lastCoreCount = -1;
+function resolveCoreTempForThread(i, logicalCount, physCount, coreTemps) {
+  if (!coreTemps.length) return null;
+  if (coreTemps.length === logicalCount) return coreTemps[i] || null;
+  if (logicalCount === coreTemps.length * 2) return coreTemps[Math.floor(i / 2)] || null;
+  if (physCount && coreTemps.length === physCount && logicalCount > physCount) {
+    const nP = logicalCount - physCount;
+    const coreIdx = i < nP * 2 ? Math.floor(i / 2) : nP + (i - nP * 2);
+    return coreTemps[coreIdx] || null;
+  }
+  return null;
+}
+
+async function openSensorApp(appKey) {
+  try {
+    await fetch(`${API_BASE}/api/open_sensor_app`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app: appKey })
+    });
+  } catch (e) {}
+}
+
+let _pawnioActionBusy = false;
+async function installPawnIODriver() {
+  if (_pawnioActionBusy) return;
+  _pawnioActionBusy = true;
+  const btn = document.getElementById("btn-install-pawnio");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Instalando PawnIO…";
+  }
+  showToast("Instalando soporte térmico por núcleo (PawnIO)…", "info");
+  try {
+    const res = await fetch(`${API_BASE}/api/install_pawnio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    const out = await res.json();
+    showToast(out.message || "Listo.", res.ok ? "success" : "error", 5000);
+  } catch (e) {
+    showToast("No se pudo iniciar la instalación de PawnIO.", "error");
+  } finally {
+    _pawnioActionBusy = false;
+  }
+}
+
+async function relaunchAsAdmin() {
+  if (_pawnioActionBusy) return;
+  _pawnioActionBusy = true;
+  const btn = document.getElementById("btn-relaunch-admin");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Elevando privilegios…";
+  }
+  try {
+    await fetch(`${API_BASE}/api/relaunch_admin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    showToast("Acepta el aviso de Windows (UAC) para activar sensores por núcleo.", "info", 5000);
+  } catch (e) {
+    showToast("No se pudo solicitar elevación.", "error");
+    _pawnioActionBusy = false;
+  }
+}
+
+function renderCoreDetails(d) {
+  const grid = document.getElementById("cpu-cores-grid");
+  if (!grid) return;
+
+  const metaEl = document.getElementById("cpu-cores-meta");
+  const phys = hasNum(d.cpu_cores_phys) ? Number(d.cpu_cores_phys) : null;
+  const log = hasNum(d.cpu_cores_log) ? Number(d.cpu_cores_log) : null;
+  if (metaEl) metaEl.textContent = `${phys ?? "--"} núcleos · ${log ?? "--"} hilos`;
+
+  const cores = Array.isArray(d.cpu_per_core) ? d.cpu_per_core : [];
+  const coreTemps = Array.isArray(d.cpu_core_temps) ? d.cpu_core_temps : [];
+  const acpiZones = Array.isArray(d.cpu_acpi_zones) ? d.cpu_acpi_zones : [];
+
+  if (!cores.length) {
+    if (_lastCoreCount !== 0) {
+      grid.replaceChildren();
+      const hint = document.createElement("div");
+      hint.className = "vc-empty-hint";
+      hint.textContent = "Sin lecturas por hilo disponibles en este equipo.";
+      grid.appendChild(hint);
+      _lastCoreCount = 0;
+    }
+  } else {
+    if (_lastCoreCount !== cores.length) {
+      grid.replaceChildren();
+      for (let i = 0; i < cores.length; i++) {
+        const tile = document.createElement("div");
+        tile.className = "core-tile";
+        tile.innerHTML = `
+          <div class="core-tile-head">
+            <span class="core-label">CPU ${i}</span>
+            <span class="core-temp"></span>
+          </div>
+          <div class="core-tile-foot">
+            <div class="core-bar-track"><div class="core-bar-fill" style="width:0%"></div></div>
+            <span class="core-val">0%</span>
+          </div>`;
+        grid.appendChild(tile);
+      }
+      _lastCoreCount = cores.length;
+    }
+
+    const tiles = grid.children;
+    for (let i = 0; i < cores.length && i < tiles.length; i++) {
+      const pct = Math.min(100, Math.max(0, Math.round(Number(cores[i]) || 0)));
+      const tile = tiles[i];
+      tile.classList.toggle("warm", pct >= 60 && pct < 85);
+      tile.classList.toggle("hot", pct >= 85);
+      const fill = tile.querySelector(".core-bar-fill");
+      if (fill) fill.style.width = `${pct}%`;
+      const valEl = tile.querySelector(".core-val");
+      if (valEl) valEl.textContent = `${pct}%`;
+      const tempEl = tile.querySelector(".core-temp");
+      if (tempEl) {
+        const matched = resolveCoreTempForThread(i, cores.length, phys, coreTemps);
+        if (matched && hasNum(matched.temp_c)) {
+          tempEl.textContent = `${Math.round(matched.temp_c)} °C`;
+          tempEl.classList.add("has-temp");
+          tempEl.style.display = "";
+        } else {
+          tempEl.textContent = "";
+          tempEl.classList.remove("has-temp");
+          tempEl.style.display = "none";
+        }
+      }
+    }
+  }
+
+  const tzBox = document.getElementById("cpu-thermal-zones-box");
+  if (tzBox && !_pawnioActionBusy) {
+    tzBox.replaceChildren();
+    const lbl = document.createElement("span");
+    lbl.className = "tz-label";
+    lbl.textContent = coreTemps.length ? `Temp. por núcleo (${d.cpu_temp_source || "Sensor"}):` : "Sensores térmicos reales:";
+    tzBox.appendChild(lbl);
+
+    if (hasNum(d.cpu_temp) && d.cpu_temp > 0) {
+      const pkg = document.createElement("span");
+      pkg.className = "tz-pill";
+      pkg.textContent = `Paquete CPU: ${d.cpu_temp} °C`;
+      tzBox.appendChild(pkg);
+    }
+
+    const pills = [...coreTemps, ...acpiZones];
+    pills.slice(0, 16).forEach((z) => {
+      const pill = document.createElement("span");
+      pill.className = "tz-pill";
+      pill.textContent = `${z.name}: ${Math.round(z.temp_c)} °C`;
+      tzBox.appendChild(pill);
+    });
+
+    if (!coreTemps.length) {
+      const msr = d.cpu_msr_status || {};
+      const note = document.createElement("span");
+      note.className = "tz-note";
+      if (!msr.pawnio_installed) {
+        note.textContent = "Activa el controlador seguro PawnIO (compatible con HVCI) para leer °C por núcleo sin programas externos:";
+        tzBox.appendChild(note);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.id = "btn-install-pawnio";
+        btn.className = "tz-helper-btn";
+        btn.textContent = "Activar °C por núcleo (Instalar PawnIO)";
+        btn.onclick = installPawnIODriver;
+        tzBox.appendChild(btn);
+      } else if (!msr.is_admin) {
+        note.textContent = "PawnIO listo · abre VortexCore como Administrador para activar °C por núcleo:";
+        tzBox.appendChild(note);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.id = "btn-relaunch-admin";
+        btn.className = "tz-helper-btn";
+        btn.textContent = "Reiniciar como Administrador";
+        btn.onclick = relaunchAsAdmin;
+        tzBox.appendChild(btn);
+      } else {
+        note.textContent = "Esperando lectura nativa de sensores PawnIO…";
+        tzBox.appendChild(note);
+      }
+    }
+  }
+}
+
+function renderNetworkStats(d) {
+  const net = d.network || {};
+  const badge = document.getElementById("net-iface-badge");
+  if (badge) {
+    badge.textContent = net.iface
+      ? (hasNum(net.link_mbps) ? `${net.iface} · ${net.link_mbps} Mbps` : net.iface)
+      : "Sin interfaz activa";
+  }
+
+  const dlEl = document.getElementById("net-dl-speed");
+  if (dlEl) dlEl.textContent = formatNetSpeed(net.rx_bps);
+
+  const ulEl = document.getElementById("net-ul-speed");
+  if (ulEl) ulEl.textContent = formatNetSpeed(net.tx_bps);
+
+  const rxTot = document.getElementById("net-rx-total");
+  if (rxTot) rxTot.textContent = `Recibido: ${formatNetTotal(net.rx_total_mb)}`;
+
+  const txTot = document.getElementById("net-tx-total");
+  if (txTot) txTot.textContent = `Enviado: ${formatNetTotal(net.tx_total_mb)}`;
+
+  const maxBps = hasNum(net.link_mbps) && net.link_mbps > 0 ? net.link_mbps * 125000 : 12500000;
+  const rxPct = net.rx_bps > 0 ? Math.min(100, Math.max(2, Math.round((net.rx_bps / maxBps) * 100))) : 0;
+  const txPct = net.tx_bps > 0 ? Math.min(100, Math.max(2, Math.round((net.tx_bps / maxBps) * 100))) : 0;
+
+  const rxBar = document.getElementById("net-rx-bar");
+  if (rxBar) rxBar.style.width = `${rxPct}%`;
+  const txBar = document.getElementById("net-tx-bar");
+  if (txBar) txBar.style.width = `${txPct}%`;
+
+  const pingEl = document.getElementById("net-ping-ms");
+  if (pingEl) pingEl.textContent = hasNum(net.ping_ms) ? `${net.ping_ms} ms` : ND;
+
+  const ipEl = document.getElementById("net-ipv4");
+  if (ipEl) ipEl.textContent = net.ipv4 || ND;
+
+  const linkEl = document.getElementById("net-link-speed");
+  if (linkEl) linkEl.textContent = hasNum(net.link_mbps) ? `Enlace: ${net.link_mbps} Mbps` : `Enlace: ${ND}`;
 }
 
 // -------------------------------------------------------------
@@ -156,22 +456,22 @@ async function updateTelemetry() {
     if (d.system_specs) {
       const s = d.system_specs;
       const mTitle = document.getElementById("hero-model-title");
-      if (mTitle) mTitle.textContent = (s.model || s.manufacturer).toUpperCase();
+      if (mTitle) mTitle.textContent = s.model || s.manufacturer || "Equipo";
 
       const mSub = document.getElementById("hero-specs-sub");
-      if (mSub) mSub.textContent = `${s.cpu} • ${s.gpu} • ${s.ram}`;
+      if (mSub) mSub.textContent = [s.cpu, s.gpu, s.ram].filter(Boolean).join(" · ");
 
       const acCpuLine = document.getElementById("ac-cpu-line");
-      if (acCpuLine) acCpuLine.textContent = s.cpu || "Procesador Detectado";
+      if (acCpuLine) acCpuLine.textContent = s.cpu || "Procesador: N/D";
 
       const acGpuLine = document.getElementById("ac-gpu-line");
-      if (acGpuLine) acGpuLine.textContent = `${s.gpu || "Gráficos Dedicados"} • ${s.ram || ""}`;
+      if (acGpuLine) acGpuLine.textContent = [s.gpu, s.ram].filter(Boolean).join(" · ") || "Gráficos: N/D";
 
       const mfgTag = document.getElementById("hsc-tag-mfg");
-      if (mfgTag) mfgTag.textContent = `${(s.manufacturer || "VORTEXCORE").toUpperCase()} GAMING SYSTEM`;
+      if (mfgTag) mfgTag.textContent = s.manufacturer || "";
 
-      const breadcrumb = document.getElementById("nav-breadcrumb-tag");
-      if (breadcrumb) breadcrumb.textContent = `VORTEXCORE HUB • ${(s.model_short || s.manufacturer).toUpperCase()} • ${s.os.toUpperCase()}`;
+      deviceLine = [s.model_short || s.manufacturer, s.os].filter(Boolean).join(" · ");
+      updateBreadcrumb();
 
       const fanSub = document.getElementById("hero-fan-sub");
       if (fanSub) {
@@ -180,104 +480,111 @@ async function updateTelemetry() {
 
       const coolLabel = document.getElementById("cooling-hero-label");
       if (coolLabel) {
-        coolLabel.textContent = s.is_hp ? "INTERFAZ FIRMWARE ACPI (HP BIOS WMI)" : `CONTROL TÉRMICO UNIVERSAL (${s.manufacturer.toUpperCase()})`;
+        coolLabel.textContent = s.is_hp ? "Control por BIOS (HP WMI)" : `Control térmico universal (${s.manufacturer})`;
       }
 
       const coolDesc = document.getElementById("cooling-hero-desc");
       if (coolDesc) {
         coolDesc.textContent = s.is_hp
           ? 'Llamada directa mediante Opcode 0x27 en `root\\wmi:hpqBIntM` con firma de seguridad "SECU". Compatible nativamente con HP Victus y OMEN.'
-          : `Gobernador de energía, límites de silicio y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
+          : `Gobernador de energía, límites de CPU y planes ACPI sincronizados para ${s.manufacturer}. Ventiladores regulados por BIOS OEM.`;
       }
     }
 
     // 1. CPU
-    const cTemp = d.cpu_temp > 0 ? d.cpu_temp : 48;
+    const cTemp = hasNum(d.cpu_temp) && d.cpu_temp > 0 ? d.cpu_temp : null;
     const cpuTempEl = document.getElementById("cpu-temp-text");
-    if (cpuTempEl) cpuTempEl.textContent = `${cTemp}`;
-    
-    const cpuFreqEl = document.getElementById("cpu-freq-text");
-    if (cpuFreqEl) cpuFreqEl.textContent = `${d.cpu_freq || '3.80'} GHz`;
+    if (cpuTempEl) cpuTempEl.textContent = cTemp !== null ? `${cTemp}` : "--";
 
-    const cMhz = d.cpu_freq_mhz || Math.round(parseFloat(d.cpu_freq || 3.6) * 1000);
+    const cpuFreqEl = document.getElementById("cpu-freq-text");
+    if (cpuFreqEl) cpuFreqEl.textContent = fmtVal(d.cpu_freq, "GHz");
+
+    const cMhz = hasNum(d.cpu_freq_mhz) ? d.cpu_freq_mhz : null;
     const acCpuFreqMhz = document.getElementById("ac-cpu-freq-mhz");
-    if (acCpuFreqMhz) acCpuFreqMhz.textContent = `${cMhz} MHz`;
+    if (acCpuFreqMhz) acCpuFreqMhz.textContent = fmtVal(cMhz, "MHz");
 
     const acCpuFreqBar = document.getElementById("ac-cpu-freq-bar");
-    if (acCpuFreqBar) acCpuFreqBar.style.width = `${Math.min(100, Math.max(12, Math.round((cMhz / 5200) * 100)))}%`;
+    if (acCpuFreqBar) acCpuFreqBar.style.width = cMhz !== null ? `${Math.min(100, Math.round((cMhz / 5200) * 100))}%` : "0%";
 
     const acCpuVolt = document.getElementById("ac-cpu-volt");
-    if (acCpuVolt && d.cpu_volt_mv) acCpuVolt.textContent = `${d.cpu_volt_mv} mV`;
+    if (acCpuVolt) acCpuVolt.textContent = fmtVal(d.cpu_volt_mv, "mV");
 
     const cpuLoadEl = document.getElementById("cpu-load-text");
-    if (cpuLoadEl) cpuLoadEl.textContent = `${d.cpu_usage || 0} %`;
+    if (cpuLoadEl) cpuLoadEl.textContent = fmtVal(d.cpu_usage, "%");
 
     const cpuBarEl = document.getElementById("cpu-progress-bar");
-    if (cpuBarEl) cpuBarEl.style.width = `${Math.min(100, Math.max(4, d.cpu_usage || 8))}%`;
+    if (cpuBarEl) cpuBarEl.style.width = `${Math.min(100, Math.max(0, d.cpu_usage || 0))}%`;
 
-    const cpuTachoPct = Math.min(100, Math.max(5, ((cTemp - 30) / (95 - 30)) * 100));
+    const cpuTachoPct = cTemp !== null ? Math.min(100, Math.max(0, ((cTemp - 30) / (95 - 30)) * 100)) : 0;
     setTachoProgress("cpu-tacho-fill", cpuTachoPct);
 
+    renderCoreDetails(d);
+    renderNetworkStats(d);
+
     // 2. GPU
-    const gTemp = d.gpu_temp > 0 ? d.gpu_temp : 42;
+    const gTemp = hasNum(d.gpu_temp) && d.gpu_temp > 0 ? d.gpu_temp : null;
     const gpuTempEl = document.getElementById("gpu-temp-text");
-    if (gpuTempEl) gpuTempEl.textContent = `${gTemp}`;
+    if (gpuTempEl) gpuTempEl.textContent = gTemp !== null ? `${gTemp}` : "--";
 
     const gpuLoadEl = document.getElementById("gpu-load-text");
-    if (gpuLoadEl) gpuLoadEl.textContent = `${d.gpu_usage || 0} %`;
+    if (gpuLoadEl) gpuLoadEl.textContent = fmtVal(d.gpu_usage, "%");
 
     const gpuPowerEl = document.getElementById("gpu-power-text");
-    if (gpuPowerEl) gpuPowerEl.textContent = `${d.gpu_power || 0} W`;
+    if (gpuPowerEl) gpuPowerEl.textContent = fmtVal(d.gpu_power, "W");
 
-    const gMhz = d.gpu_freq_mhz || 1650;
+    const gMhz = hasNum(d.gpu_freq_mhz) ? d.gpu_freq_mhz : null;
     const acGpuFreqMhz = document.getElementById("ac-gpu-freq-mhz");
-    if (acGpuFreqMhz) acGpuFreqMhz.textContent = `${gMhz} MHz`;
+    if (acGpuFreqMhz) acGpuFreqMhz.textContent = fmtVal(gMhz, "MHz");
 
     const acGpuFreqBar = document.getElementById("ac-gpu-freq-bar");
-    if (acGpuFreqBar) acGpuFreqBar.style.width = `${Math.min(100, Math.max(10, Math.round((gMhz / 2600) * 100)))}%`;
+    if (acGpuFreqBar) acGpuFreqBar.style.width = gMhz !== null ? `${Math.min(100, Math.round((gMhz / 2600) * 100))}%` : "0%";
 
     const acGpuMemFreq = document.getElementById("ac-gpu-mem-freq");
-    if (acGpuMemFreq && d.gpu_mem_freq_mhz) acGpuMemFreq.textContent = `${d.gpu_mem_freq_mhz} MHz`;
+    if (acGpuMemFreq) acGpuMemFreq.textContent = fmtVal(d.gpu_mem_freq_mhz, "MHz");
 
     const acGpuVolt = document.getElementById("ac-gpu-volt");
-    if (acGpuVolt && d.gpu_volt_mv) acGpuVolt.textContent = `${d.gpu_volt_mv} mV`;
+    if (acGpuVolt) acGpuVolt.textContent = fmtVal(d.gpu_volt_mv, "mV");
+
+    const gpuPwrMax = document.getElementById("gpu-power-max");
+    if (gpuPwrMax) gpuPwrMax.textContent = fmtVal(d.gpu_power_limit, "W");
 
     const gpuPwrSummary = document.getElementById("gpu-pwr-summary");
-    if (gpuPwrSummary) gpuPwrSummary.textContent = `${d.gpu_power || 0} W`;
+    if (gpuPwrSummary) gpuPwrSummary.textContent = fmtVal(d.gpu_power, "W");
 
     const gpuBarEl = document.getElementById("gpu-progress-bar");
-    if (gpuBarEl) gpuBarEl.style.width = `${Math.min(100, Math.max(4, d.gpu_usage || 5))}%`;
+    if (gpuBarEl) gpuBarEl.style.width = `${Math.min(100, Math.max(0, d.gpu_usage || 0))}%`;
 
-    const gpuTachoPct = Math.min(100, Math.max(5, ((gTemp - 30) / (90 - 30)) * 100));
+    const gpuTachoPct = gTemp !== null ? Math.min(100, Math.max(0, ((gTemp - 30) / (90 - 30)) * 100)) : 0;
     setTachoProgress("gpu-tacho-fill", gpuTachoPct);
 
     // 3. MEMORIA RAM & ALMACENAMIENTO
-    const ramInst = d.ram_installed || 16;
+    const ramInst = hasNum(d.ram_installed) ? d.ram_installed : null;
 
     const ramPctEl = document.getElementById("ram-pct-text");
-    if (ramPctEl) ramPctEl.textContent = d.ram_pct || 0;
+    if (ramPctEl) ramPctEl.textContent = hasNum(d.ram_pct) ? d.ram_pct : "--";
 
     const ramUsedEl = document.getElementById("ram-used-text");
-    if (ramUsedEl) ramUsedEl.textContent = `${d.ram_used || 0} GB`;
+    if (ramUsedEl) ramUsedEl.textContent = fmtVal(d.ram_used, "GB");
 
     const ramFreeEl = document.getElementById("ram-free-text");
-    if (ramFreeEl) ramFreeEl.textContent = `${d.ram_free || 0} GB`;
+    if (ramFreeEl) ramFreeEl.textContent = fmtVal(d.ram_free, "GB");
 
     const acRamRatio = document.getElementById("ac-ram-ratio");
-    if (acRamRatio) acRamRatio.textContent = `${d.ram_used || '7.5'} / ${d.ram_total || ramInst} GB`;
+    if (acRamRatio) acRamRatio.textContent = hasNum(d.ram_used) && hasNum(d.ram_total) ? `${d.ram_used} / ${d.ram_total} GB` : ND;
+
+    const acRamSpeed = document.getElementById("ac-ram-speed");
+    if (acRamSpeed) acRamSpeed.textContent = fmtVal(d.ram_speed_mts, "MT/s");
 
     const acDiskText = document.getElementById("ac-disk-text");
-    if (acDiskText && d.disk_used_gb && d.disk_total_gb) {
-      acDiskText.textContent = `${d.disk_used_gb} / ${d.disk_total_gb} GB`;
+    if (acDiskText) {
+      acDiskText.textContent = hasNum(d.disk_used_gb) && hasNum(d.disk_total_gb) ? `${d.disk_used_gb} / ${d.disk_total_gb} GB` : ND;
     }
 
     const acDiskBar = document.getElementById("ac-disk-bar");
-    if (acDiskBar && d.disk_pct !== undefined) {
-      acDiskBar.style.width = `${Math.min(100, Math.max(5, d.disk_pct))}%`;
-    }
+    if (acDiskBar) acDiskBar.style.width = hasNum(d.disk_pct) ? `${Math.min(100, Math.max(0, d.disk_pct))}%` : "0%";
 
     const ramFreeSum = document.getElementById("ram-free-summary");
-    if (ramFreeSum) ramFreeSum.textContent = `${d.ram_free || 0} GB Libres`;
+    if (ramFreeSum) ramFreeSum.textContent = hasNum(d.ram_free) ? `${d.ram_free} GB Libres` : ND;
 
     const ramBarEl = document.getElementById("ram-progress-bar");
     if (ramBarEl) ramBarEl.style.width = `${d.ram_pct || 0}%`;
@@ -286,26 +593,30 @@ async function updateTelemetry() {
 
     // Detalles en Tab Booster
     const rInstDeep = document.getElementById("ram-installed-deep");
-    if (rInstDeep) rInstDeep.textContent = `${ramInst} GB`;
+    if (rInstDeep) rInstDeep.textContent = fmtVal(ramInst, "GB");
     const rUsedDeep = document.getElementById("ram-used-deep");
-    if (rUsedDeep) rUsedDeep.textContent = `${d.ram_used || 0} GB`;
+    if (rUsedDeep) rUsedDeep.textContent = fmtVal(d.ram_used, "GB");
     const rAvailDeep = document.getElementById("ram-avail-deep");
-    if (rAvailDeep) rAvailDeep.textContent = `${d.ram_free || 0} GB`;
+    if (rAvailDeep) rAvailDeep.textContent = fmtVal(d.ram_free, "GB");
     const rCachedDeep = document.getElementById("ram-cached-deep");
-    if (rCachedDeep) rCachedDeep.textContent = `${d.ram_cached || '0.0'} GB`;
+    if (rCachedDeep) rCachedDeep.textContent = fmtVal(d.ram_cached, "GB");
 
     // 4. VENTILADORES
-    const f1 = d.fan1_rpm > 0 ? d.fan1_rpm : 2600;
-    const f2 = d.fan2_rpm > 0 ? d.fan2_rpm : 2400;
+    // RPM reales leídas del BIOS (HP). En otras marcas Windows no expone los ventiladores -> N/D
+    const f1 = hasNum(d.fan1_rpm) && d.fan1_rpm > 0 ? d.fan1_rpm : null;
+    const f2 = hasNum(d.fan2_rpm) && d.fan2_rpm > 0 ? d.fan2_rpm : null;
+    if (f1 !== null) maxFanRpmSeen = Math.max(maxFanRpmSeen, f1);
+    if (f2 !== null) maxFanRpmSeen = Math.max(maxFanRpmSeen, f2);
 
     const fan1El = document.getElementById("fan1-rpm-text");
-    if (fan1El) fan1El.textContent = f1;
+    if (fan1El) fan1El.textContent = f1 !== null ? f1 : "--";
 
     const fan2El = document.getElementById("fan2-rpm-text");
-    if (fan2El) fan2El.textContent = `${f2} RPM`;
+    if (fan2El) fan2El.textContent = fmtVal(f2, "RPM");
 
-    const fanPct = Math.min(100, Math.round((f1 / 5600) * 100));
-    const fan2Pct = Math.min(100, Math.round((f2 / 5600) * 100));
+    // Escala de la barra: máximo real observado (mínimo 5600 RPM, típico de turbina al 100%)
+    const fanPct = f1 !== null ? Math.min(100, Math.round((f1 / maxFanRpmSeen) * 100)) : 0;
+    const fan2Pct = f2 !== null ? Math.min(100, Math.round((f2 / maxFanRpmSeen) * 100)) : 0;
     setTachoProgress("fan-tacho-fill", fanPct);
 
     const fanBarEl = document.getElementById("fan-progress-bar");
@@ -315,9 +626,9 @@ async function updateTelemetry() {
     if (acFan2Bar) acFan2Bar.style.width = `${fan2Pct}%`;
 
     const acFanDba = document.getElementById("ac-fan-dba");
-    if (acFanDba && d.fan_dba) acFanDba.textContent = `${d.fan_dba} dBA`;
+    if (acFanDba) acFanDba.textContent = fmtVal(d.fan_dba, "dBA");
 
-    const isTurbo = (d.fan_mode && (d.fan_mode.includes("TURBO") || d.fan_mode.includes("MAX"))) || f1 >= 4800;
+    const isTurbo = !!(d.fan_mode && (d.fan_mode.includes("TURBO") || d.fan_mode.includes("MAX")));
 
     const fanChip = document.getElementById("fan-chip");
     const fanChipText = document.getElementById("fan-chip-text");
@@ -326,12 +637,12 @@ async function updateTelemetry() {
 
     if (isTurbo) {
       if (fanChip) fanChip.classList.add("turbo-active");
-      if (fanChipText) fanChipText.textContent = "TURBO 100%";
-      if (fanCurveText) fanCurveText.textContent = "Overdrive 100%";
-      if (coolingStatusHero) coolingStatusHero.textContent = "Modo Turbina al 100% (Overdrive Activo)";
+      if (fanChipText) fanChipText.textContent = "100%";
+      if (fanCurveText) fanCurveText.textContent = "Máxima (100%)";
+      if (coolingStatusHero) coolingStatusHero.textContent = "Ventiladores al 100%";
     } else {
       if (fanChip) fanChip.classList.remove("turbo-active");
-      if (fanChipText) fanChipText.textContent = "FANS: AUTO";
+      if (fanChipText) fanChipText.textContent = "Auto";
       if (fanCurveText) fanCurveText.textContent = "Automática (BIOS)";
       if (coolingStatusHero) coolingStatusHero.textContent = "Curva Automática de Fábrica (BIOS)";
     }
@@ -341,51 +652,143 @@ async function updateTelemetry() {
     if (trackerText) {
       const activeTemp = activeManualSubtab === "gpu" ? gTemp : cTemp;
       const targetLabel = activeManualSubtab === "gpu" ? "GPU" : "CPU";
-      trackerText.textContent = `Temp ${targetLabel}: ${activeTemp}°C ➔ Fan en ${fanPct}% (${f1} RPM)`;
+      const tempTxt = activeTemp !== null ? `${activeTemp}°C` : ND;
+      trackerText.textContent = `${targetLabel} ${tempTxt}` + (hasNum(d.fan_target_pct) ? ` · ventilador al ${d.fan_target_pct}%` : "") + (f1 !== null ? ` · ${f1} RPM` : "");
     }
 
     const profChip = document.getElementById("profile-chip");
     if (profChip && d.current_profile) {
-      profChip.textContent = `MODO: ${d.current_profile.toUpperCase()}`;
+      const key = d.current_profile.toUpperCase();
+      profChip.textContent = PROFILE_NAMES[key] || d.current_profile;
+    }
+
+    // Tarjeta de modo activa = perfil real del motor
+    if (d.current_profile) {
+      const key = d.current_profile.toUpperCase() === "BALANCED" ? "DEFAULT" : d.current_profile.toUpperCase();
+      document.querySelectorAll(".profile-card[data-prof]").forEach(c => {
+        c.classList.toggle("active", c.dataset.prof === key);
+      });
+    }
+
+    // Estado de la CPU según su temperatura real
+    const cpuStatus = document.getElementById("cpu-status-pill");
+    if (cpuStatus) {
+      const [txt, color] = cTemp === null ? [ND, ""]
+        : cTemp < 80 ? ["Normal", "var(--accent-green)"]
+        : cTemp < 92 ? ["Caliente", "var(--accent-orange)"]
+        : ["Muy caliente", "var(--accent-red)"];
+      cpuStatus.textContent = txt;
+      cpuStatus.style.setProperty("color", color || "var(--text-tertiary)", "important");
     }
 
     // 5. HARDWARE INTELLIGENCE & HERO HEALTH SCORE
-    const healthScore = d.health_score || (cTemp < 75 && gTemp < 75 ? 98 : 86);
+    const healthScore = hasNum(d.health_score) ? d.health_score : "--";
     const healthScoreEl = document.getElementById("intel-health-score");
     if (healthScoreEl) healthScoreEl.textContent = healthScore;
+
+    // Anillo y estado del Diagnóstico (con el índice de salud en vivo)
+    const ring = document.getElementById("diag-ring");
+    const condBadgeLive = document.getElementById("intel-condition-badge");
+    if (ring && hasNum(healthScore)) {
+      const level = healthScore >= 85 ? "green" : healthScore >= 70 ? "orange" : "red";
+      ring.style.setProperty("--p", healthScore);
+      ring.dataset.level = level;
+      if (condBadgeLive) {
+        condBadgeLive.textContent = healthScore >= 85 ? "Buen estado" : healthScore >= 70 ? "Mejorable" : "Requiere atención";
+        condBadgeLive.className = `ih-badge ${level}`;
+      }
+    }
 
     const htgScore = document.getElementById("htg-score");
     if (htgScore) htgScore.textContent = `${healthScore}%`;
 
     const htgFill = document.getElementById("htg-fill");
-    if (htgFill) htgFill.style.height = `${healthScore}%`;
+    if (htgFill) htgFill.style.height = `${hasNum(healthScore) ? healthScore : 0}%`;
 
     const htgNeedle = document.getElementById("htg-needle");
-    if (htgNeedle) htgNeedle.style.bottom = `${healthScore}%`;
+    if (htgNeedle) htgNeedle.style.bottom = `${hasNum(healthScore) ? healthScore : 0}%`;
 
     const heroTempSub = document.getElementById("hero-temp-sub");
-    if (heroTempSub) heroTempSub.textContent = `Rango Normal (${cTemp}°C)`;
+    if (heroTempSub) heroTempSub.textContent = cTemp === null ? "Temperatura N/D" : (cTemp < 80 ? `Rango Normal (${cTemp}°C)` : `Temperatura Elevada (${cTemp}°C)`);
 
     const heroRamSub = document.getElementById("hero-ram-sub");
-    if (heroRamSub) heroRamSub.textContent = `${d.ram_free || 20} GB Libres`;
+    if (heroRamSub) heroRamSub.textContent = hasNum(d.ram_free) ? `${d.ram_free} GB Libres` : ND;
 
     // Diagnósticos dinámicos
     const diagCpu = document.getElementById("diag-cpu-desc");
     if (diagCpu) {
-      diagCpu.textContent = cTemp < 70 
-        ? `El procesador opera a una temperatura estable (${cTemp}°C). Sin Thermal Throttling.`
-        : `CPU operando a ${cTemp}°C bajo carga elevada. Límites de seguridad estables.`;
+      diagCpu.textContent = cTemp === null
+        ? "Temperatura de CPU no disponible en este equipo."
+        : cTemp < 70
+        ? `La CPU está a ${cTemp} °C: temperatura normal.`
+        : cTemp < 85
+        ? `La CPU está a ${cTemp} °C: algo caliente, normal si estás jugando o con mucha carga.`
+        : `La CPU está a ${cTemp} °C: muy caliente. Revisa las recomendaciones de abajo.`;
     }
 
     const diagGpu = document.getElementById("diag-gpu-desc");
     if (diagGpu) {
-      diagGpu.textContent = `La gráfica dedicada mantiene un consumo de ${d.gpu_power || 4}W con ${gTemp}°C en núcleo.`;
+      diagGpu.textContent = gTemp === null
+        ? "No hay datos de la GPU (se necesita una gráfica NVIDIA)."
+        : `La GPU está a ${gTemp} °C` + (hasNum(d.gpu_power) ? ` y consume ${d.gpu_power} W.` : ".");
     }
 
-    // Protección térmica de seguridad
-    if (autoTurboSafety && !isTurbo && (cTemp >= 76 || gTemp >= 78)) {
-      logConsole(`⚠️ Auto-Turbina activada: Silicio a ${cTemp}°C. Forzando refrigeración máxima.`);
+    // Tarjetas de diagnóstico (solo datos reales)
+    const setStatus = (id, text, color) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      el.classList.remove("green", "orange", "red");
+      if (color) el.classList.add(color);
+    };
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+    if (cTemp === null) setStatus("diag-cpu-status", ND, "");
+    else setStatus("diag-cpu-status", cTemp < 75 ? "Normal" : cTemp < 85 ? "Elevada" : "Crítica", cTemp < 75 ? "green" : cTemp < 85 ? "orange" : "red");
+
+    if (gTemp === null) {
+      setStatus("diag-gpu-status", ND, "");
+      setText("diag-gpu-meta", "Sin telemetría NVIDIA");
+    } else {
+      setStatus("diag-gpu-status", gTemp < 75 ? "Normal" : gTemp < 85 ? "Elevada" : "Crítica", gTemp < 75 ? "green" : gTemp < 85 ? "orange" : "red");
+      setText("diag-gpu-meta", `Límite de potencia: ${fmtVal(d.gpu_power_limit, "W")} • Estado: ${d.gpu_pstate || ND}`);
+    }
+
+    if (hasNum(d.ram_pct)) {
+      setStatus("diag-ram-status", d.ram_pct < 75 ? "Óptima" : d.ram_pct < 90 ? "Elevada" : "Crítica", d.ram_pct < 75 ? "green" : d.ram_pct < 90 ? "orange" : "red");
+      setText("diag-ram-desc", `${d.ram_free} GB disponibles de ${d.ram_total} GB utilizables por Windows (${d.ram_pct}% en uso).`);
+    }
+    setText("diag-ram-meta", `Instalada: ${fmtVal(ramInst, "GB")} • Velocidad: ${fmtVal(d.ram_speed_mts, "MT/s")} • En caché: ${fmtVal(d.ram_cached, "GB")}`);
+
+    if (d.fans_readable) {
+      const fansOk = f1 !== null || f2 !== null;
+      setStatus("diag-fan-status", fansOk ? "Leyendo" : "Sin lectura", fansOk ? "green" : "orange");
+      setText("diag-fan-desc", fansOk
+        ? `Tacómetro del BIOS HP: Fan 1 ${fmtVal(f1, "RPM")}, Fan 2 ${fmtVal(f2, "RPM")}.`
+        : "El BIOS HP no devolvió RPM en la última lectura (requiere permisos de Administrador).");
+      setText("diag-fan-meta", "Protocolo: HP BIOS WMI (hpqBIntM)");
+    } else {
+      setStatus("diag-fan-status", ND, "");
+      setText("diag-fan-desc", "Este equipo no expone las RPM de los ventiladores a Windows; los controla el firmware del fabricante.");
+      setText("diag-fan-meta", "Tacómetro no disponible");
+    }
+
+    setText("gpu-spec-model", (d.system_specs && d.system_specs.gpu) || ND);
+    setText("gpu-spec-vram", hasNum(d.gpu_vram_mb) ? `${(d.gpu_vram_mb / 1024).toFixed(1)} GB` : ND);
+    setText("gpu-spec-bus", d.gpu_pcie || ND);
+
+    // Protección térmica: solo actúa con temperaturas realmente altas y devuelve el control
+    // al BIOS cuando el equipo se enfría (si fue ella la que subió los ventiladores).
+    const hot = (cTemp !== null && cTemp >= THERMAL_ON_CPU) || (gTemp !== null && gTemp >= THERMAL_ON_GPU);
+    const cool = (cTemp === null || cTemp < THERMAL_OFF) && (gTemp === null || gTemp < THERMAL_OFF);
+    if (autoTurboSafety && hot && !isTurbo && !thermalProtectionEngaged) {
+      thermalProtectionEngaged = true;
+      logConsole(`Temperatura alta (CPU ${cTemp ?? ND} °C, GPU ${gTemp ?? ND} °C): ventiladores al máximo hasta que baje de ${THERMAL_OFF} °C.`);
       triggerFan("max");
+    } else if (thermalProtectionEngaged && cool) {
+      thermalProtectionEngaged = false;
+      logConsole("Temperatura normal de nuevo: ventiladores en automático.");
+      triggerFan("auto");
     }
 
     // 6. DISPOSITIVOS Y BATERÍA EN \\\ DISPOSITIVOS
@@ -419,7 +822,7 @@ function updateBatteryDevices(devices) {
         <div class="ac-crosshair-plus">+</div>
         <div class="ac-empty-text">
           <strong>No hay dispositivos conectados</strong>
-          <p>Enciende tu mando 2.4GHz o Bluetooth para detectarlo automáticamente.</p>
+          <p>Conecta un ratón, teclado, auriculares o mando (USB, 2.4 GHz o Bluetooth) y aparecerá aquí.</p>
         </div>
       </div>
     `;
@@ -431,45 +834,45 @@ function updateBatteryDevices(devices) {
 
   let html = "";
   devices.forEach(dev => {
-    let icon = "📶";
-    if (dev.type === "headphone") {
-      icon = "🎧";
-      const audioActiveName = document.getElementById("active-audio-device-name");
-      if (audioActiveName && dev.name) {
-        audioActiveName.textContent = dev.name;
-      }
-    }
-    else if (dev.type === "mouse") icon = "🖱️";
-    else if (dev.type === "keyboard") icon = "⌨️";
-    else if (dev.type === "gamepad") icon = "🎮";
+    let icon = "bluetooth";
+    if (dev.type === "headphone") icon = "headphones";
+    else if (dev.type === "mouse") icon = "mouse";
+    else if (dev.type === "keyboard") icon = "keyboard";
+    else if (dev.type === "gamepad") icon = "gamepad";
     else if (dev.type === "laptop") {
-      icon = dev.plugged ? "⚡" : "💻";
+      icon = dev.plugged ? "plug" : "battery";
       const pwrTxt = document.getElementById("manual-power-state-text");
       if (pwrTxt) pwrTxt.textContent = dev.plugged ? "Enchufado" : "En Batería";
     }
     else if (dev.type === "desktop") {
-      icon = "🖥️";
+      icon = "monitor";
       const pwrTxt = document.getElementById("manual-power-state-text");
       if (pwrTxt) pwrTxt.textContent = "Enchufado";
     }
 
-    const pct = dev.percent !== null && dev.percent !== undefined ? dev.percent : 85;
-    const colorClass = pct > 60 ? "green" : pct >= 20 ? "orange" : "red";
+    // Solo se muestra el % si el dispositivo/Windows lo informa; XInput entrega un nivel, no un %
+    const hasPct = hasNum(dev.percent);
+    const pct = hasPct ? dev.percent : null;
+    const levelPct = { "Vacía": 5, "Baja": 25, "Media": 60, "Llena": 100 }[dev.level];
+    const barPct = hasPct ? pct : (levelPct || 0);
+    const colorClass = !hasPct && !dev.level ? "" : barPct > 60 ? "green" : barPct >= 20 ? "orange" : "red";
+    const pctLabel = hasPct ? `${pct}%` : (dev.level ? dev.level : "—");
     const statusText = dev.status || (dev.plugged ? "Cargando (AC)" : "Conectado");
 
     html += `
       <div class="dev-card-item">
-        <div class="dev-icon">${icon}</div>
+        <div class="dev-icon">${ic(icon)}</div>
         <div class="dev-info">
-          <span class="dev-name" title="${dev.name}">${dev.name}</span>
-          <span class="dev-status">${statusText}</span>
+          <span class="dev-name" title="${escapeHtml(dev.name)}">${escapeHtml(dev.name)}</span>
+          <span class="dev-status">${escapeHtml(statusText)}</span>
         </div>
-        <div class="dev-battery-box">
-          <span class="dev-bat-pct ${colorClass}">${pct}%</span>
+        ${hasPct || dev.level ? `
+        <div class="dev-battery-box" title="Batería informada por el dispositivo">
+          <span class="dev-bat-pct ${colorClass}">${pctLabel}</span>
           <div class="dev-bat-bar">
-            <div class="dev-bat-fill ${colorClass}" style="width: ${Math.min(100, Math.max(5, pct))}%;"></div>
+            <div class="dev-bat-fill ${colorClass}" style="width: ${Math.min(100, Math.max(0, barPct))}%;"></div>
           </div>
-        </div>
+        </div>` : ""}
       </div>
     `;
   });
@@ -510,10 +913,13 @@ function drawLiveChart() {
     ctx.shadowBlur = 6;
 
     const step = w / (arr.length - 1);
+    let penUp = true;
     for (let i = 0; i < arr.length; i++) {
+      if (arr[i] === null || arr[i] === undefined) { penUp = true; continue; }
       const val = Math.max(30, Math.min(95, arr[i]));
       const y = h - ((val - 30) / (95 - 30)) * (h - 20) - 10;
       const x = i * step;
+      if (penUp) { ctx.moveTo(x, y); penUp = false; continue; }
 
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
@@ -538,17 +944,17 @@ async function triggerFan(mode) {
       body: JSON.stringify({ mode })
     });
     if (res.ok) {
-      logConsole(mode === "max" ? "🚀 Turbina forzada al 100% (5400+ RPM vía BIOS)." : "🔄 Retorno a curva térmica automática de HP BIOS.");
+      logConsole(mode === "max" ? "Turbina forzada al 100% vía BIOS." : "Retorno a curva térmica automática de HP BIOS.");
       if (mode === "max") {
         showToast({
-          icon: "🌀",
+          icon: "fan",
           title: "Turbina 100% Forzada",
-          message: "Ventiladores acelerados a máxima potencia (5400+ RPM vía WMI BIOS).",
+          message: "Ventiladores acelerados a máxima potencia vía WMI BIOS.",
           type: "warning"
         });
       } else {
         showToast({
-          icon: "🔄",
+          icon: "refresh",
           title: "Ventilación Automática",
           message: "Retorno a la curva térmica inteligente del BIOS de fábrica.",
           type: "info"
@@ -570,14 +976,7 @@ async function applyProfile(name) {
     if (c.dataset.prof === name) c.classList.add("active");
   });
 
-  const profNames = {
-    DEFAULT: "Estándar OS",
-    ECO: "Sigilo Eco",
-    SILENT: "Balance Pro",
-    PERFORMANCE: "Vortex Overdrive",
-    MANUAL: "Tuning Manual"
-  };
-  const profName = profNames[name] || name;
+  const profName = PROFILE_NAMES[name] || name;
 
   logConsole(`Aplicando perfil coordinado [${profName}] en Windows 11...`);
   try {
@@ -589,9 +988,9 @@ async function applyProfile(name) {
     if (res.ok) {
       logConsole(`Perfil [${profName}] aplicado con éxito (CPU Limits + Turbo Boost + Fans).`);
       showToast({
-        icon: name === "PERFORMANCE" ? "🚀" : name === "ECO" ? "🍃" : "⚡",
+        icon: name === "PERFORMANCE" ? "rocket" : name === "ECO" ? "leaf" : "zap",
         title: `Perfil ${profName} Activado`,
-        message: "Límites energéticos y curvas de silicio calibrados en Windows.",
+        message: "Perfil de energía aplicado.",
         type: "success"
       });
       updateTelemetry();
@@ -690,7 +1089,7 @@ function setTimer(minutes) {
     if (secondsRemaining <= 0) {
       cancelTimer();
       triggerFan("auto");
-      logConsole("⏱️ Temporizador de enfriamiento finalizado. Retornando ventiladores a modo AUTO.");
+      logConsole("Temporizador de enfriamiento finalizado. Retornando ventiladores a modo AUTO.");
     }
   }, 1000);
 
@@ -707,10 +1106,10 @@ function cancelTimer() {
 }
 
 // -------------------------------------------------------------
-// 9. PURGA Y OPTIMIZACIÓN DE MEMORIA RAM
+// 9. LIBERAR MEMORIA RAM
 // -------------------------------------------------------------
 async function purgeMemory() {
-  logConsole("⚡ Optimizando y liberando memoria en espera (Standby Cache)...");
+  logConsole("Liberando memoria en espera...");
   const btn = document.getElementById("btn-purge");
   const btnMini = document.getElementById("btn-purge-mini");
   const textEl = document.getElementById("purge-btn-text");
@@ -721,42 +1120,47 @@ async function purgeMemory() {
 
   if (btn) btn.disabled = true;
   if (btnMini) btnMini.disabled = true;
-  if (textEl) textEl.textContent = "Optimizando...";
-  if (miniText) miniText.textContent = "...";
+  if (textEl) textEl.textContent = "Liberando...";
+  if (miniText) miniText.textContent = "Liberando...";
 
   try {
     const res = await fetch(`${API_BASE}/api/clean_ram`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
-      const freed = (data.cleaned && data.cleaned.freed_mb) ? data.cleaned.freed_mb : 450;
-      logConsole(`✨ Memoria optimizada con éxito: ${freed} MB recuperados para videojuegos.`);
+      const freedRaw = data.cleaned ? data.cleaned.freed_mb : null;
+      const freed = Number.isFinite(freedRaw) ? Math.round(freedRaw) : null;
+      const summary = freed !== null ? `Se liberaron ${freed} MB de memoria en espera.` : "Memoria en espera liberada.";
+      logConsole(summary);
       showToast({
-        icon: "⚡",
-        title: "Memoria RAM Optimizada",
-        message: `¡Excelente! Se liberaron ${freed} MB de memoria en espera para tus juegos y programas.`,
+        icon: "check",
+        title: "RAM liberada",
+        message: summary,
         type: "success"
       });
-      if (textEl) textEl.textContent = `✨ ¡${freed} MB Liberados!`;
-      if (iconEl) iconEl.textContent = "✅";
-      if (miniText) miniText.textContent = `+${freed} MB`;
-      if (miniIcon) miniIcon.textContent = "✅";
-      if (feedbackEl) {
-        feedbackEl.textContent = `✨ ¡Excelente! Se liberaron ${freed} MB de memoria en espera para tus juegos.`;
-      }
+      const shortLabel = freed !== null ? `${freed} MB liberados` : "Liberada";
+      if (textEl) textEl.textContent = shortLabel;
+      if (iconEl) iconEl.innerHTML = ic("check");
+      if (miniText) miniText.textContent = shortLabel;
+      if (miniIcon) miniIcon.innerHTML = ic("check");
+      if (feedbackEl) feedbackEl.textContent = summary;
       setTimeout(updateTelemetry, 400);
       refreshTopProcesses();
 
       setTimeout(() => {
-        if (textEl) textEl.textContent = "Optimizar Memoria RAM";
-        if (iconEl) iconEl.textContent = "⚡";
-        if (miniText) miniText.textContent = "Optimizar";
-        if (miniIcon) miniIcon.textContent = "⚡";
+        if (textEl) textEl.textContent = "Liberar RAM";
+        if (iconEl) iconEl.innerHTML = ic("zap");
+        if (miniText) miniText.textContent = "Liberar RAM";
+        if (miniIcon) miniIcon.innerHTML = ic("zap");
       }, 3500);
+    } else {
+      logConsole(`No se pudo liberar la RAM (error ${res.status}).`);
+      if (textEl) textEl.textContent = "Liberar RAM";
+      if (miniText) miniText.textContent = "Liberar RAM";
     }
   } catch (err) {
-    logConsole(`Error al optimizar memoria: ${err.message}`);
-    if (textEl) textEl.textContent = "Optimizar Memoria RAM";
-    if (miniText) miniText.textContent = "Optimizar";
+    logConsole(`Error al liberar la RAM: ${err.message}`);
+    if (textEl) textEl.textContent = "Liberar RAM";
+    if (miniText) miniText.textContent = "Liberar RAM";
   } finally {
     if (btn) btn.disabled = false;
     if (btnMini) btnMini.disabled = false;
@@ -806,7 +1210,7 @@ function toggleLatency() {
   const btn = document.getElementById("btn-latency");
   if (btn) {
     btn.classList.toggle("active", latencyTweakActive);
-    btn.textContent = latencyTweakActive ? "LATENCIA 1ms: ON" : "LATENCIA 1ms: OFF";
+    btn.textContent = latencyTweakActive ? "Latencia 1 ms: sí" : "Latencia 1 ms: no";
   }
   logConsole(`Resolución de temporizador del sistema: ${latencyTweakActive ? "1.0ms (Baja Latencia Activa)" : "15.6ms (Estándar Windows)"}`);
 }
@@ -816,9 +1220,10 @@ function toggleAutoTurboSafety() {
   const btn = document.getElementById("btn-auto-turbo");
   if (btn) {
     btn.classList.toggle("active", autoTurboSafety);
-    btn.textContent = autoTurboSafety ? "PROTECCIÓN: ACTIVA" : "PROTECCIÓN: INACTIVA";
+    btn.textContent = autoTurboSafety ? "Protección: activa" : "Protección: inactiva";
   }
-  logConsole(`Protección térmica (>75°C): ${autoTurboSafety ? "ACTIVADA" : "DESACTIVADA"}.`);
+  logConsole(`Protección térmica ${autoTurboSafety ? "activada" : "desactivada"}.`);
+  if (!autoTurboSafety && thermalProtectionEngaged) { thermalProtectionEngaged = false; triggerFan("auto"); }
 }
 
 // -------------------------------------------------------------
@@ -839,7 +1244,7 @@ function updateAutostartBtn() {
   const btn = document.getElementById("btn-autostart");
   if (btn) {
     btn.classList.toggle("active", autostartEnabled);
-    btn.textContent = autostartEnabled ? "AUTO-INICIO: ON" : "AUTO-INICIO: OFF";
+    btn.textContent = autostartEnabled ? "Inicio automático: sí" : "Inicio automático: no";
   }
 }
 
@@ -856,7 +1261,7 @@ async function toggleAutostart() {
       const d = await res.json();
       autostartEnabled = !!d.enabled;
       updateAutostartBtn();
-      logConsole(autostartEnabled ? "✅ VortexCore Hub iniciará minimizado en la bandeja al encender Windows." : "❌ Auto-inicio con Windows desactivado.");
+      logConsole(autostartEnabled ? "VortexCore Hub iniciará minimizado en la bandeja al encender Windows." : "Auto-inicio con Windows desactivado.");
     }
   } catch (err) {
     logConsole(`Error en auto-inicio: ${err.message}`);
@@ -940,7 +1345,7 @@ function setEqEnabled(enable) {
 
     if (btn) {
       btn.className = "toggle-pill eq-off";
-      btn.textContent = "⚪ EQ DESACTIVADO (MODO NORMAL)";
+      btn.textContent = "Ecualizador desactivado";
     }
     if (badge) {
       badge.textContent = "Estado: DESACTIVADO (Modo Normal / Bypass)";
@@ -960,11 +1365,11 @@ function setEqEnabled(enable) {
       });
     }
 
-    logConsole("⚪ Ecualizador DESACTIVADO. Sonido normal original de fábrica restaurado (Modo Bypass).");
+    logConsole("Ecualizador DESACTIVADO. Sonido normal original de fábrica restaurado (Modo Bypass).");
   } else {
     if (btn) {
       btn.className = "toggle-pill active";
-      btn.textContent = "🟢 EQ ACTIVADO";
+      btn.textContent = "Ecualizador activado";
     }
     if (badge) badge.classList.remove("muted-badge");
     if (wrapper) wrapper.classList.remove("eq-bypassed");
@@ -984,7 +1389,7 @@ function setEqEnabled(enable) {
       if (badge) badge.textContent = `Preset Activo: Personalizado`;
     }
 
-    logConsole("🟢 Ecualizador ACTIVADO. Perfil acústico en funcionamiento.");
+    logConsole("Ecualizador ACTIVADO. Perfil acústico en funcionamiento.");
   }
 
   sendEqToBackend();
@@ -1024,7 +1429,7 @@ function applyAudioPreset(presetKey) {
     const badge = document.getElementById("eq-current-preset-label");
     if (btn) {
       btn.className = "toggle-pill active";
-      btn.textContent = "🟢 EQ ACTIVADO";
+      btn.textContent = "Ecualizador activado";
     }
     if (badge) badge.classList.remove("muted-badge");
     if (wrapper) wrapper.classList.remove("eq-bypassed");
@@ -1070,7 +1475,7 @@ function updateEqBand(idx, val) {
     const badge = document.getElementById("eq-current-preset-label");
     if (btn) {
       btn.className = "toggle-pill active";
-      btn.textContent = "🟢 EQ ACTIVADO";
+      btn.textContent = "Ecualizador activado";
     }
     if (badge) badge.classList.remove("muted-badge");
     if (wrapper) wrapper.classList.remove("eq-bypassed");
@@ -1109,7 +1514,7 @@ async function sendEqToBackend() {
 }
 
 // -------------------------------------------------------------
-// SINTETIZADOR DE PRUEBA EN VIVO (RITMO, GRAVES Y PASOS TÁCTICOS)
+// SINTETIZADOR DE PRUEBA EN VIVO (RITMO, GRAVES Y PASOS)
 // -------------------------------------------------------------
 function toggleAudioTest() {
   initWebAudioEngine();
@@ -1125,9 +1530,9 @@ function toggleAudioTest() {
     clearInterval(synthBeatInterval);
     synthBeatInterval = null;
     isAudioTestPlaying = false;
-    if (btn) btn.textContent = "▶️ Reproducir Prueba en Vivo";
+    if (btn) btn.innerHTML = `${ic("play")}<span>Reproducir prueba</span>`;
     if (statusLbl) {
-      statusLbl.textContent = "⚪ Audio en reposo";
+      statusLbl.textContent = "En pausa";
       statusLbl.classList.remove("playing");
     }
     logConsole("Monitor de prueba de audio detenido.");
@@ -1136,13 +1541,13 @@ function toggleAudioTest() {
 
   // Iniciar reproducción
   isAudioTestPlaying = true;
-  if (btn) btn.textContent = "⏹️ Detener Prueba";
+  if (btn) btn.innerHTML = `${ic("stop")}<span>Detener</span>`;
   if (statusLbl) {
-    statusLbl.textContent = "🟢 Reproduciendo Pista de Prueba (Filtros en Vivo)";
+    statusLbl.textContent = "Reproduciendo";
     statusLbl.classList.add("playing");
   }
 
-  logConsole("🎧 Reproduciendo señal de prueba. Mueve los sliders para escuchar el cambio en tiempo real.");
+  logConsole("Reproduciendo señal de prueba. Mueve los sliders para escuchar el cambio en tiempo real.");
 
   let step = 0;
   const playStep = () => {
@@ -1164,7 +1569,7 @@ function toggleAudioTest() {
       osc.stop(now + 0.29);
     }
 
-    // 2. Ruido táctico de pisadas / recarga (pasos 1 y 3) -> Sensible a 2kHz - 6kHz (FPS Pasos)
+    // 2. Ruido de pisadas / recarga (pasos 1 y 3) -> Sensible a 2kHz - 6kHz (FPS Pasos)
     if (step % 2 === 1) {
       const noiseBuffer = webAudioCtx.createBuffer(1, webAudioCtx.sampleRate * 0.08, webAudioCtx.sampleRate);
       const output = noiseBuffer.getChannelData(0);
@@ -1219,6 +1624,65 @@ async function openSoundSettings() {
   }
 }
 
+async function refreshApoStatus() {
+  const pill = document.getElementById("apo-status-pill");
+  const cfgBtn = document.getElementById("btn-apo-configurator");
+  if (!pill) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/apo_status`);
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d.installed) {
+      pill.textContent = "● Instalado";
+      pill.className = "apo-status-pill ok";
+      if (cfgBtn) cfgBtn.disabled = !d.configurator_exists;
+    } else {
+      pill.textContent = "No instalado";
+      pill.className = "apo-status-pill missing";
+      if (cfgBtn) cfgBtn.disabled = true;
+    }
+  } catch (e) {}
+}
+
+async function openApoAction(action) {
+  try {
+    const res = await fetch(`${API_BASE}/api/open_apo_setup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    if (res.ok) {
+      if (action === "download") {
+        showToast({
+          icon: "globe",
+          title: "Descarga de Equalizer APO",
+          message: "Se abrió la página oficial en tu navegador. Instálalo, abre Configurator, marca tus auriculares y reinicia si lo pide.",
+          type: "info",
+          duration: 5500
+        });
+      } else if (action === "configurator") {
+        showToast({
+          icon: "sliders",
+          title: "Configurator abierto",
+          message: "Marca tu dispositivo de salida en Playback devices, pulsa OK y reinicia Windows si te lo solicita.",
+          type: "info",
+          duration: 5000
+        });
+      }
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast({
+        icon: "alert",
+        title: "Equalizer APO no encontrado",
+        message: err.message || "Descarga e instala Equalizer APO primero.",
+        type: "warning"
+      });
+    }
+  } catch (e) {
+    logConsole("Error al ejecutar acción de Equalizer APO.");
+  }
+}
+
 async function syncEqualizerAPO() {
   logConsole("Exportando curva de 10 bandas a Equalizer APO...");
   try {
@@ -1226,20 +1690,34 @@ async function syncEqualizerAPO() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bands: currentEqBands,
-        preset: activePresetKey,
-        bass_boost: extraBassBoostActive,
-        voice_clarity: voiceClarityActive
+        enabled: isEqEnabled,
+        bands: isEqEnabled ? currentEqBands : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        preset: isEqEnabled ? activePresetKey : "flat",
+        bass_boost: isEqEnabled ? extraBassBoostActive : false,
+        voice_clarity: isEqEnabled ? voiceClarityActive : false
       })
     });
     if (res.ok) {
       const d = await res.json();
+      refreshApoStatus();
       if (d.apo_synced) {
-        logConsole("✅ Curva sincronizada en vivo con Equalizer APO (`config.txt`).");
-        alert("¡Curva exportada con éxito a Equalizer APO!\nTus juegos y Windows ahora aplican esta ecualización en vivo.");
+        logConsole("Curva sincronizada en vivo con Equalizer APO (config.txt).");
+        showToast({
+          icon: "check-circle",
+          title: "Curva aplicada en Equalizer APO",
+          message: "Se actualizó config.txt. Si es la primera vez que lo instalas, recuerda marcar tus auriculares en Configurator.",
+          type: "success",
+          duration: 4500
+        });
       } else {
-        logConsole("⚠️ Curva guardada en VortexCore Hub. (Equalizer APO no detectado en C:\\Program Files\\EqualizerAPO).");
-        alert("Curva guardada. Si deseas que los sliders cambien el audio de tus juegos en todo el sistema sin tocar nada más, puedes instalar Equalizer APO y VortexCore lo sincronizará en tiempo real.");
+        logConsole("Equalizer APO no detectado en C:\\Program Files\\EqualizerAPO.");
+        showToast({
+          icon: "alert",
+          title: "Falta instalar Equalizer APO",
+          message: "Tu curva se guardó aquí, pero para aplicarla en juegos debes descargar Equalizer APO, marcar tus auriculares en Configurator y volver a pulsar Aplicar.",
+          type: "warning",
+          duration: 6000
+        });
       }
     }
   } catch (err) {
@@ -1256,20 +1734,20 @@ function toggleAudioEnhance(type) {
   if (type === 'bass') {
     extraBassBoostActive = !extraBassBoostActive;
     btn.classList.toggle("active", extraBassBoostActive);
-    btn.textContent = extraBassBoostActive ? "ACTIVO (+4dB)" : "DESACTIVADO";
+    btn.textContent = extraBassBoostActive ? "Activo (+4 dB)" : "Desactivado";
     updateDspFilterGain(0, currentEqBands[0]);
     updateDspFilterGain(1, currentEqBands[1]);
     logConsole(`Realce de graves (Bass Boost): ${extraBassBoostActive ? "ACTIVADO (+4dB en sub)" : "DESACTIVADO"}.`);
   } else if (type === 'voice') {
     voiceClarityActive = !voiceClarityActive;
     btn.classList.toggle("active", voiceClarityActive);
-    btn.textContent = voiceClarityActive ? "ACTIVO" : "DESACTIVADO";
+    btn.textContent = voiceClarityActive ? "Activo" : "Desactivado";
     updateDspFilterGain(5, currentEqBands[5]);
     updateDspFilterGain(6, currentEqBands[6]);
     logConsole(`Claridad vocal: ${voiceClarityActive ? "ACTIVADA" : "DESACTIVADA"}.`);
   } else if (type === 'loudness') {
     const active = btn.classList.toggle("active");
-    btn.textContent = active ? "ACTIVO (Compresión)" : "DESACTIVADO";
+    btn.textContent = active ? "Activo (compresión)" : "Desactivado";
     logConsole(active 
       ? "Loudness EQ: Para activar la compresión de pasos en todo el sistema, marca 'Loudness Equalization' en las propiedades de Windows." 
       : "Loudness EQ desactivado."
@@ -1300,15 +1778,12 @@ function markAudioInteraction() {
 
 function getAppIcon(name) {
   const n = (name || "").toLowerCase();
-  if (n.includes("spotify")) return "🎵";
-  if (n.includes("discord")) return "💬";
-  if (n.includes("chrome")) return "🌐";
-  if (n.includes("brave")) return "🦁";
-  if (n.includes("edge")) return "🌊";
-  if (n.includes("firefox")) return "🦊";
-  if (n.includes("steam") || n.includes("cs2") || n.includes("valorant") || n.includes("game")) return "🎮";
-  if (n.includes("sistema") || n.includes("system")) return "🔔";
-  return "🔊";
+  if (n.includes("spotify") || n.includes("music") || n.includes("música")) return "music";
+  if (n.includes("discord") || n.includes("teams") || n.includes("whatsapp")) return "message";
+  if (["chrome", "brave", "edge", "firefox", "opera"].some(b => n.includes(b))) return "globe";
+  if (n.includes("steam") || n.includes("cs2") || n.includes("valorant") || n.includes("game")) return "gamepad";
+  if (n.includes("sistema") || n.includes("system")) return "bell";
+  return "volume";
 }
 
 function getAppDisplayName(rawName, defaultDisp) {
@@ -1329,7 +1804,8 @@ async function refreshAudioMixer() {
     // 1. Master Volume
     if (data.master && !isUserInteractingWithAudio) {
       currentMasterMuted = !!data.master.muted;
-      currentMasterVolume = data.master.volume ?? 50;
+      const masterKnown = hasNum(data.master.volume);
+      if (masterKnown) currentMasterVolume = data.master.volume;
 
       const slider = document.getElementById("master-volume-slider");
       const valText = document.getElementById("master-vol-text");
@@ -1337,8 +1813,8 @@ async function refreshAudioMixer() {
       const icon = document.getElementById("master-vol-icon");
       const devLbl = document.getElementById("master-device-label");
 
-      if (slider) slider.value = currentMasterVolume;
-      if (valText) valText.textContent = `${currentMasterVolume}%`;
+      if (slider && masterKnown) slider.value = currentMasterVolume;
+      if (valText) valText.textContent = masterKnown ? `${currentMasterVolume}%` : ND;
       if (devLbl && data.master.device_name) {
         devLbl.textContent = data.master.device_name;
         const heroDevice = document.getElementById("active-audio-device-name");
@@ -1346,10 +1822,10 @@ async function refreshAudioMixer() {
       }
       if (muteBtn) {
         muteBtn.classList.toggle("muted", currentMasterMuted);
-        muteBtn.textContent = currentMasterMuted ? "🔇" : "🔊";
+        muteBtn.innerHTML = ic(currentMasterMuted ? "volume-x" : "volume");
       }
       if (icon) {
-        icon.textContent = currentMasterMuted ? "🔇" : "🔊";
+        icon.innerHTML = ic(currentMasterMuted ? "volume-x" : "volume");
       }
     }
 
@@ -1378,11 +1854,11 @@ async function refreshAudioMixer() {
         <div class="app-volume-card" id="avc-card-${app.pid}">
           <div class="avc-header">
             <div class="avc-title-box">
-              <span class="avc-icon">${icon}</span>
+              <span class="avc-icon">${ic(icon)}</span>
               <span class="avc-name" title="${app.name} (PID: ${app.pid})">${disp}</span>
             </div>
             <button class="et-mute-btn ${isMuted ? 'muted' : ''}" id="avc-mute-${app.pid}" onclick="toggleAppMute(${app.pid}, '${cleanName}', ${isMuted})" title="Silenciar / Activar">
-              ${isMuted ? '🔇' : '🔊'}
+              ${ic(isMuted ? "volume-x" : "volume")}
             </button>
           </div>
           <div class="avc-slider-wrap">
@@ -1409,10 +1885,10 @@ function onMasterVolumeInput(val) {
   const masterIcon = document.getElementById("master-vol-icon");
   if (num === 0) {
     if (muteBtn) muteBtn.classList.add("muted");
-    if (masterIcon) masterIcon.textContent = "🔇";
+    if (masterIcon) masterIcon.innerHTML = ic("volume-x");
   } else if (!currentMasterMuted) {
     if (muteBtn) muteBtn.classList.remove("muted");
-    if (masterIcon) masterIcon.textContent = "🔊";
+    if (masterIcon) masterIcon.innerHTML = ic("volume");
   }
 
   clearTimeout(masterDebounceTimer);
@@ -1435,10 +1911,10 @@ async function toggleMasterMute() {
   const masterIcon = document.getElementById("master-vol-icon");
   if (muteBtn) {
     muteBtn.classList.toggle("muted", currentMasterMuted);
-    muteBtn.textContent = currentMasterMuted ? "🔇" : "🔊";
+    muteBtn.innerHTML = ic(currentMasterMuted ? "volume-x" : "volume");
   }
   if (masterIcon) {
-    masterIcon.textContent = currentMasterMuted ? "🔇" : "🔊";
+    masterIcon.innerHTML = ic(currentMasterMuted ? "volume-x" : "volume");
   }
 
   try {
@@ -1476,7 +1952,7 @@ async function toggleAppMute(pid, name, currentMuted) {
   const btn = document.getElementById(`avc-mute-${pid}`);
   if (btn) {
     btn.classList.toggle("muted", newMuted);
-    btn.textContent = newMuted ? "🔇" : "🔊";
+    btn.innerHTML = ic(newMuted ? "volume-x" : "volume");
     btn.setAttribute("onclick", `toggleAppMute(${pid}, '${name}', ${newMuted})`);
   }
 
@@ -1497,48 +1973,54 @@ async function runHardwareDiagnosis() {
   const scanText = document.getElementById("scan-text");
   const scanIcon = document.getElementById("scan-icon");
   if (scanBtn) scanBtn.disabled = true;
-  if (scanText) scanText.textContent = "Escaneando silicio y gobernadores...";
-  if (scanIcon) scanIcon.textContent = "⏳";
-  logConsole("🔍 Ejecutando auditoría táctica de silicio, temperaturas y RAM...");
+  if (scanText) scanText.textContent = "Analizando...";
+  if (scanIcon) scanIcon.innerHTML = ic("loader", "spin");
+  logConsole("Analizando temperaturas, CPU, memoria RAM y batería...");
+  loadBatteryHealth();
 
   try {
     const res = await fetch(`${API_BASE}/api/hardware_diagnose`);
     if (res.ok) {
       const data = await res.json();
       
-      const scoreEl = document.getElementById("intel-health-score");
-      if (scoreEl) scoreEl.textContent = data.health_score;
-      const condBadge = document.getElementById("intel-condition-badge");
-      if (condBadge) {
-        condBadge.textContent = `● HARDWARE EN CONDICIÓN ${data.condition}`;
-        condBadge.className = `ih-badge ${data.health_score >= 85 ? 'green' : data.health_score >= 70 ? 'orange' : 'red'}`;
-      }
-
+      // El anillo y el estado se actualizan con la telemetría en vivo; aquí solo las recomendaciones
+      const recs = data.recommendations || [];
       const adviceList = document.getElementById("advice-list");
-      if (adviceList && data.recommendations) {
-        adviceList.innerHTML = data.recommendations.map(r => `
-          <li style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 6px;">
-            <div>
-              <strong>${r.title}:</strong>
-              <span style="color: var(--text-secondary);">${r.desc}</span>
+      if (adviceList) {
+        adviceList.innerHTML = recs.length === 0
+          ? `<li class="advice-empty advice-ok">${ic("check-circle")}<span><strong>Todo en orden.</strong> No hay nada que ajustar ahora mismo.</span></li>`
+          : recs.map(r => `
+          <li class="advice-item impact-${escapeHtml(String(r.impact || "").toLowerCase())}">
+            <span class="advice-icon">${ic(r.action === "clean_ram" ? "memory" : "thermometer")}</span>
+            <div class="advice-text">
+              <strong>${escapeHtml(r.title)}</strong>
+              <span>${escapeHtml(r.desc)}</span>
             </div>
-            <button class="clean-btn mini ${r.impact === 'Alto' ? 'primary' : 'outline'}" onclick="applySingleRecommendation('${r.action}')">
-              ⚡ Aplicar
-            </button>
-          </li>
-        `).join("");
+            <button class="clean-btn mini ${r.impact === "Alto" ? "primary" : ""}" onclick="applySingleRecommendation('${escapeHtml(r.action)}')">Aplicar</button>
+          </li>`).join("");
+      }
+      const applyAll = document.getElementById("btn-diag-apply");
+      if (applyAll) applyAll.dataset.ready = recs.length > 0 ? "1" : "";
+
+      const diagDesc = document.getElementById("intel-diag-desc");
+      if (diagDesc) {
+        diagDesc.textContent = recs.length === 0
+          ? "Análisis terminado: el equipo está en buen estado."
+          : `Análisis terminado: ${recs.length === 1 ? "hay 1 recomendación" : `hay ${recs.length} recomendaciones`} abajo.`;
       }
 
-      logConsole(`✅ Diagnóstico finalizado: Salud de silicio calificada al ${data.health_score}%.`);
-      if (scanText) scanText.textContent = "🔍 Re-Analizar Hardware";
-      if (scanIcon) scanIcon.textContent = "✅";
+      logConsole(`Diagnóstico terminado: salud del equipo ${data.health_score}%.`);
+      if (scanText) scanText.textContent = "Analizar de nuevo";
+      if (scanIcon) scanIcon.innerHTML = ic("refresh");
     }
   } catch (err) {
     logConsole(`Error al ejecutar diagnóstico: ${err.message}`);
-    if (scanText) scanText.textContent = "🔍 Analizar Hardware en Vivo";
-    if (scanIcon) scanIcon.textContent = "🔍";
+    if (scanText) scanText.textContent = "Analizar ahora";
+    if (scanIcon) scanIcon.innerHTML = ic("search");
   } finally {
     if (scanBtn) scanBtn.disabled = false;
+    const applyAll = document.getElementById("btn-diag-apply");
+    if (applyAll) applyAll.disabled = applyAll.dataset.ready !== "1";
   }
 }
 
@@ -1547,23 +2029,24 @@ async function applyHardwareOptimizations() {
   const applyText = document.getElementById("apply-text");
   if (applyBtn) applyBtn.disabled = true;
   if (applyText) applyText.textContent = "Aplicando optimizaciones...";
-  logConsole("⚡ Aplicando perfiles de silicio recomendados y optimizando memoria...");
+  logConsole("Aplicando ajustes recomendados y liberando memoria...");
 
   try {
     const res = await fetch(`${API_BASE}/api/hardware_apply_optimizations`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
-      logConsole(`✨ ${data.message || 'Optimizaciones aplicadas exitosamente.'}`);
-      if (applyText) applyText.textContent = "✨ ¡Optimizaciones Aplicadas!";
+      logConsole(data.message || "Recomendaciones aplicadas.");
+      showToast({ icon: "check-circle", title: "Recomendaciones aplicadas", message: data.message || "", type: "success" });
+      if (applyText) applyText.textContent = "Aplicado";
       setTimeout(() => {
-        if (applyText) applyText.textContent = "⚡ Aplicar Cambios Sugeridos";
+        if (applyText) applyText.textContent = "Aplicar recomendaciones";
       }, 3000);
       setTimeout(updateTelemetry, 400);
       setTimeout(runHardwareDiagnosis, 800);
     }
   } catch (err) {
     logConsole(`Error al aplicar optimizaciones: ${err.message}`);
-    if (applyText) applyText.textContent = "⚡ Aplicar Cambios Sugeridos";
+    if (applyText) applyText.textContent = "Aplicar recomendaciones";
   } finally {
     if (applyBtn) applyBtn.disabled = false;
   }
@@ -1574,11 +2057,79 @@ async function applySingleRecommendation(action) {
     purgeMemory();
   } else if (action === "limit_cpu") {
     setCpuLimit(95);
-    logConsole("⚡ Límite térmico de CPU fijado al 95%.");
-  } else if (action === "set_timer") {
-    logConsole("⚡ Temporizador kernel sincronizado a 1.0 ms.");
+    logConsole("CPU limitada al 95%.");
   }
   setTimeout(runHardwareDiagnosis, 600);
+}
+
+// -------------------------------------------------------------
+// 10.1 SALUD REAL DE LA BATERÍA (WEAR LEVEL & CICLOS)
+// -------------------------------------------------------------
+async function loadBatteryHealth() {
+  const pill = document.getElementById("bh-condition-pill");
+  const subEl = document.getElementById("bh-subtitle");
+  const healthEl = document.getElementById("bh-health-pct");
+  const wearEl = document.getElementById("bh-wear-pct");
+  const cyclesEl = document.getElementById("bh-cycles");
+  const capEl = document.getElementById("bh-capacity");
+  const fillEl = document.getElementById("bh-bar-fill");
+  if (!pill) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/battery_health`);
+    if (!res.ok) {
+      pill.textContent = res.status === 404 ? "Reiniciar app" : ND;
+      if (subEl && res.status === 404) {
+        subEl.textContent = "Cierra VortexCore Hub desde la bandeja del sistema (Salir) y ábrelo de nuevo para activar el lector de batería.";
+      }
+      return;
+    }
+    const d = await res.json();
+
+    if (!d.present) {
+      pill.textContent = "Sin batería";
+      pill.className = "ic-status";
+      if (subEl) subEl.textContent = "Equipo de sobremesa o sin batería interna expuesta por Windows.";
+      if (healthEl) healthEl.textContent = ND;
+      if (wearEl) wearEl.textContent = ND;
+      if (cyclesEl) cyclesEl.textContent = ND;
+      if (capEl) capEl.textContent = ND;
+      if (fillEl) {
+        fillEl.style.width = "0%";
+        fillEl.className = "bh-bar-fill";
+      }
+      return;
+    }
+
+    const hp = hasNum(d.health_pct) ? d.health_pct : null;
+    const wp = hasNum(d.wear_pct) ? d.wear_pct : null;
+    const cls = hp === null ? "" : hp >= 80 ? "green" : hp >= 60 ? "orange" : "red";
+
+    pill.textContent = d.condition || "Detectada";
+    pill.className = `ic-status ${cls}`;
+
+    const metaParts = [d.manufacturer, d.chemistry].filter(Boolean);
+    if (subEl) {
+      subEl.textContent = metaParts.length
+        ? `Batería ${metaParts.join(" · ")} · Datos reales de firmware ACPI`
+        : "Capacidad y desgaste reales informados por el firmware ACPI";
+    }
+
+    if (healthEl) healthEl.textContent = hp !== null ? `${hp}%` : ND;
+    if (wearEl) wearEl.textContent = wp !== null ? `${wp}%` : ND;
+    if (cyclesEl) cyclesEl.textContent = hasNum(d.cycle_count) ? `${d.cycle_count}` : ND;
+    if (capEl) {
+      const f = hasNum(d.full_charged_mwh) ? d.full_charged_mwh.toLocaleString() : ND;
+      const deg = hasNum(d.design_mwh) ? d.design_mwh.toLocaleString() : ND;
+      capEl.textContent = (f !== ND || deg !== ND) ? `${f} / ${deg} mWh` : ND;
+    }
+    if (fillEl) {
+      fillEl.style.width = `${hp !== null ? Math.min(100, Math.max(0, hp)) : 0}%`;
+      fillEl.className = `bh-bar-fill ${cls === "orange" ? "orange" : cls === "red" ? "red" : ""}`;
+    }
+  } catch (e) {
+    pill.textContent = ND;
+  }
 }
 
 // -------------------------------------------------------------
@@ -1609,12 +2160,12 @@ async function loadStartupApps() {
 
     container.innerHTML = apps.map((app, idx) => `
       <div class="startup-item-card ${app.enabled ? 'enabled' : 'disabled'}" id="startup-card-${idx}">
-        <div class="sic-icon">🚀</div>
+        <div class="sic-icon" aria-hidden="true">${escapeHtml((app.name || "?").trim().charAt(0).toUpperCase())}</div>
         <div class="sic-info">
           <div class="sic-header">
             <strong class="sic-name">${escapeHtml(app.name)}</strong>
-            <span class="sic-scope-pill ${app.scope}">${app.scope === 'system' ? 'Sistema' : 'Usuario'}</span>
-            <span class="sic-impact-pill ${app.impact.toLowerCase()}" id="startup-impact-${idx}">${app.impact}</span>
+            <span class="sic-scope-pill ${app.scope}" title="${app.scope === 'system' ? 'Se abre para todos los usuarios del equipo' : 'Se abre solo en tu usuario'}">${app.scope === 'system' ? 'Todos los usuarios' : 'Tu usuario'}</span>
+            <span class="sic-impact-pill ${app.enabled ? "on" : "off"}" id="startup-impact-${idx}">${app.enabled ? "Se abre al iniciar" : "Desactivado"}</span>
           </div>
           <div class="sic-cmd" title="${escapeHtml(app.command)}">${escapeHtml(app.command)}</div>
         </div>
@@ -1650,9 +2201,8 @@ async function toggleStartup(name, scope, enable, idx, checkboxEl) {
     card.classList.toggle("disabled", !enable);
   }
   if (impactEl) {
-    const newImpact = enable ? "Medio" : "Deshabilitado";
-    impactEl.textContent = newImpact;
-    impactEl.className = `sic-impact-pill ${newImpact.toLowerCase()}`;
+    impactEl.textContent = enable ? "Se abre al iniciar" : "Desactivado";
+    impactEl.className = `sic-impact-pill ${enable ? "on" : "off"}`;
   }
 
   logConsole(`${enable ? 'Habilitando' : 'Deshabilitando'} inicio automático de: ${name}...`);
@@ -1664,10 +2214,10 @@ async function toggleStartup(name, scope, enable, idx, checkboxEl) {
     });
     const out = await res.json();
     if (res.ok && out.status === "ok") {
-      logConsole(`✅ Aplicación "${name}" ${enable ? 'habilitada' : 'deshabilitada'} en el inicio de Windows.`);
+      logConsole(`Aplicación "${name}" ${enable ? 'habilitada' : 'deshabilitada'} en el inicio de Windows.`);
     } else {
       if (checkboxEl) checkboxEl.checked = !enable;
-      logConsole(`⚠️ No se pudo cambiar "${name}". Ejecuta VortexCore Hub como Administrador.`);
+      logConsole(`No se pudo cambiar "${name}". Ejecuta VortexCore Hub como Administrador.`);
       setTimeout(loadStartupApps, 400);
     }
   } catch (err) {
@@ -1677,7 +2227,104 @@ async function toggleStartup(name, scope, enable, idx, checkboxEl) {
 }
 
 // -------------------------------------------------------------
-// 12. WINDOWS DEBLOATER (MICROSOFT EDGE TOTALMENTE PROTEGIDO)
+// 12. LIMPIADOR DE ESPACIO REAL (TEMPORALES + CACHÉ DE SHADERS)
+// -------------------------------------------------------------
+function formatBytesMb(mb) {
+  if (!hasNum(mb)) return "0 MB";
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${mb.toFixed(1)} MB`;
+}
+
+function updateCleanupSelection() {
+  const checked = document.querySelectorAll(".cleanup-chk:checked").length;
+  const btn = document.getElementById("btn-run-cleanup");
+  if (!btn) return;
+  btn.disabled = checked === 0;
+  const span = btn.querySelector("span");
+  if (span) span.textContent = checked > 0 ? `Limpiar seleccionadas (${checked})` : "Limpiar seleccionadas";
+}
+
+async function scanDiskCleanup() {
+  const container = document.getElementById("cleanup-items-container");
+  const totalBadge = document.getElementById("cleanup-total-badge");
+  if (!container) return;
+
+  container.innerHTML = `<div class="dev-item-loading">Calculando tamaño real de archivos temporales y caché de shaders...</div>`;
+  if (totalBadge) totalBadge.textContent = "Escaneando...";
+
+  try {
+    const res = await fetch(`${API_BASE}/api/cleanup/scan`);
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error("El servicio activo en segundo plano es de una versión anterior. Haz clic derecho en el icono de la bandeja -> Salir y vuelve a abrir VortexCore Hub.");
+      }
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Error HTTP ${res.status} al escanear espacio`);
+    }
+    const data = await res.json();
+    const items = data.items || [];
+
+    if (totalBadge) {
+      totalBadge.textContent = `Recuperable: ${formatBytesMb(data.total_mb || 0)}`;
+    }
+
+    container.innerHTML = items.map(it => `
+      <label class="cleanup-item-card">
+        <input type="checkbox" class="cleanup-chk" value="${escapeHtml(it.id)}" ${it.default_checked && it.bytes > 0 ? "checked" : ""}>
+        <div class="cic-info">
+          <div class="cic-head">
+            <strong>${escapeHtml(it.name)}</strong>
+            <span class="cic-size">${formatBytesMb(it.mb)} · ${it.files} arch.</span>
+          </div>
+          <span class="cic-desc">${escapeHtml(it.desc)}</span>
+        </div>
+      </label>
+    `).join("");
+
+    container.querySelectorAll(".cleanup-chk").forEach(chk => chk.addEventListener("change", updateCleanupSelection));
+    updateCleanupSelection();
+  } catch (err) {
+    container.innerHTML = `<div class="dev-item-loading" style="color: var(--accent-red);">Error al escanear: ${err.message}</div>`;
+  }
+}
+
+async function runDiskCleanup() {
+  const targets = Array.from(document.querySelectorAll(".cleanup-chk:checked")).map(c => c.value);
+  if (targets.length === 0) return;
+
+  const btn = document.getElementById("btn-run-cleanup");
+  if (btn) btn.disabled = true;
+  logConsole("Limpiando archivos temporales y caché gráfica seleccionada...");
+
+  try {
+    const res = await fetch(`${API_BASE}/api/cleanup/clean`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const freedTxt = formatBytesMb(data.freed_mb || 0);
+      const lockedNote = data.skipped_locked > 0 ? ` (${data.skipped_locked} en uso omitidos)` : "";
+      logConsole(`Limpieza completada: ${freedTxt} liberados en ${data.removed_files || 0} archivos.${lockedNote}`);
+      showToast({
+        icon: "zap",
+        title: `Espacio liberado: ${freedTxt}`,
+        message: `Se eliminaron ${data.removed_files || 0} archivos innecesarios.${lockedNote}`,
+        type: "success",
+        duration: 4500
+      });
+      await scanDiskCleanup();
+    }
+  } catch (err) {
+    logConsole(`Error al limpiar espacio: ${err.message}`);
+  } finally {
+    updateCleanupSelection();
+  }
+}
+
+// -------------------------------------------------------------
+// 13. WINDOWS DEBLOATER (MICROSOFT EDGE TOTALMENTE PROTEGIDO)
 // -------------------------------------------------------------
 let debloatCatalogCache = [];
 
@@ -1694,34 +2341,51 @@ async function loadDebloatApps() {
     const data = await res.json();
     debloatCatalogCache = data.apps || [];
 
-    const installedCount = debloatCatalogCache.filter(a => a.installed).length;
+    const installed = debloatCatalogCache.filter(a => a.installed);
+    const absent = debloatCatalogCache.filter(a => !a.installed);
     if (statsBadge) {
-      statsBadge.textContent = `${installedCount} paquetes bloatware instalados en tu PC`;
+      statsBadge.textContent = installed.length === 1 ? "1 instalada" : `${installed.length} instaladas`;
     }
 
-    container.innerHTML = debloatCatalogCache.map(app => `
-      <div class="debloat-item-card ${app.installed ? 'installed' : 'not-installed'}">
-        <label class="dic-checkbox-label">
-          <input type="checkbox" class="debloat-chk" value="${app.id}" ${app.installed ? '' : 'disabled'}>
-          <span class="dic-custom-chk"></span>
-        </label>
-        <div class="dic-info">
-          <div class="dic-header">
+    const card = app => `
+      <label class="debloat-item-card ${app.installed ? "installed" : "not-installed"}">
+        ${app.installed
+          ? `<span class="dic-checkbox-label"><input type="checkbox" class="debloat-chk" value="${escapeHtml(app.id)}"><span class="dic-custom-chk"></span></span>`
+          : `<span class="dic-absent-icon" title="No está instalada">${ic("check")}</span>`}
+        <span class="dic-info">
+          <span class="dic-header">
             <strong>${escapeHtml(app.name)}</strong>
-            <span class="dic-cat">${app.category}</span>
-            <span class="dic-size">${app.size}</span>
-            <span class="dic-status ${app.installed ? 'present' : 'clean'}">
-              ${app.installed ? 'Instalada' : 'No presente'}
-            </span>
-          </div>
-          <p class="dic-desc">${escapeHtml(app.desc)}</p>
-          <small class="dic-id">${app.id}</small>
-        </div>
-      </div>
-    `).join("");
+            <span class="dic-cat">${escapeHtml(app.category)}</span>
+            ${app.installed ? `<span class="dic-size">${escapeHtml(app.size)}</span>` : ""}
+          </span>
+          <span class="dic-desc">${escapeHtml(app.desc)}</span>
+        </span>
+      </label>`;
+
+    container.innerHTML = (installed.length
+      ? `<div class="debloat-section-title">Puedes quitar</div><div class="debloat-list">${installed.map(card).join("")}</div>`
+      : `<div class="debloat-empty">${ic("check-circle")}<div><strong>Tu Windows ya está limpio.</strong><span>Ninguna de las aplicaciones de la lista está instalada en este equipo.</span></div></div>`)
+      + (absent.length
+      ? `<details class="debloat-absent"><summary>No instaladas en este equipo (${absent.length})</summary><div class="debloat-list">${absent.map(card).join("")}</div></details>`
+      : "");
+
+    const recBtn = document.querySelector("[onclick='selectRecommendedDebloat()']");
+    if (recBtn) recBtn.disabled = installed.length === 0;
+    container.querySelectorAll(".debloat-chk").forEach(chk => chk.addEventListener("change", updateDebloatSelection));
+    updateDebloatSelection();
   } catch (err) {
     container.innerHTML = `<div class="dev-item-loading" style="color: var(--accent-red);">Error al escanear debloat: ${err.message}</div>`;
   }
+}
+
+// El botón de quitar muestra cuántas hay marcadas y se desactiva si no hay ninguna
+function updateDebloatSelection() {
+  const n = document.querySelectorAll(".debloat-chk:checked").length;
+  const btn = document.getElementById("btn-uninstall-debloat");
+  if (!btn) return;
+  btn.disabled = n === 0;
+  const label = btn.querySelector("span");
+  if (label) label.textContent = n > 0 ? `Quitar seleccionadas (${n})` : "Quitar seleccionadas";
 }
 
 function selectRecommendedDebloat() {
@@ -1736,13 +2400,14 @@ function selectRecommendedDebloat() {
       chk.checked = true;
     }
   });
-  logConsole("✨ Selección recomendada de bloatware aplicada.");
+  updateDebloatSelection();
+  logConsole("Aplicaciones recomendadas marcadas.");
 }
 
 async function uninstallSelectedDebloat() {
   const selected = Array.from(document.querySelectorAll(".debloat-chk:checked")).map(c => c.value);
   if (selected.length === 0) {
-    logConsole("⚠️ Por favor selecciona al menos una aplicación para desinstalar.");
+    logConsole("Por favor selecciona al menos una aplicación para desinstalar.");
     return;
   }
 
@@ -1755,7 +2420,7 @@ async function uninstallSelectedDebloat() {
 
   const btn = document.getElementById("btn-uninstall-debloat");
   if (btn) btn.disabled = true;
-  logConsole(`🗑️ Desinstalando ${safeSelected.length} aplicaciones de Windows...`);
+  logConsole(`Desinstalando ${safeSelected.length} aplicaciones de Windows...`);
 
   try {
     const res = await fetch(`${API_BASE}/api/debloat/remove`, {
@@ -1765,7 +2430,7 @@ async function uninstallSelectedDebloat() {
     });
     if (res.ok) {
       const data = await res.json();
-      logConsole(`✅ Desinstalación finalizada: ${data.removed.length} aplicaciones eliminadas con éxito.`);
+      logConsole(`Desinstalación finalizada: ${data.removed.length} aplicaciones eliminadas con éxito.`);
       setTimeout(loadDebloatApps, 800);
     }
   } catch (err) {
@@ -1776,8 +2441,8 @@ async function uninstallSelectedDebloat() {
 }
 
 function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 // -------------------------------------------------------------
@@ -1802,7 +2467,7 @@ function updateRangeFill(inputEl) {
 }
 
 function initAllManualSliders() {
-  document.querySelectorAll(".ac-tactical-range").forEach(slider => {
+  document.querySelectorAll(".ac-range").forEach(slider => {
     updateRangeFill(slider);
   });
 }
@@ -1961,12 +2626,12 @@ function selectPresetCard(preset) {
   loadManualPreset(preset);
 
   const presetNames = {
-    mode1: "Balance Pro",
+    mode1: "Equilibrado",
     mode2: "eSports Extremo",
     mode3: "Silencio Frío"
   };
   showToast({
-    icon: preset === "mode2" ? "🚀" : preset === "mode3" ? "🍃" : "⚖️",
+    icon: preset === "mode2" ? "rocket" : preset === "mode3" ? "leaf" : "scale",
     title: `Preset ${presetNames[preset] || preset} Seleccionado`,
     message: "Valores óptimos cargados en los deslizadores. Pulsa 'Aplicar' para fijarlos.",
     type: "info"
@@ -1983,13 +2648,13 @@ function applyQuickCurve(type) {
 
   if (type === "quiet") {
     manualCurves[curveKey] = [10, 15, 20, 26, 32, 42, 58, 70];
-    showToast({ icon: "🍃", title: "Curva Silenciosa", message: `Curva acústica de bajo ruido configurada para la ${curveKey.toUpperCase()}.`, type: "info" });
+    showToast({ icon: "leaf", title: "Curva Silenciosa", message: `Curva acústica de bajo ruido configurada para la ${curveKey.toUpperCase()}.`, type: "info" });
   } else if (type === "balanced") {
     manualCurves[curveKey] = [15, 22, 30, 38, 48, 60, 75, 88];
-    showToast({ icon: "⚖️", title: "Curva Balanceada", message: `Curva equilibrada cargada para la ${curveKey.toUpperCase()}.`, type: "info" });
+    showToast({ icon: "scale", title: "Curva Balanceada", message: `Curva equilibrada cargada para la ${curveKey.toUpperCase()}.`, type: "info" });
   } else if (type === "aggressive") {
     manualCurves[curveKey] = [25, 38, 52, 65, 80, 92, 100, 100];
-    showToast({ icon: "🔥", title: "Curva Fría Extrema", message: `Máxima disipación de calor cargada para la ${curveKey.toUpperCase()}.`, type: "warning" });
+    showToast({ icon: "flame", title: "Curva Fría Extrema", message: `Máxima disipación de calor cargada para la ${curveKey.toUpperCase()}.`, type: "warning" });
   }
   renderManualFanCurve();
 }
@@ -2019,7 +2684,7 @@ function loadManualPreset(preset, ignoreSaved = false) {
         if (Array.isArray(p.cpuCurve) && p.cpuCurve.length === 8) manualCurves.cpu = [...p.cpuCurve];
         if (Array.isArray(p.gpuCurve) && p.gpuCurve.length === 8) manualCurves.gpu = [...p.gpuCurve];
         renderManualFanCurve();
-        logConsole(`🎛️ Perfil personalizado "${preset}" cargado desde memoria.`);
+        logConsole(`Perfil personalizado "${preset}" cargado desde memoria.`);
         return;
       }
     } catch (e) {}
@@ -2060,7 +2725,7 @@ function loadManualPreset(preset, ignoreSaved = false) {
     manualCurves.gpu = [15, 22, 30, 38, 45, 55, 65, 75];
   }
   renderManualFanCurve();
-  logConsole(`🎛️ Perfil manual "${preset}" cargado en el editor.`);
+  logConsole(`Perfil manual "${preset}" cargado en el editor.`);
 }
 
 function resetManualModeDefaults() {
@@ -2072,9 +2737,9 @@ function resetManualModeDefaults() {
     localStorage.setItem("vortex_manual_presets_v1", JSON.stringify(savedMap));
   } catch (e) {}
   loadManualPreset(cur, true);
-  logConsole("🔄 Valores predeterminados de fábrica restablecidos en el Modo Manual.");
+  logConsole("Valores predeterminados de fábrica restablecidos en el Modo Manual.");
   showToast({
-    icon: "🔄",
+    icon: "refresh",
     title: "Valores Predeterminados",
     message: "Ajustes de fábrica restablecidos correctamente.",
     type: "info"
@@ -2105,12 +2770,12 @@ function saveManualModeConfig() {
   const saveBtn = document.querySelector(".ac-me-footer-btn.save");
   if (saveBtn) {
     const oldText = saveBtn.textContent;
-    saveBtn.textContent = "✓ Guardado";
+    saveBtn.textContent = "Guardado";
     setTimeout(() => { saveBtn.textContent = oldText; }, 1600);
   }
-  logConsole(`💾 Configuración del perfil "${cur}" guardada permanentemente.`);
+  logConsole(`Configuración del perfil "${cur}" guardada permanentemente.`);
   showToast({
-    icon: "💾",
+    icon: "save",
     title: "Perfil Guardado",
     message: `La calibración personalizada de "${cur}" se guardó en memoria permanente.`,
     type: "success"
@@ -2128,9 +2793,9 @@ async function applyManualModeConfig() {
   const gpuTgp = parseInt(document.getElementById("slider-gpu-tgp")?.value || 115, 10);
 
   const applyBtn = document.querySelector(".ac-me-footer-btn.apply");
-  if (applyBtn) applyBtn.textContent = "⚡ Aplicando...";
+  if (applyBtn) applyBtn.textContent = "Aplicando...";
 
-  logConsole(`⚡ Aplicando Modo Manual: SPL ${spl}W | SPPT ${sppt}W | FPPT ${fppt}W | GPU +${gpuBase}MHz (${gpuTgp}W)...`);
+  logConsole(`Aplicando Modo Manual: SPL ${spl}W | SPPT ${sppt}W | FPPT ${fppt}W | GPU +${gpuBase}MHz (${gpuTgp}W)...`);
   try {
     const res = await fetch(`${API_BASE}/api/manual_mode`, {
       method: "POST",
@@ -2151,14 +2816,14 @@ async function applyManualModeConfig() {
         c.classList.toggle("active", c.dataset.prof === "MANUAL");
       });
       const pChip = document.getElementById("profile-chip");
-      if (pChip) pChip.textContent = "MANUAL";
+      if (pChip) pChip.textContent = PROFILE_NAMES.MANUAL;
       if (applyBtn) {
-        applyBtn.textContent = "✓ Aplicado";
+        applyBtn.textContent = "Aplicado";
         setTimeout(() => { applyBtn.textContent = "Aplicar"; }, 1800);
       }
-      logConsole(`✅ Modo Manual aplicado con éxito (SPL ${spl}W, FPPT ${fppt}W, TGP ${gpuTgp}W y Curva Fan activa).`);
+      logConsole(`Modo Manual aplicado con éxito (SPL ${spl}W, FPPT ${fppt}W, TGP ${gpuTgp}W y Curva Fan activa).`);
       showToast({
-        icon: "✅",
+        icon: "check-circle",
         title: "Modo Manual Activado",
         message: `SPL ${spl}W • TGP ${gpuTgp}W • Curva de refrigeración vinculada en tiempo real.`,
         type: "success"
@@ -2174,7 +2839,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.8.6 listo. Conectando telemetría de silicio...");
+  logConsole("VortexCore Hub v7.8.7 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");

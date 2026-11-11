@@ -3,26 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VortexCore Hub // Clean Hardware Suite</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="shortcut icon" href="favicon.ico">
-  <link rel="stylesheet" href="style.css">
+  <title>VortexCore Hub</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg?v=7.8.7">
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.8.7">
+  <link rel="shortcut icon" href="favicon.ico?v=7.8.7">
+  <link rel="stylesheet" href="style.css?v=7.8.7">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Iconos de la interfaz (un solo juego de iconos de línea; se usan con <svg class="i"><use href="#i-..."/></svg>) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-thermometer" viewBox="0 0 24 24"><path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/><path d="M12 9v6"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 11v2M10 11v2M14 11v2M18 11v2M6 17v3M18 17v3"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10c-.6-3.4.4-7 3.3-7 2.6 0 3 3.3.2 5.2L13.7 9.6"/><path d="M13.8 13c3.2 1.2 5.8 3.9 4.3 6.4-1.3 2.2-4.4.9-4.6-2.4l-.1-2.4"/><path d="M10.2 13.1c-2.6 2.2-6.2 3.1-7.6.6-1.3-2.2 1.3-4.3 4.3-2.8l2.1 1.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4 2.5 18a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z"/><path d="M12 10v4M12 17h.01"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.6L4 8"/><path d="M4 3.5V8h4.5"/><path d="M4 13a8 8 0 0 0 14.6 4.6L20 16"/><path d="M20 20.5V16h-4.5"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M8 21h8M5 7h14"/><path d="m5 7-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M5 15c-1.5 1.3-2 5-2 5s3.7-.5 5-2"/><path d="m9 15-3-3c1-4.5 4.6-9 13-9 0 8.4-4.5 12-9 13l-1-1z"/><path d="M15 9h.01"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 21c0-9 5-15 15-16-1 10-7 15-15 16z"/><path d="m5 21 8-8"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 22c4 0 7-3 7-7 0-5-4-7-5-11-2 2-3 4-3 6-1-1-2-2-2-4-2 2-4 5-4 9 0 4 3 7 7 7z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0V7zM12 17v5"/></symbol>
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z"/></symbol>
+    <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol>
+    <symbol id="i-gamepad" viewBox="0 0 24 24"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.7 6.2A3 3 0 0 0 7.2 17L9 15h6l1.8 2a3 3 0 0 0 5.2-2.2l-.7-6.2A4 4 0 0 0 17.3 5z"/></symbol>
+    <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4"/></symbol>
+    <symbol id="i-bluetooth" viewBox="0 0 24 24"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="i-volume-x" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15v4M17 17h4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 3v5h7M8 21v-7h8v7"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+    <symbol id="i-waves" viewBox="0 0 24 24"><path d="M2 12h3l3-7 4 14 4-11 3 6h3"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4"/></symbol>
+    <symbol id="i-timer" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+  </svg>
   <div class="app-layout">
     
-    <!-- SIDEBAR VERTICAL VORTEXCORE CYBER-REACTOR -->
+    <!-- BARRA LATERAL -->
     <aside class="sidebar">
-      <div class="sidebar-brand" title="VortexCore Hub v7.8.6">
-        <div class="brand-badge">
-          <img src="icon.png" class="brand-img" alt="VortexCore">
-        </div>
+      <div class="sidebar-brand" title="VortexCore Hub v7.8.7">
+        <img src="logo.svg?v=7.8.7" class="brand-img" alt="">
         <div class="brand-text">
-          <h2>VORTEX<span>CORE</span></h2>
-          <span class="version-label">HUB v7.8.6</span>
+          <span class="brand-name">Vortex<span>Core</span></span>
+          <span class="brand-sub">Hub <span class="brand-version">7.8.7</span></span>
         </div>
       </div>
 
@@ -31,78 +80,72 @@
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
           <span>Inicio</span>
         </button>
-        <button class="nav-item" data-tab="tab-intelligence" title="Hardware Intelligence">
+        <button class="nav-item" data-tab="tab-intelligence" title="Diagnóstico del equipo">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4h2v4zm0-6h-2V7h2v4z"/></svg>
-          <span>Intelligence</span>
+          <span>Diagnóstico</span>
         </button>
-        <button class="nav-item" data-tab="tab-cooling" title="Laboratorio Manual & Curvas">
+        <button class="nav-item" data-tab="tab-cooling" title="Modo manual">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>
-          <span>Modo Manual</span>
+          <span>Manual</span>
         </button>
-        <button class="nav-item" data-tab="tab-tuning" title="Tuning de CPU & Energía">
+        <button class="nav-item" data-tab="tab-tuning" title="CPU y energía">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-          <span>Tuning CPU</span>
+          <span>CPU</span>
         </button>
-        <button class="nav-item" data-tab="tab-booster" title="Memoria RAM & Boost">
+        <button class="nav-item" data-tab="tab-booster" title="Memoria RAM">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"/></svg>
-          <span>Memoria RAM</span>
+          <span>RAM</span>
         </button>
-        <button class="nav-item" data-tab="tab-audio" title="Audio Suite & Ecualizador">
+        <button class="nav-item" data-tab="tab-audio" title="Audio y ecualizador">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
-          <span>Audio & EQ</span>
+          <span>Audio</span>
         </button>
-        <button class="nav-item" data-tab="tab-startup" title="Gestor de Inicio de Windows">
+        <button class="nav-item" data-tab="tab-startup" title="Inicio de Windows">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.25 1.5C21.41 14.79 22 13.46 22 12c0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.05.5-9 4.77-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.28-1.61 8.09-4.09l-2.2-1.47C16.54 18.06 14.41 19 12 19z"/></svg>
-          <span>Inicio Win</span>
+          <span>Arranque</span>
         </button>
-        <button class="nav-item" data-tab="tab-debloat" title="Debloat Windows (Edge Protegido)">
+        <button class="nav-item" data-tab="tab-debloat" title="Limpieza de Windows">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-          <span>Debloat</span>
+          <span>Limpieza</span>
         </button>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="developer-credit-box" title="Desarrollado por Faundezz21">
-          <span class="dev-credit-tag">BY</span>
-          <span class="dev-credit-name">Faundezz21</span>
-        </div>
+        <a class="signature" href="https://github.com/Faundezz21" target="_blank" rel="noopener noreferrer" title="Ver el GitHub de Faundezz21">
+          <span class="signature-mark" aria-hidden="true">F</span>
+          <span class="signature-by">hecho por</span>
+          <span class="signature-name">
+            <svg class="signature-gh" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            Faundezz21
+          </span>
+        </a>
       </div>
     </aside>
 
-    <!-- ÁREA PRINCIPAL VORTEXCORE CYBER-REACTOR -->
+    <!-- ÁREA PRINCIPAL -->
     <main class="main-content">
       
       <!-- CABECERA VORTEXCORE HUB -->
       <header class="content-header">
         <div class="header-titles">
-          <div class="breadcrumb-tag" id="nav-breadcrumb-tag">VORTEXCORE HUB • CLEAN HARDWARE SUITE</div>
+          <div class="breadcrumb-tag" id="nav-breadcrumb-tag">Resumen del equipo</div>
           <h1 id="page-title">Inicio</h1>
         </div>
         <div class="header-actions">
-          <div class="ac-top-icons">
-            <button class="ac-top-icon-btn" onclick="purgeMemory()" title="Optimizar Memoria RAM ahora">
-              <span class="ac-slashes">⚡</span>
-              <span>PURGAR RAM</span>
-            </button>
-            <button class="ac-top-icon-btn" onclick="switchTab('tab-intelligence')" title="Diagnóstico Hardware Intelligence">
-              <span>🛡️</span>
-            </button>
-            <button class="ac-top-icon-btn" onclick="switchTab('tab-audio')" title="Suite de Audio & Ecualizador">
-              <span>🎧</span>
-            </button>
-          </div>
-          <div class="health-chip" id="system-health-chip">
-            <span class="hc-dot"></span>
-            <span id="system-health-text">ÓPTIMO</span>
-          </div>
-          <div class="profile-chip" id="profile-chip">BALANCE</div>
-          <div class="fan-chip" id="fan-chip">
-            <span class="fan-mini-icon">🌀</span>
-            <span id="fan-chip-text">AUTO</span>
-          </div>
-          <div class="ac-corner-device-badge" title="Periféricos 2.4GHz & Bluetooth Activos">
-            <span class="ac-phone-icon">🎮</span>
-            <span class="clock-display" id="clock-display">00:00</span>
+          <button class="header-btn" onclick="purgeMemory()" title="Liberar la memoria RAM en espera">
+            <svg viewBox="0 0 24 24" class="header-btn-icon" aria-hidden="true"><path d="M15 9H9v6h6V9zm6 2V9h-2V7a2 2 0 0 0-2-2h-2V3h-2v2h-2V3H9v2H7a2 2 0 0 0-2 2v2H3v2h2v2H3v2h2v2a2 2 0 0 0 2 2h2v2h2v-2h2v2h2v-2h2a2 2 0 0 0 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"/></svg>
+            <span>Liberar RAM</span>
+          </button>
+          <div class="header-status" aria-label="Estado actual">
+            <span class="hs-item" title="Perfil de energía activo">
+              <span class="hs-label">Modo</span>
+              <span class="hs-value" id="profile-chip">--</span>
+            </span>
+            <span class="hs-item fan-chip" id="fan-chip" title="Ventiladores">
+              <svg viewBox="0 0 24 24" class="fan-mini-icon" aria-hidden="true"><path d="M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm.5-9C17 2 17.1 5.57 14.73 6.75c-.99.49-1.43 1.54-1.62 2.47.48.2.9.51 1.22.91 3.7-2 7.67-1.21 7.67 2.37 0 4.5-3.57 4.6-4.75 2.23-.5-.99-1.56-1.43-2.49-1.62-.2.48-.51.89-.91 1.22 1.99 3.69 1.2 7.67-2.37 7.67-4.5 0-4.59-3.58-2.23-4.76.98-.49 1.42-1.53 1.62-2.45-.49-.2-.92-.52-1.24-.92C5.95 15.85 2 15.07 2 11.5 2 7 5.56 6.89 6.74 9.26c.5.99 1.55 1.42 2.47 1.61.2-.48.51-.9.92-1.22C8.15 5.96 8.93 2 12.5 2z"/></svg>
+              <span class="hs-value" id="fan-chip-text">Auto</span>
+            </span>
+            <span class="hs-item hs-clock" id="clock-display">--:--</span>
           </div>
         </div>
       </header>
@@ -110,7 +153,7 @@
       <!-- VISTAS / PESTAÑAS -->
       <div class="views-wrapper">
         
-        <!-- PESTAÑA 1: INICIO (IDENTIDAD PROPIA VORTEXCORE CYBER-REACTOR) -->
+        <!-- PESTAÑA 1: INICIO -->
         <section class="tab-view active" id="tab-overview">
           
           <div class="ac-dashboard-grid">
@@ -121,74 +164,24 @@
               <!-- ILUSTRACIÓN 3D ORIGINAL VORTEXCORE DEL EQUIPO DETECTADO -->
               <div class="ac-laptop-showcase">
                 <div class="ac-laptop-visual">
-                  <svg viewBox="0 0 380 230" class="ac-laptop-svg">
-                    <defs>
-                      <radialGradient id="screenGrad" cx="50%" cy="50%" r="65%">
-                        <stop offset="0%" stop-color="#0d2238"/>
-                        <stop offset="55%" stop-color="#07111e"/>
-                        <stop offset="100%" stop-color="#040810"/>
-                      </radialGradient>
-                      <linearGradient id="vortexRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#00f0ff"/>
-                        <stop offset="50%" stop-color="#0088ff"/>
-                        <stop offset="100%" stop-color="#7c3aed"/>
-                      </linearGradient>
-                      <linearGradient id="kbGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.9"/>
-                        <stop offset="50%" stop-color="#0088ff" stop-opacity="0.85"/>
-                        <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.85"/>
-                      </linearGradient>
-                      <filter id="neonGlow" x="-25%" y="-25%" width="150%" height="150%">
-                        <feGaussianBlur stdDeviation="3.5" result="blur"/>
-                        <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-                      </filter>
-                    </defs>
-
-                    <!-- Carcasa de Pantalla con bisel Cyber-Navy -->
-                    <rect x="62" y="14" width="256" height="146" rx="8" fill="#060b14" stroke="#1e3a5f" stroke-width="2"/>
-                    <rect x="68" y="20" width="244" height="132" rx="4" fill="url(#screenGrad)"/>
-
-                    <!-- Malla hexagonal y anillos de Turbina Cuántica VortexCore (100% Original) -->
-                    <circle cx="190" cy="86" r="52" fill="none" stroke="rgba(0, 240, 255, 0.14)" stroke-width="1" stroke-dasharray="6 4"/>
-                    <circle cx="190" cy="86" r="39" fill="none" stroke="url(#vortexRingGrad)" stroke-width="1.8" stroke-dasharray="18 6" filter="url(#neonGlow)"/>
-                    <polygon points="190,54 218,70 218,102 190,118 162,102 162,70" fill="rgba(0, 240, 255, 0.07)" stroke="#00f0ff" stroke-width="1.4"/>
-                    <!-- Líneas de circuito lateral Vortex -->
-                    <path d="M 78 52 L 118 52 L 134 68" fill="none" stroke="rgba(0, 240, 255, 0.35)" stroke-width="1.2"/>
-                    <path d="M 302 52 L 262 52 L 246 68" fill="none" stroke="rgba(124, 58, 237, 0.45)" stroke-width="1.2"/>
-                    <path d="M 78 122 L 118 122 L 134 106" fill="none" stroke="rgba(0, 136, 255, 0.35)" stroke-width="1.2"/>
-                    <path d="M 302 122 L 262 122 L 246 106" fill="none" stroke="rgba(0, 240, 255, 0.35)" stroke-width="1.2"/>
-
-                    <!-- Emblema Luminoso VORTEXCORE en Pantalla -->
-                    <text x="190" y="88" text-anchor="middle" fill="#ffffff" font-family="'Chakra Petch', sans-serif" font-weight="700" font-size="20" letter-spacing="3.5" filter="url(#neonGlow)">VORTEX</text>
-                    <text x="190" y="101" text-anchor="middle" fill="#00f0ff" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="7.5" letter-spacing="3.5">CORE ENGINE</text>
-
-                    <!-- Bisagra Central -->
-                    <rect x="110" y="158" width="160" height="5" fill="#0d1524"/>
-
-                    <!-- Base / Chasis del Teclado en Perspectiva -->
-                    <polygon points="62,162 318,162 356,204 24,204" fill="#0c1422" stroke="#1e3a5f" stroke-width="1.5"/>
-                    <!-- Reborde Frontal con barra LED Cyan -->
-                    <polygon points="24,204 356,204 348,212 32,212" fill="#060a12" stroke="url(#kbGlow)" stroke-width="1.2"/>
-
-                    <!-- Iluminación RGB Cian/Azul/Violeta del Teclado -->
-                    <polygon points="72,167 308,167 332,191 48,191" fill="#060b13" stroke="url(#kbGlow)" stroke-width="1.2"/>
-                    <!-- Zona WASD destacada en Cian Eléctrico -->
-                    <polygon points="78,171 135,171 130,187 64,187" fill="#00f0ff" fill-opacity="0.28"/>
-                    <line x1="66" y1="173" x2="314" y2="173" stroke="url(#kbGlow)" stroke-width="1.5" stroke-dasharray="7 3"/>
-                    <line x1="60" y1="179" x2="320" y2="179" stroke="url(#kbGlow)" stroke-width="1.5" stroke-dasharray="8 3"/>
-                    <line x1="54" y1="185" x2="326" y2="185" stroke="url(#kbGlow)" stroke-width="1.5" stroke-dasharray="9 3"/>
-
-                    <!-- Touchpad con borde luminoso sutil -->
-                    <polygon points="152,193 228,193 233,202 147,202" fill="#080f1c" stroke="#1e3a5f" stroke-width="1"/>
+                  <svg viewBox="0 0 380 220" class="ac-laptop-svg" aria-hidden="true">
+                    <!-- Pantalla -->
+                    <rect x="66" y="12" width="248" height="150" rx="10" fill="#0b1322" stroke="#1d2b44" stroke-width="2"/>
+                    <rect x="76" y="22" width="228" height="128" rx="4" fill="#070d18"/>
+                    <image href="logo.svg?v=7.8.7" x="160" y="46" width="60" height="60" class="vc-screen-logo"/>
+                    <rect x="164" y="120" width="52" height="3" rx="1.5" fill="#00f0ff" opacity="0.75" class="vc-screen-bar"/>
+                    <!-- Base -->
+                    <path d="M58 166 H322 L350 196 Q352 202 344 202 H36 Q28 202 30 196 Z" fill="#0d1626" stroke="#1d2b44" stroke-width="1.5"/>
+                    <rect x="160" y="190" width="60" height="6" rx="3" fill="#16223a"/>
                   </svg>
                 </div>
 
                 <!-- NOMBRE DINÁMICO DEL EQUIPO Y ESPECIFICACIONES REALES -->
                 <div class="ac-machine-meta">
-                  <span class="ac-mfg-tag" id="hsc-tag-mfg">VORTEXCORE SYSTEM</span>
-                  <h2 class="ac-machine-title" id="hero-model-title">DETECTANDO EQUIPO...</h2>
-                  <p class="ac-spec-line" id="ac-cpu-line">Procesador: Detectando...</p>
-                  <p class="ac-spec-line" id="ac-gpu-line">Gráficos: Detectando...</p>
+                  <span class="ac-mfg-tag" id="hsc-tag-mfg"></span>
+                  <h2 class="ac-machine-title" id="hero-model-title">Detectando equipo…</h2>
+                  <p class="ac-spec-line" id="ac-cpu-line">Procesador: detectando…</p>
+                  <p class="ac-spec-line" id="ac-gpu-line">Gráficos: detectando…</p>
                   <p class="ac-spec-sub-hidden" id="hero-specs-sub" style="display:none;"></p>
                 </div>
 
@@ -200,7 +193,7 @@
                   <strong id="htg-status-text">ÓPTIMO</strong>
                   <div id="htg-fill"></div>
                   <div id="htg-needle"></div>
-                  <span id="htg-score">98%</span>
+                  <span id="htg-score">--</span>
                   <path id="cpu-tacho-fill"></path>
                   <path id="gpu-tacho-fill"></path>
                   <path id="ram-tacho-fill"></path>
@@ -212,18 +205,17 @@
               <div class="ac-devices-section">
                 <div class="ac-section-header">
                   <div class="ac-sh-left">
-                    <span class="ac-stripes">◈</span>
-                    <h3>Periféricos & Energía (<span id="dev-count-badge">0</span>)</h3>
+                    <h3>Periféricos <span class="ac-count" id="dev-count-badge">0</span></h3>
                   </div>
-                  <button class="ac-ver-todo-btn" onclick="switchTab('tab-audio')">Audio & EQ <span>→</span></button>
+                  <button class="ac-ver-todo-btn" onclick="switchTab('tab-audio')">Audio <span>→</span></button>
                 </div>
 
                 <div class="ac-devices-box">
                   <div class="ac-devices-list" id="sidebar-devices-list">
                     <div class="ac-empty-devices">
-                      <div class="ac-crosshair-plus">📡</div>
+                      <div class="ac-crosshair-plus">+</div>
                       <div class="ac-empty-text">
-                        <strong>Radar Inalámbrico 2.4GHz & Bluetooth Activo</strong>
+                        <strong>No hay dispositivos conectados</strong>
                         <p>Conecta o enciende tu mando Xbox, DualSense, auriculares o mouse inalámbrico para monitorearlo en vivo.</p>
                       </div>
                     </div>
@@ -237,13 +229,12 @@
             <div class="ac-right-column">
               
               <!-- CABECERA: ◈ MONITOR DE SILICIO EN TIEMPO REAL -->
-              <div class="ac-section-header">
+              <div class="ac-section-header ac-sensors-header">
                 <div class="ac-sh-left">
-                  <span class="ac-stripes">◈</span>
-                  <h3>Telemetría de Silicio & Sensores</h3>
+                  <h3>Sensores</h3>
                 </div>
                 <div class="ac-sh-right">
-                  <span class="ac-live-badge">● SENSORES EN VIVO</span>
+                  <span class="ac-live-badge">En vivo</span>
                 </div>
               </div>
 
@@ -254,18 +245,17 @@
                 <div class="ac-telemetry-block">
                   <div class="ac-tb-header">
                     <h2 id="cpu-brand-title" title="Procesador">CPU</h2>
-                    <span class="ac-stripes-muted">◈</span>
                   </div>
 
                   <!-- Barra 1: Frecuencia CPU -->
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Frecuencia</span>
-                      <strong id="ac-cpu-freq-mhz">2400 MHz</strong>
-                      <span id="cpu-freq-text" style="display:none;">2.40 GHz</span>
+                      <strong id="ac-cpu-freq-mhz">--</strong>
+                      <span id="cpu-freq-text" style="display:none;">--</span>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="ac-cpu-freq-bar" style="width: 55%;"></div>
+                      <div class="ac-bar-fill" id="ac-cpu-freq-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
@@ -273,10 +263,10 @@
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Uso</span>
-                      <strong id="cpu-load-text">0 %</strong>
+                      <strong id="cpu-load-text">--</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="cpu-progress-bar" style="width: 12%;"></div>
+                      <div class="ac-bar-fill" id="cpu-progress-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
@@ -284,38 +274,41 @@
                   <div class="ac-kv-list">
                     <div class="ac-kv-row">
                       <span>Frecuencia de la memoria</span>
-                      <strong id="ac-ram-speed">5600 MT/s</strong>
+                      <strong id="ac-ram-speed">--</strong>
                     </div>
                     <div class="ac-kv-row">
                       <span>Temperatura</span>
-                      <strong><span id="cpu-temp-text">48</span> °C</strong>
+                      <strong><span id="cpu-temp-text">--</span> °C</strong>
                     </div>
                     <div class="ac-kv-row">
                       <span>Voltaje</span>
-                      <strong id="ac-cpu-volt">1085 mV</strong>
+                      <strong id="ac-cpu-volt">--</strong>
                     </div>
                     <div class="ac-kv-row">
-                      <span>Estado del Silicio</span>
-                      <strong id="cpu-status-pill" class="ac-kv-accent">● Óptimo</strong>
+                      <span>Estado</span>
+                      <strong id="cpu-status-pill" class="ac-kv-accent">--</strong>
                     </div>
                   </div>
+                  <button type="button" class="ac-deep-link" onclick="scrollToDeepMonitor()">
+                    <span>Ver núcleos y red</span>
+                    <svg class="i" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                  </button>
                 </div>
 
                 <!-- BLOQUE 2: GPU -->
                 <div class="ac-telemetry-block">
                   <div class="ac-tb-header">
                     <h2 id="gpu-brand-title" title="Tarjeta Gráfica">GPU</h2>
-                    <span class="ac-stripes-muted">◈</span>
                   </div>
 
                   <!-- Barra 1: Frecuencia GPU -->
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Frecuencia</span>
-                      <strong id="ac-gpu-freq-mhz">1650 MHz</strong>
+                      <strong id="ac-gpu-freq-mhz">--</strong>
                     </div>
                     <div class="ac-bar-track has-marker">
-                      <div class="ac-bar-fill" id="ac-gpu-freq-bar" style="width: 65%;"></div>
+                      <div class="ac-bar-fill" id="ac-gpu-freq-bar" style="width: 0%;"></div>
                       <span class="ac-base-clock-marker" title="Base Clock">▲ <em>Base Clock</em></span>
                     </div>
                   </div>
@@ -324,10 +317,10 @@
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Uso</span>
-                      <strong id="gpu-load-text">0 %</strong>
+                      <strong id="gpu-load-text">--</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="gpu-progress-bar" style="width: 8%;"></div>
+                      <div class="ac-bar-fill" id="gpu-progress-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
@@ -335,19 +328,19 @@
                   <div class="ac-kv-list">
                     <div class="ac-kv-row">
                       <span>Frecuencia de la memoria</span>
-                      <strong id="ac-gpu-mem-freq">8001 MHz</strong>
+                      <strong id="ac-gpu-mem-freq">--</strong>
                     </div>
                     <div class="ac-kv-row">
                       <span>Temperatura</span>
-                      <strong><span id="gpu-temp-text">45</span> °C</strong>
+                      <strong><span id="gpu-temp-text">--</span> °C</strong>
                     </div>
                     <div class="ac-kv-row">
                       <span>Voltaje</span>
-                      <strong id="ac-gpu-volt">815 mV</strong>
+                      <strong id="ac-gpu-volt">--</strong>
                     </div>
                     <div class="ac-kv-row">
                       <span>Max TGP / Potencia</span>
-                      <strong><span id="gpu-power-text">0.0 W</span> / 140 W</strong>
+                      <strong><span id="gpu-power-text">--</span> / <span id="gpu-power-max">--</span></strong>
                       <span id="gpu-status-pill" style="display:none;"></span>
                     </div>
                   </div>
@@ -357,17 +350,16 @@
                 <div class="ac-telemetry-block">
                   <div class="ac-tb-header">
                     <h2 id="fan-badge-mode">Ventilador</h2>
-                    <span class="ac-stripes-muted">◈</span>
                   </div>
 
                   <!-- Barra 1: Ventilador CPU -->
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Ventilador de la CPU</span>
-                      <strong><span id="fan1-rpm-text">2600</span> RPM</strong>
+                      <strong><span id="fan1-rpm-text">--</span> RPM</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="fan-progress-bar" style="width: 48%;"></div>
+                      <div class="ac-bar-fill" id="fan-progress-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
@@ -375,27 +367,27 @@
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Ventilador de la GPU</span>
-                      <strong id="fan2-rpm-text">2400 RPM</strong>
+                      <strong id="fan2-rpm-text">--</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="ac-fan2-bar" style="width: 45%;"></div>
+                      <div class="ac-bar-fill" id="ac-fan2-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
                   <!-- Filas de Datos Secundarios Ventilador -->
                   <div class="ac-kv-list">
                     <div class="ac-kv-row">
-                      <span>Acústica del ventilador</span>
-                      <strong id="ac-fan-dba">26.4 dBA</strong>
+                      <span>Ruido</span>
+                      <strong id="ac-fan-dba">--</strong>
                     </div>
                     <div class="ac-kv-row">
-                      <span>Curva Activa</span>
+                      <span>Curva</span>
                       <strong id="fan-curve-text">Automática</strong>
                       <span id="fan-status-pill" style="display:none;"></span>
                     </div>
                     <div class="ac-kv-row ac-quick-fan-links">
-                      <button class="ac-mini-action-btn" id="btn-quick-max" onclick="triggerFan('max')">🌀 Turbo 100%</button>
-                      <button class="ac-mini-action-btn" id="btn-quick-auto" onclick="triggerFan('auto')">🔄 Auto BIOS</button>
+                      <button class="ac-mini-action-btn" id="btn-quick-max" onclick="triggerFan('max')">Máximo</button>
+                      <button class="ac-mini-action-btn" id="btn-quick-auto" onclick="triggerFan('auto')">Automático</button>
                     </div>
                   </div>
                 </div>
@@ -404,42 +396,41 @@
                 <div class="ac-telemetry-block">
                   <div class="ac-tb-header">
                     <h2 id="ram-badge">Memoria</h2>
-                    <span class="ac-stripes-muted">◈</span>
                   </div>
 
                   <!-- Barra 1: Almacenamiento -->
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
                       <span>Almacenamiento</span>
-                      <strong id="ac-disk-text">464.4 / 1862 GB</strong>
+                      <strong id="ac-disk-text">--</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="ac-disk-bar" style="width: 28%;"></div>
+                      <div class="ac-bar-fill" id="ac-disk-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
                   <!-- Barra 2: Memoria RAM -->
                   <div class="ac-bar-group">
                     <div class="ac-bar-labels">
-                      <span>RAM (<span id="ram-pct-text">45</span>%)</span>
-                      <strong id="ac-ram-ratio">7.2 / 16.0 GB</strong>
+                      <span>RAM (<span id="ram-pct-text">--</span>%)</span>
+                      <strong id="ac-ram-ratio">--</strong>
                     </div>
                     <div class="ac-bar-track">
-                      <div class="ac-bar-fill" id="ram-progress-bar" style="width: 45%;"></div>
+                      <div class="ac-bar-fill" id="ram-progress-bar" style="width: 0%;"></div>
                     </div>
                   </div>
 
-                  <!-- Filas de Datos Secundarios Memoria + Botón Optimizar RAM -->
+                  <!-- Filas de Datos Secundarios Memoria + Botón Liberar RAM -->
                   <div class="ac-kv-list">
                     <div class="ac-kv-row">
-                      <span>RAM en Uso / Libre</span>
-                      <strong><span id="ram-used-text">7.2 GB</span> / <span id="ram-free-text">8.8 GB</span></strong>
+                      <span>En uso / libre</span>
+                      <strong><span id="ram-used-text">--</span> / <span id="ram-free-text">--</span></strong>
                       <span id="ram-free-summary" style="display:none;"></span>
                     </div>
                     <div class="ac-kv-row ac-purge-row">
                       <button class="ac-mini-action-btn highlight" id="btn-purge-mini" onclick="purgeMemory()">
-                        <span id="purge-mini-icon">⚡</span>
-                        <span id="purge-mini-text">Optimizar Memoria RAM</span>
+                        <span id="purge-mini-icon"><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg></span>
+                        <span id="purge-mini-text">Liberar RAM</span>
                       </button>
                     </div>
                   </div>
@@ -451,41 +442,40 @@
               <div class="ac-operating-mode-section">
                 <div class="ac-section-header">
                   <div class="ac-sh-left">
-                    <span class="ac-stripes">◈</span>
-                    <h3>Perfiles de Potencia VortexCore</h3>
+                    <h3>Modo de energía</h3>
                   </div>
-                  <button class="ac-manual-btn" onclick="switchTab('tab-cooling')">⚡ Laboratorio Manual</button>
+                  <button class="ac-manual-btn" onclick="switchTab('tab-cooling')">Abrir modo manual</button>
                 </div>
 
                 <div class="ac-modes-bar">
                   <button class="profile-card ac-mode-item" data-prof="DEFAULT" onclick="applyProfile('DEFAULT')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                    <span class="ac-mode-title">Estándar OS</span>
-                    <span class="ac-mode-sub">Windows Default</span>
+                    <span class="ac-mode-title">Windows</span>
+                    <span class="ac-mode-sub">Por defecto</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="ECO" onclick="applyProfile('ECO')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66l.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/></svg>
-                    <span class="ac-mode-title">Sigilo Eco</span>
-                    <span class="ac-mode-sub">Silencio & Ahorro</span>
+                    <span class="ac-mode-title">Silencioso</span>
+                    <span class="ac-mode-sub">Menos ruido y consumo</span>
                   </button>
 
-                  <button class="profile-card ac-mode-item active" data-prof="SILENT" onclick="applyProfile('SILENT')">
+                  <button class="profile-card ac-mode-item" data-prof="SILENT" onclick="applyProfile('SILENT')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M12 16a3 3 0 0 1-3-3c0-1.12.61-2.1 1.5-2.61l9.71-5.62-5.53 9.58c-.5.98-1.51 1.65-2.68 1.65zm0-13a9 9 0 0 0-9 9c0 2.22.81 4.25 2.14 5.82l1.42-1.42A6.96 6.96 0 0 1 5 12a7 7 0 0 1 11.95-4.95l1.42-1.42A8.96 8.96 0 0 0 12 3zm7.86 3.18l-1.42 1.42A6.96 6.96 0 0 1 19 12c0 1.73-.63 3.31-1.67 4.53l1.42 1.42A8.96 8.96 0 0 0 21 12c0-2.22-.81-4.25-2.14-5.82z"/></svg>
-                    <span class="ac-mode-title">Balance Pro</span>
-                    <span class="ac-mode-sub">Juegos & Diario</span>
+                    <span class="ac-mode-title">Equilibrado</span>
+                    <span class="ac-mode-sub">Uso diario y juegos</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="PERFORMANCE" onclick="applyProfile('PERFORMANCE')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M12 2.5s4.5 2.04 4.5 10.5c0 2.49-1.04 5.57-1.6 7H9.1c-.56-1.43-1.6-4.51-1.6-7C7.5 4.54 12 2.5 12 2.5zm2 8.5a2 2 0 1 0-4 0 2 2 0 0 0 4 0zm-6.5 9l-2-2.5C5.5 15 7 13.5 7 13.5s.22 2.94 1.5 6.5h-1zm9 0c1.28-3.56 1.5-6.5 1.5-6.5s1.5 1.5 1.5 4l-2 2.5h-1z"/></svg>
-                    <span class="ac-mode-title">Vortex Overdrive</span>
-                    <span class="ac-mode-sub">Máximos FPS</span>
+                    <span class="ac-mode-title">Rendimiento</span>
+                    <span class="ac-mode-sub">Máxima potencia</span>
                   </button>
 
                   <button class="profile-card ac-mode-item" data-prof="MANUAL" onclick="switchTab('tab-cooling')">
                     <svg viewBox="0 0 24 24" class="ac-mode-svg"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                    <span class="ac-mode-title">Tuning Manual</span>
-                    <span class="ac-mode-sub">Curva & Silicio</span>
+                    <span class="ac-mode-title">Manual</span>
+                    <span class="ac-mode-sub">Ajuste a medida</span>
                   </button>
                 </div>
               </div>
@@ -499,96 +489,197 @@
 
           </div>
 
+          <!-- MONITOR DETALLADO: NÚCLEOS DE CPU + USO DE RED EN TIEMPO REAL -->
+          <div class="vc-deep-monitor-grid" id="overview-deep-monitor">
+
+            <!-- CARD 1: NÚCLEOS DEL PROCESADOR -->
+            <div class="glass-card vc-deep-card">
+              <div class="vc-deep-head">
+                <div class="vc-deep-title">
+                  <svg class="i" aria-hidden="true"><use href="#i-cpu"/></svg>
+                  <div>
+                    <h3>Núcleos del procesador</h3>
+                    <span class="vc-deep-sub" id="cpu-core-temp-note">Uso lógico en tiempo real por hilo y sensores térmicos disponibles</span>
+                  </div>
+                </div>
+                <span class="vc-deep-badge" id="cpu-cores-meta">-- núcleos · -- hilos</span>
+              </div>
+
+              <div class="cpu-cores-grid" id="cpu-cores-grid">
+                <div class="vc-empty-hint">Cargando lectura de hilos lógicos...</div>
+              </div>
+
+              <div class="cpu-thermal-zones-box" id="cpu-thermal-zones-box">
+                <span class="tz-label">Zonas térmicas:</span>
+                <span class="tz-pill">Detectando sensores...</span>
+              </div>
+            </div>
+
+            <!-- CARD 2: USO DE RED EN TIEMPO REAL -->
+            <div class="glass-card vc-deep-card">
+              <div class="vc-deep-head">
+                <div class="vc-deep-title">
+                  <svg class="i" aria-hidden="true"><use href="#i-globe"/></svg>
+                  <div>
+                    <h3>Uso de red</h3>
+                    <span class="vc-deep-sub" id="net-sub-meta">Tráfico en vivo de la interfaz activa y latencia</span>
+                  </div>
+                </div>
+                <span class="vc-deep-badge" id="net-iface-badge">Sin interfaz</span>
+              </div>
+
+              <div class="net-stats-grid">
+                <div class="net-stat-box">
+                  <span class="ns-label">Descarga</span>
+                  <strong class="ns-value" id="net-dl-speed">0 KB/s</strong>
+                  <div class="net-bar-track"><div class="net-bar-fill net-rx" id="net-rx-bar" style="width:0%"></div></div>
+                  <span class="ns-sub" id="net-rx-total">Recibido: 0 MB</span>
+                </div>
+
+                <div class="net-stat-box">
+                  <span class="ns-label">Subida</span>
+                  <strong class="ns-value" id="net-ul-speed">0 KB/s</strong>
+                  <div class="net-bar-track"><div class="net-bar-fill net-tx" id="net-tx-bar" style="width:0%"></div></div>
+                  <span class="ns-sub" id="net-tx-total">Enviado: 0 MB</span>
+                </div>
+
+                <div class="net-stat-box net-stat-compact">
+                  <span class="ns-label">Latencia (Ping)</span>
+                  <strong class="ns-value" id="net-ping-ms">N/D</strong>
+                  <span class="ns-sub">Tiempo de respuesta de red</span>
+                </div>
+
+                <div class="net-stat-box net-stat-compact">
+                  <span class="ns-label">IPv4 y enlace</span>
+                  <strong class="ns-value" id="net-ipv4">N/D</strong>
+                  <span class="ns-sub" id="net-link-speed">Enlace: N/D</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
         </section>
 
         <!-- PESTAÑA 2: HARDWARE INTELLIGENCE (DIAGNÓSTICO EN VIVO) -->
         <section class="tab-view" id="tab-intelligence">
-          <div class="settings-stack">
-            
-            <!-- PANEL DE ACCIÓN TÁCTICA: ANALIZAR Y APLICAR CAMBIOS -->
-            <div class="glass-card intel-action-panel">
-              <div class="iap-text">
-                <span class="hero-label">AUDITORÍA DE SILICIO & GOBERNADOR</span>
-                <h2>Auditoría Inteligente del Sistema</h2>
-                <p>Analiza en tiempo real envolventes térmicas, estrangulamiento de CPU, presión de RAM y latencia para generar perfiles de calibración automáticos.</p>
+          <div class="settings-stack diag-page">
+
+            <!-- ESTADO GENERAL + ACCIONES -->
+            <div class="glass-card diag-hero">
+              <div class="diag-ring" id="diag-ring" style="--p: 0">
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                  <circle class="diag-ring-track" cx="60" cy="60" r="52"/>
+                  <circle class="diag-ring-value" cx="60" cy="60" r="52" pathLength="100"/>
+                </svg>
+                <div class="diag-ring-label">
+                  <strong id="intel-health-score">--</strong>
+                  <span>salud</span>
+                </div>
               </div>
-              <div class="iap-buttons">
-                <button class="clean-btn primary pulse-glow" id="btn-diag-scan" onclick="runHardwareDiagnosis()">
-                  <span id="scan-icon">🔍</span>
-                  <span id="scan-text">Analizar Hardware en Vivo</span>
-                </button>
-                <button class="clean-btn success" id="btn-diag-apply" onclick="applyHardwareOptimizations()">
-                  <span id="apply-icon">⚡</span>
-                  <span id="apply-text">Aplicar Cambios Sugeridos</span>
-                </button>
+              <div class="diag-hero-text">
+                <span class="ih-badge" id="intel-condition-badge">Sin analizar</span>
+                <h2 id="intel-diag-title">Estado del equipo</h2>
+                <p id="intel-diag-desc">Revisa temperaturas, memoria y ventiladores en unos segundos y te dice qué conviene ajustar.</p>
+                <div class="diag-actions">
+                  <button class="clean-btn primary" id="btn-diag-scan" onclick="runHardwareDiagnosis()">
+                    <span id="scan-icon"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg></span>
+                    <span id="scan-text">Analizar ahora</span>
+                  </button>
+                  <button class="clean-btn" id="btn-diag-apply" onclick="applyHardwareOptimizations()" disabled>
+                    <span id="apply-icon"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg></span>
+                    <span id="apply-text">Aplicar recomendaciones</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- TARJETA PRINCIPAL DE SALUD -->
-            <div class="glass-card intel-hero-card">
-              <div class="ih-score-box">
-                <div class="ih-score-num" id="intel-health-score">98</div>
-                <div class="ih-score-label">ÍNDICE DE SALUD</div>
-              </div>
-              <div class="ih-info">
-                <div class="ih-badge green" id="intel-condition-badge">● HARDWARE EN CONDICIÓN ÓPTIMA</div>
-                <h3 id="intel-diag-title">Diagnóstico Integral del Sistema</h3>
-                <p id="intel-diag-desc">Análisis de parámetros de silicio en tiempo real. Sensores operando dentro de umbrales certificados por el fabricante.</p>
-              </div>
-            </div>
-
-            <!-- CUADRÍCULA DE DIAGNÓSTICOS ESPECÍFICOS -->
+            <!-- SENSORES EN VIVO -->
             <div class="intel-grid">
-              
               <div class="glass-card intel-card">
                 <div class="ic-head">
-                  <span class="ic-icon">🌡️</span>
-                  <h4>Envolvente Térmica CPU</h4>
-                  <span class="ic-status green" id="diag-cpu-status">Normal</span>
+                  <span class="ic-icon"><svg class="i" aria-hidden="true"><use href="#i-thermometer"/></svg></span>
+                  <h4>Temperatura de la CPU</h4>
+                  <span class="ic-status" id="diag-cpu-status">--</span>
                 </div>
-                <p id="diag-cpu-desc">El procesador Intel Core i7 opera a una temperatura estable inferior a 60°C. No existe estrangulamiento térmico (Thermal Throttling).</p>
-                <div class="ic-meta">Umbral Seguro: &lt; 85°C • Crítico: 95°C</div>
+                <p id="diag-cpu-desc">Leyendo sensores de CPU...</p>
+                <div class="ic-meta">Normal por debajo de 85 °C · crítica desde 95 °C</div>
               </div>
 
               <div class="glass-card intel-card">
                 <div class="ic-head">
-                  <span class="ic-icon">⚡</span>
-                  <h4>Eficiencia Energética GPU</h4>
-                  <span class="ic-status green" id="diag-gpu-status">Excelente</span>
+                  <span class="ic-icon"><svg class="i" aria-hidden="true"><use href="#i-monitor"/></svg></span>
+                  <h4>Tarjeta gráfica</h4>
+                  <span class="ic-status" id="diag-gpu-status">--</span>
                 </div>
-                <p id="diag-gpu-desc">La gráfica NVIDIA RTX 4060 mantiene un consumo mínimo en reposo de ~4W con conmutación dinámica de energía PCIe Gen4 activa.</p>
-                <div class="ic-meta">TGP Máximo: 115W • Modo Actual: Reposo</div>
+                <p id="diag-gpu-desc">Leyendo sensores de GPU...</p>
+                <div class="ic-meta" id="diag-gpu-meta">--</div>
               </div>
 
               <div class="glass-card intel-card">
                 <div class="ic-head">
-                  <span class="ic-icon">🧠</span>
-                  <h4>Presión de Memoria RAM</h4>
-                  <span class="ic-status green" id="diag-ram-status">Óptima</span>
+                  <span class="ic-icon"><svg class="i" aria-hidden="true"><use href="#i-memory"/></svg></span>
+                  <h4>Memoria RAM</h4>
+                  <span class="ic-status" id="diag-ram-status">--</span>
                 </div>
-                <p id="diag-ram-desc">Tu equipo dispone de más de 20 GB de memoria libre inmediata para videojuegos sin necesidad de recurrir al archivo de paginación.</p>
-                <div class="ic-meta">Capacidad: 32 GB DDR5 • Uso: Moderado</div>
+                <p id="diag-ram-desc">Leyendo memoria...</p>
+                <div class="ic-meta" id="diag-ram-meta">--</div>
               </div>
 
               <div class="glass-card intel-card">
                 <div class="ic-head">
-                  <span class="ic-icon">🌀</span>
-                  <h4>Respuesta de Refrigeración</h4>
-                  <span class="ic-status green" id="diag-fan-status">Verificada</span>
+                  <span class="ic-icon"><svg class="i" aria-hidden="true"><use href="#i-fan"/></svg></span>
+                  <h4>Ventiladores</h4>
+                  <span class="ic-status" id="diag-fan-status">--</span>
                 </div>
-                <p id="diag-fan-desc">Los ventiladores duales responden de manera inmediata a las llamadas WMI del firmware HP BIOS sin lecturas de error.</p>
-                <div class="ic-meta">Tacómetro: Dual Activo • Protocolo: WMI ACPI</div>
+                <p id="diag-fan-desc">Leyendo ventiladores...</p>
+                <div class="ic-meta" id="diag-fan-meta">--</div>
               </div>
-
             </div>
 
-            <!-- HISTORIAL DE EVENTOS Y RECOMENDACIONES -->
+            <!-- SALUD REAL DE LA BATERÍA (WEAR LEVEL & CICLOS) -->
+            <div class="glass-card battery-health-card" id="diag-battery-card">
+              <div class="panel-header">
+                <div class="bh-title-wrap">
+                  <span class="ic-icon"><svg class="i" aria-hidden="true"><use href="#i-battery"/></svg></span>
+                  <div>
+                    <h3>Salud real de la batería</h3>
+                    <small class="panel-subtitle" id="bh-subtitle">Desgaste y capacidad real informados por el firmware ACPI de Windows</small>
+                  </div>
+                </div>
+                <div class="bh-head-right">
+                  <span class="ic-status" id="bh-condition-pill">Consultando...</span>
+                  <button class="clean-btn mini" onclick="loadBatteryHealth()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Actualizar</span></button>
+                </div>
+              </div>
+              <div class="bh-metrics-grid" id="bh-metrics-grid">
+                <div class="bh-stat">
+                  <span class="bh-lbl">Salud actual</span>
+                  <strong class="bh-val" id="bh-health-pct">--</strong>
+                </div>
+                <div class="bh-stat">
+                  <span class="bh-lbl">Desgaste (Wear Level)</span>
+                  <strong class="bh-val" id="bh-wear-pct">--</strong>
+                </div>
+                <div class="bh-stat">
+                  <span class="bh-lbl">Ciclos de carga</span>
+                  <strong class="bh-val" id="bh-cycles">--</strong>
+                </div>
+                <div class="bh-stat">
+                  <span class="bh-lbl">Capacidad (actual / fábrica)</span>
+                  <strong class="bh-val" id="bh-capacity">--</strong>
+                </div>
+              </div>
+              <div class="bh-bar-track" id="bh-bar-track">
+                <div class="bh-bar-fill" id="bh-bar-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- RECOMENDACIONES (solo tras analizar, con datos reales) -->
             <div class="glass-card advice-box">
-              <h3>Recomendaciones del Asistente</h3>
+              <h3>Recomendaciones</h3>
               <ul class="advice-list" id="advice-list">
-                <li>✅ <strong>Temperaturas excelentes:</strong> El equipo puede ejecutar sesiones prolongadas de renderizado o gaming en modo Standard Balance.</li>
-                <li>✅ <strong>Memoria RAM despejada:</strong> No se detectan pérdidas de memoria (memory leaks) en procesos en segundo plano.</li>
-                <li>💡 <strong>Consejo térmico:</strong> Si juegas títulos competitivos de alta tasa de cuadros, puedes activar el <em>Modo Turbina 100%</em> para mantener la GPU por debajo de 65°C.</li>
+                <li class="advice-empty">Pulsa <strong>Analizar ahora</strong> para ver recomendaciones según el estado real del equipo.</li>
               </ul>
             </div>
 
@@ -603,27 +694,26 @@
             <div class="ac-me-topbar">
               <button class="ac-me-back-btn" onclick="switchTab('tab-overview')">
                 <span class="ac-back-chevron">‹</span>
-                <h2>Laboratorio de Tuning Manual</h2>
+                <h2>Volver a Inicio</h2>
               </button>
 
               <div class="ac-me-profile-controls">
                 <select class="ac-me-profile-select" id="manual-profile-select" onchange="loadManualPreset(this.value)">
-                  <option value="mode1">Perfil Vortex 1 — Equilibrado</option>
-                  <option value="mode2">Perfil Vortex 2 — eSports Extremo</option>
-                  <option value="mode3">Perfil Vortex 3 — Silencio Frío</option>
+                  <option value="mode1">Perfil 1 · Equilibrado</option>
+                  <option value="mode2">Perfil 2 · Máximo rendimiento</option>
+                  <option value="mode3">Perfil 3 · Silencioso</option>
                 </select>
-                <button class="ac-me-dots-btn" onclick="triggerFan('max')" title="Forzar Turbina 100% ahora">🌀 100%</button>
+                <button class="ac-me-dots-btn" onclick="triggerFan('max')" title="Poner los ventiladores al 100% ahora"><svg class="i" aria-hidden="true"><use href="#i-fan"/></svg><span>Ventiladores al 100%</span></button>
               </div>
             </div>
 
             <!-- BANNER INFORMATIVO CIAN VORTEXCORE (ESTADO ENCHUFADO / BATERÍA) -->
             <div class="ac-me-info-banner">
               <div class="ac-me-banner-text">
-                <p><strong>Arquitectura Energética Adaptativa VortexCore:</strong> Los límites de potencia del procesador (SPL/SPPT/FPPT), offsets de reloj de GPU y curvas de ventilación quedan vinculados automáticamente a la fuente de alimentación activa del equipo (Corriente Alterna o Batería).</p>
-                <p class="ac-me-banner-sub">Selecciona un perfil predefinido en las tarjetas rápidas o personaliza cada parámetro con los deslizadores y pulsa <em>Aplicar</em>.</p>
+                <p>Elige un perfil rápido o ajusta cada valor con los controles y pulsa <strong>Aplicar</strong>. Nada cambia en el equipo hasta que lo hagas.</p>
               </div>
               <div class="ac-me-power-badge" id="manual-power-state-badge">
-                <span class="ac-plug-icon">⚡</span>
+                <span class="ac-plug-icon"><svg class="i" aria-hidden="true"><use href="#i-plug"/></svg></span>
                 <span id="manual-power-state-text">Corriente CA</span>
               </div>
             </div>
@@ -631,28 +721,34 @@
             <!-- TARJETAS DE ACCESO RÁPIDO A PRESETS (1-CLICK TUNING INTUITIVO) -->
             <div class="ac-me-quick-presets">
               <div class="preset-card active" id="pcard-mode1" onclick="selectPresetCard('mode1')">
-                <div class="pc-badge">RECOMENDADO</div>
                 <div class="pc-head">
-                  <span class="pc-icon">⚖️</span>
-                  <strong>Perfil Balance Pro</strong>
+                  <span class="pc-icon"><svg class="i" aria-hidden="true"><use href="#i-scale"/></svg></span>
+                  <div class="pc-titles">
+                    <strong>Equilibrado</strong>
+                    <span class="pc-badge">Recomendado</span>
+                  </div>
                 </div>
-                <p>35W SPL • Curva silenciosa automática • Rendimiento térmico óptimo diario.</p>
+                <p>CPU 35 W · ventiladores en curva silenciosa. Para el uso diario.</p>
               </div>
               <div class="preset-card" id="pcard-mode2" onclick="selectPresetCard('mode2')">
-                <div class="pc-badge extreme">MÁX FPS</div>
                 <div class="pc-head">
-                  <span class="pc-icon">🚀</span>
-                  <strong>eSports Extremo</strong>
+                  <span class="pc-icon"><svg class="i" aria-hidden="true"><use href="#i-rocket"/></svg></span>
+                  <div class="pc-titles">
+                    <strong>Máximo rendimiento</strong>
+                    <span class="pc-badge extreme">Para juegos</span>
+                  </div>
                 </div>
-                <p>55W SPL • +120MHz GPU • Dynamic Boost activado • Ventilación de alta tasa.</p>
+                <p>CPU 55 W · GPU +120 MHz · ventiladores más rápidos. Más FPS y más ruido.</p>
               </div>
               <div class="preset-card" id="pcard-mode3" onclick="selectPresetCard('mode3')">
-                <div class="pc-badge cool">SILENCIO TOTAL</div>
                 <div class="pc-head">
-                  <span class="pc-icon">🍃</span>
-                  <strong>Silencio Frío</strong>
+                  <span class="pc-icon"><svg class="i" aria-hidden="true"><use href="#i-leaf"/></svg></span>
+                  <div class="pc-titles">
+                    <strong>Silencioso</strong>
+                    <span class="pc-badge cool">Menos ruido</span>
+                  </div>
                 </div>
-                <p>25W SPL • Frecuencias eficientes • Mínimo nivel de ruido acústico.</p>
+                <p>CPU 25 W · frecuencias eficientes. Ideal para estudiar o ver series.</p>
               </div>
             </div>
 
@@ -679,7 +775,7 @@
                       <strong class="ac-me-val" id="val-cpu-spl">35 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="15" max="65" value="35" step="1" class="ac-tactical-range" id="slider-cpu-spl" oninput="onManualSliderInput('cpu-spl', this.value, ' W')">
+                      <input type="range" min="15" max="65" value="35" step="1" class="ac-range" id="slider-cpu-spl" oninput="onManualSliderInput('cpu-spl', this.value, ' W')">
                     </div>
                     <span class="ac-slider-desc">Controla la temperatura prolongada en juegos pesados (Recomendado: 35W – 45W).</span>
                   </div>
@@ -691,7 +787,7 @@
                       <strong class="ac-me-val" id="val-cpu-sppt">45 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="20" max="80" value="45" step="1" class="ac-tactical-range" id="slider-cpu-sppt" oninput="onManualSliderInput('cpu-sppt', this.value, ' W')">
+                      <input type="range" min="20" max="80" value="45" step="1" class="ac-range" id="slider-cpu-sppt" oninput="onManualSliderInput('cpu-sppt', this.value, ' W')">
                     </div>
                     <span class="ac-slider-desc">Potencia disponible durante transiciones o pantallas de carga rápida (Recomendado: 45W – 60W).</span>
                   </div>
@@ -703,7 +799,7 @@
                       <strong class="ac-me-val" id="val-cpu-fppt">60 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="25" max="100" value="60" step="1" class="ac-tactical-range" id="slider-cpu-fppt" oninput="onManualSliderInput('cpu-fppt', this.value, ' W')">
+                      <input type="range" min="25" max="100" value="60" step="1" class="ac-range" id="slider-cpu-fppt" oninput="onManualSliderInput('cpu-fppt', this.value, ' W')">
                     </div>
                     <span class="ac-slider-desc">Impulso ultra-rápido para evitar micro-tirones o caídas de framerate instantáneas.</span>
                   </div>
@@ -720,7 +816,7 @@
                       <strong class="ac-me-val" id="val-gpu-base">50 MHz</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="0" max="200" value="50" step="5" class="ac-tactical-range" id="slider-gpu-base" oninput="onManualSliderInput('gpu-base', this.value, ' MHz')">
+                      <input type="range" min="0" max="200" value="50" step="5" class="ac-range" id="slider-gpu-base" oninput="onManualSliderInput('gpu-base', this.value, ' MHz')">
                     </div>
                     <span class="ac-slider-desc">Eleva los FPS en juegos 3D. Rango seguro: +50 a +120 MHz.</span>
                   </div>
@@ -732,7 +828,7 @@
                       <strong class="ac-me-val" id="val-gpu-mem">100 MHz</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="0" max="300" value="100" step="10" class="ac-tactical-range" id="slider-gpu-mem" oninput="onManualSliderInput('gpu-mem', this.value, ' MHz')">
+                      <input type="range" min="0" max="300" value="100" step="10" class="ac-range" id="slider-gpu-mem" oninput="onManualSliderInput('gpu-mem', this.value, ' MHz')">
                     </div>
                     <span class="ac-slider-desc">Aumenta el ancho de banda para texturas de alta resolución en ultra.</span>
                   </div>
@@ -744,7 +840,7 @@
                       <strong class="ac-me-val" id="val-gpu-boost">25 W</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="5" max="25" value="25" step="5" class="ac-tactical-range" id="slider-gpu-boost" oninput="onManualSliderInput('gpu-boost', this.value, ' W')">
+                      <input type="range" min="5" max="25" value="25" step="5" class="ac-range" id="slider-gpu-boost" oninput="onManualSliderInput('gpu-boost', this.value, ' W')">
                     </div>
                     <span class="ac-slider-desc">Asigna hasta 25W extras a la tarjeta gráfica durante escenas complejas de juego.</span>
                   </div>
@@ -756,9 +852,9 @@
                       <strong class="ac-me-val" id="val-gpu-temp">87 °C</strong>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="75" max="87" value="87" step="1" class="ac-tactical-range" id="slider-gpu-temp" oninput="onManualSliderInput('gpu-temp', this.value, ' °C')">
+                      <input type="range" min="75" max="87" value="87" step="1" class="ac-range" id="slider-gpu-temp" oninput="onManualSliderInput('gpu-temp', this.value, ' °C')">
                     </div>
-                    <span class="ac-slider-desc">Seguridad del silicio de la GPU (Recomendado estándar: 87°C).</span>
+                    <span class="ac-slider-desc">Temperatura máxima de la GPU (Recomendado estándar: 87°C).</span>
                   </div>
 
                   <!-- TGP con marcas escalonadas (55, 70, 80, 105, 115) -->
@@ -774,7 +870,7 @@
                       <span class="active" id="val-gpu-tgp">115W</span>
                     </div>
                     <div class="ac-me-range-wrap">
-                      <input type="range" min="55" max="115" value="115" step="5" class="ac-tactical-range" id="slider-gpu-tgp" oninput="onManualSliderInput('gpu-tgp', this.value, 'W')">
+                      <input type="range" min="55" max="115" value="115" step="5" class="ac-range" id="slider-gpu-tgp" oninput="onManualSliderInput('gpu-tgp', this.value, 'W')">
                     </div>
                     <span class="ac-slider-desc">Límite de vataje total entregado al módulo gráfico por el firmware del equipo.</span>
                   </div>
@@ -784,12 +880,12 @@
                 <!-- SUB-VISTA 3: SYS (Control directo WMI, Cooldown y Seguridad Térmica) -->
                 <div class="ac-me-subview" id="manual-subview-sys">
                   <div class="ac-me-sys-card">
-                    <span class="hero-label" id="cooling-hero-label">INTERFAZ FIRMWARE ACPI (BIOS WMI)</span>
+                    <span class="hero-label" id="cooling-hero-label">Control de ventiladores</span>
                     <h4 id="cooling-status-hero">Curva Automática / Manual</h4>
                     <p id="cooling-hero-desc">Control directo de ventiladores, temporizador de enfriamiento rápido y protección contra sobrecalentamiento.</p>
                     <div class="ac-me-sys-btns">
-                      <button class="clean-btn primary" onclick="triggerFan('max')">🌀 Forzar Turbina 100%</button>
-                      <button class="clean-btn" onclick="triggerFan('auto')">🔄 Retornar a BIOS Auto</button>
+                      <button class="clean-btn primary" onclick="triggerFan('max')"><svg class="i" aria-hidden="true"><use href="#i-fan"/></svg><span>Ventiladores al 100%</span></button>
+                      <button class="clean-btn" onclick="triggerFan('auto')"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Volver a automático</span></button>
                     </div>
                   </div>
 
@@ -806,10 +902,10 @@
 
                   <div class="ac-me-sys-card ac-me-sys-row">
                     <div>
-                      <h4>Auto-Turbina de Seguridad (&gt; 75 °C)</h4>
-                      <p>Activa el 100% de ventilación automáticamente si CPU o GPU superan los 75 °C.</p>
+                      <h4>Protección térmica</h4>
+                      <p>Si la CPU llega a 90 °C o la GPU a 85 °C, pone los ventiladores al 100% y los devuelve a automático cuando baja de 75 °C.</p>
                     </div>
-                    <button class="toggle-pill active" id="btn-auto-turbo" onclick="toggleAutoTurboSafety()">PROTECCIÓN: ACTIVA</button>
+                    <button class="toggle-pill active" id="btn-auto-turbo" onclick="toggleAutoTurboSafety()">Protección: activa</button>
                   </div>
                 </div>
 
@@ -822,13 +918,13 @@
                     <h3>Fan <span id="manual-fan-target-label">(CPU)</span></h3>
                     <div class="live-fan-indicator" id="live-fan-indicator">
                       <span class="lfi-dot"></span>
-                      <span id="live-curve-tracker-text">Temp actual: --°C ➔ Fan en --%</span>
+                      <span id="live-curve-tracker-text">Temperatura: -- °C → ventilador al --%</span>
                     </div>
                   </div>
                   <div class="ac-me-curve-actions">
-                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('quiet')" title="Curva silenciosa de bajo ruido">🍃 Silencio</button>
-                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('balanced')" title="Curva equilibrada">⚖️ Balance</button>
-                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('aggressive')" title="Curva agresiva de alta ventilación">🔥 Frío</button>
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('quiet')" title="Curva silenciosa de bajo ruido"><svg class="i" aria-hidden="true"><use href="#i-leaf"/></svg><span>Silenciosa</span></button>
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('balanced')" title="Curva equilibrada"><svg class="i" aria-hidden="true"><use href="#i-scale"/></svg><span>Equilibrada</span></button>
+                    <button class="ac-curve-preset-btn" onclick="applyQuickCurve('aggressive')" title="Curva agresiva de alta ventilación"><svg class="i" aria-hidden="true"><use href="#i-flame"/></svg><span>Máxima</span></button>
                     <button class="ac-me-undo-btn" onclick="undoManualFanCurve()" title="Deshacer último movimiento">Deshacer</button>
                   </div>
                 </div>
@@ -905,9 +1001,9 @@
               </div>
               <div class="setting-controls">
                 <div class="scheme-btns">
-                  <button class="clean-btn" onclick="setScheme('saver')">🍃 Economizador</button>
-                  <button class="clean-btn" onclick="setScheme('balanced')">⚖️ Equilibrado</button>
-                  <button class="clean-btn primary" onclick="setScheme('high')">⚡ Alto Rendimiento</button>
+                  <button class="clean-btn" onclick="setScheme('saver')"><svg class="i" aria-hidden="true"><use href="#i-leaf"/></svg><span>Ahorro</span></button>
+                  <button class="clean-btn" onclick="setScheme('balanced')"><svg class="i" aria-hidden="true"><use href="#i-scale"/></svg><span>Equilibrado</span></button>
+                  <button class="clean-btn primary" onclick="setScheme('high')"><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg><span>Alto rendimiento</span></button>
                 </div>
               </div>
             </div>
@@ -919,7 +1015,7 @@
                 <p>Inicia VortexCore Hub en segundo plano minimizado en la bandeja del sistema (junto al reloj) al encender la laptop.</p>
               </div>
               <div class="setting-controls">
-                <button class="toggle-pill" id="btn-autostart" onclick="toggleAutostart()">AUTO-INICIO: OFF</button>
+                <button class="toggle-pill" id="btn-autostart" onclick="toggleAutostart()">Inicio automático: no</button>
               </div>
             </div>
 
@@ -930,23 +1026,23 @@
         <section class="tab-view" id="tab-booster">
           <div class="settings-stack">
             
-            <!-- PURGA Y OPTIMIZACIÓN DE MEMORIA RAM -->
+            <!-- LIBERAR MEMORIA RAM -->
             <div class="glass-card booster-item ram-opt-card">
               <div class="bi-info">
-                <div class="cc-badge">⚡ GESTIÓN INTELIGENTE DE MEMORIA</div>
+                <div class="cc-badge">Memoria</div>
                 <h3>Optimizar y Liberar Memoria RAM</h3>
                 <p>Libera memoria en espera (Standby Cache) y reduce el consumo fantasma en segundo plano para máxima fluidez en tus videojuegos y aplicaciones.</p>
                 <div class="ram-deep-details">
-                  <span>Memoria Instalada: <b id="ram-installed-deep">-- GB</b></span>
-                  <span>En Uso por Apps: <b id="ram-used-deep">-- GB</b></span>
-                  <span>Disponible para Juegos: <b id="ram-avail-deep">-- GB</b></span>
-                  <span>Caché Standby: <b id="ram-cached-deep">-- GB</b></span>
+                  <span>Memoria Instalada: <b id="ram-installed-deep">--</b></span>
+                  <span>En Uso por Apps: <b id="ram-used-deep">--</b></span>
+                  <span>Disponible para Juegos: <b id="ram-avail-deep">--</b></span>
+                  <span>Caché Standby: <b id="ram-cached-deep">--</b></span>
                 </div>
               </div>
               <div class="bi-action">
                 <button class="clean-btn primary pulse-glow" id="btn-purge" onclick="purgeMemory()">
-                  <span id="purge-btn-icon">⚡</span>
-                  <span id="purge-btn-text">Optimizar Memoria RAM</span>
+                  <span id="purge-btn-icon"><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg></span>
+                  <span id="purge-btn-text">Liberar RAM</span>
                 </button>
                 <div id="purge-feedback-msg" style="margin-top: 8px; font-size: 12px; color: var(--accent-green); font-family: var(--font-mono); min-height: 18px; text-align: center;"></div>
               </div>
@@ -959,32 +1055,23 @@
                   <h3>Procesos Principales con Mayor Consumo de RAM</h3>
                   <small class="panel-subtitle">Monitorización en vivo de consumo de memoria de aplicaciones activas</small>
                 </div>
-                <button class="clean-btn mini" onclick="refreshTopProcesses()">🔄 Actualizar</button>
+                <button class="clean-btn mini" onclick="refreshTopProcesses()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Actualizar</span></button>
               </div>
               <div class="top-procs-list" id="top-procs-list">
                 <div class="dev-item-loading">Consultando consumo de procesos...</div>
               </div>
             </div>
 
-            <!-- LATENCIA CERO -->
-            <div class="glass-card booster-item">
-              <div class="bi-info">
-                <h3>Modo Latencia Cero (Windows System Timer 1ms)</h3>
-                <p>Establece la resolución del temporizador del kernel de Windows de 15.6ms a 1.0ms para una respuesta instantánea en shooters y títulos competitivos.</p>
-              </div>
-              <div class="bi-action">
-                <button class="toggle-pill active" id="btn-latency" onclick="toggleLatency()">LATENCIA 1ms: ON</button>
-              </div>
-            </div>
+
 
             <!-- ESPECIFICACIONES DE GPU -->
             <div class="glass-card gpu-info-panel">
               <h3>Especificaciones de la GPU Dedicada</h3>
               <div class="gpu-grid">
-                <div class="gg-col"><span>Modelo:</span> <strong>NVIDIA GeForce RTX 4060 Laptop</strong></div>
-                <div class="gg-col"><span>VRAM:</span> <strong>8 GB GDDR6</strong></div>
-                <div class="gg-col"><span>Potencia Actual:</span> <strong id="gpu-pwr-summary">-- W</strong></div>
-                <div class="gg-col"><span>Bus Status:</span> <strong>PCIe Gen4 x8 Active</strong></div>
+                <div class="gg-col"><span>Modelo:</span> <strong id="gpu-spec-model">--</strong></div>
+                <div class="gg-col"><span>VRAM:</span> <strong id="gpu-spec-vram">--</strong></div>
+                <div class="gg-col"><span>Potencia Actual:</span> <strong id="gpu-pwr-summary">--</strong></div>
+                <div class="gg-col"><span>Bus Status:</span> <strong id="gpu-spec-bus">--</strong></div>
               </div>
             </div>
 
@@ -998,17 +1085,15 @@
             <!-- HERO CARD DE AUDIO ACTIVO -->
             <div class="glass-card audio-hero-card">
               <div class="ahc-info">
-                <span class="hero-label">PROCESADOR DE AUDIO ACTIVO (WINDOWS CORE AUDIO)</span>
-                <h2 id="active-audio-device-name">Razer Barracuda X 2.4</h2>
-                <p>Enlace de audio inalámbrico ultra-rápido de 2.4 GHz mediante receptor USB Tipo-C. Sin compresión Bluetooth, latencia &lt; 15 ms.</p>
+                <span class="hero-label">Audio de Windows</span>
+                <h2 id="active-audio-device-name">--</h2>
+                <p>Dispositivo de salida predeterminado de Windows. El volumen y el silencio se controlan directamente con Windows Core Audio.</p>
                 <div class="ahc-specs-pills">
-                  <span class="asp-pill green">● Conexión: 2.4 GHz Ultra-Low Latency</span>
-                  <span class="asp-pill cyan">Muestreo: 16-bit / 48000 Hz Hi-Fi</span>
-                  <span class="asp-pill blue">Salida: Estéreo 2.0 / Envolvente Virtual</span>
+                  <span class="asp-pill green">● Salida predeterminada de Windows</span>
                 </div>
               </div>
               <div class="ahc-actions">
-                <button class="clean-btn primary" onclick="openSoundSettings()">🎛️ Panel de Sonido Windows</button>
+                <button class="clean-btn primary" onclick="openSoundSettings()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span>Sonido de Windows</span></button>
               </div>
             </div>
 
@@ -1020,14 +1105,14 @@
                   <small class="panel-subtitle">Control individual de volumen y silencio para Spotify, Juegos, Discord y Navegador en tiempo real</small>
                 </div>
                 <div class="et-header-actions">
-                  <button class="clean-btn mini" onclick="refreshAudioMixer()">🔄 Actualizar Apps</button>
+                  <button class="clean-btn mini" onclick="refreshAudioMixer()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Actualizar</span></button>
                 </div>
               </div>
 
               <!-- CONTROL DE VOLUMEN MASTER -->
               <div class="et-master-row">
                 <div class="et-master-info">
-                  <span class="et-master-icon" id="master-vol-icon">🔊</span>
+                  <span class="et-master-icon" id="master-vol-icon"><svg class="i" aria-hidden="true"><use href="#i-volume"/></svg></span>
                   <div class="et-master-titles">
                     <strong>Volumen General del Sistema</strong>
                     <small id="master-device-label">Altavoces / Auriculares</small>
@@ -1037,7 +1122,7 @@
                   <input type="range" min="0" max="100" value="50" class="et-slider" id="master-volume-slider" oninput="onMasterVolumeInput(this.value)">
                   <span class="et-vol-val" id="master-vol-text">50%</span>
                 </div>
-                <button class="et-mute-btn" id="master-mute-btn" onclick="toggleMasterMute()" title="Silenciar / Activar Sonido">🔊</button>
+                <button class="et-mute-btn" id="master-mute-btn" onclick="toggleMasterMute()" title="Silenciar / activar sonido"><svg class="i" aria-hidden="true"><use href="#i-volume"/></svg></button>
               </div>
 
               <!-- GRID DE APPS ACTIVAS (SPOTIFY, DISCORD, CS2, CHROME) -->
@@ -1050,12 +1135,12 @@
             <div class="glass-card audio-live-test-card">
               <div class="altc-info">
                 <div class="altc-titles">
-                  <h3>🎧 Monitor de Prueba en Tiempo Real (Filtros DSP Activos)</h3>
+                  <h3><svg class="i" aria-hidden="true"><use href="#i-headphones"/></svg> Prueba de sonido</h3>
                   <small class="panel-subtitle">Genera un flujo de audio sintético en vivo en tus audífonos. Al mover cualquier slider o cambiar de preset, escucharás la alteración acústica instantánea en tiempo real.</small>
                 </div>
                 <div class="altc-controls">
                   <button class="clean-btn primary" id="btn-audio-test" onclick="toggleAudioTest()">▶️ Reproducir Prueba en Vivo</button>
-                  <span class="test-audio-status" id="test-audio-status">⚪ Audio en reposo</span>
+                  <span class="test-audio-status" id="test-audio-status">En pausa</span>
                 </div>
               </div>
             </div>
@@ -1064,41 +1149,41 @@
             <div class="glass-card audio-presets-panel">
               <div class="panel-header">
                 <div>
-                  <h3>Perfiles Acústicos Tácticos</h3>
+                  <h3>Perfiles de audio</h3>
                   <small class="panel-subtitle">Ajuste instantáneo de curva de ecualización para videojuegos y multimedia</small>
                 </div>
               </div>
               <div class="audio-presets-grid">
                 <button class="audio-preset-card active" data-preset="fps" onclick="applyAudioPreset('fps')">
-                  <span class="apc-icon">🎯</span>
+                  <span class="apc-icon"><svg class="i" aria-hidden="true"><use href="#i-target"/></svg></span>
                   <div class="apc-text">
                     <strong>FPS Competitivo (Pasos)</strong>
                     <small>Realce de 2kHz a 8kHz. Escucha pisadas y recargas antes de que te vean.</small>
                   </div>
                 </button>
                 <button class="audio-preset-card" data-preset="bass" onclick="applyAudioPreset('bass')">
-                  <span class="apc-icon">💥</span>
+                  <span class="apc-icon"><svg class="i" aria-hidden="true"><use href="#i-waves"/></svg></span>
                   <div class="apc-text">
                     <strong>Bass Boost Explosivo</strong>
                     <small>Refuerzo de graves +8dB (31Hz - 125Hz) para inmersión máxima y explosiones.</small>
                   </div>
                 </button>
                 <button class="audio-preset-card" data-preset="music" onclick="applyAudioPreset('music')">
-                  <span class="apc-icon">🎵</span>
+                  <span class="apc-icon"><svg class="i" aria-hidden="true"><use href="#i-music"/></svg></span>
                   <div class="apc-text">
                     <strong>Música Hi-Fi (Harman)</strong>
                     <small>Curva equilibrada y natural para voces cálidas y platillos aireados.</small>
                   </div>
                 </button>
                 <button class="audio-preset-card" data-preset="movie" onclick="applyAudioPreset('movie')">
-                  <span class="apc-icon">🎬</span>
+                  <span class="apc-icon"><svg class="i" aria-hidden="true"><use href="#i-film"/></svg></span>
                   <div class="apc-text">
                     <strong>Cine & Diálogos</strong>
                     <small>Claridad en canal central para entender cada palabra sin subir volumen.</small>
                   </div>
                 </button>
                 <button class="audio-preset-card" data-preset="flat" onclick="applyAudioPreset('flat')">
-                  <span class="apc-icon">⚖️</span>
+                  <span class="apc-icon"><svg class="i" aria-hidden="true"><use href="#i-scale"/></svg></span>
                   <div class="apc-text">
                     <strong>Plano / Normal (Bypass 0 dB)</strong>
                     <small>0 dB en todo el espectro acústico. Respuesta de audio normal original de fábrica sin alterar.</small>
@@ -1107,7 +1192,7 @@
               </div>
             </div>
 
-            <!-- ECUALIZADOR GRÁFICO TÁCTICO DE 10 BANDAS -->
+            <!-- ECUALIZADOR GRÁFICO DE 10 BANDAS -->
             <div class="glass-card eq-console-panel" id="eq-main-panel">
               <div class="panel-header">
                 <div>
@@ -1115,7 +1200,7 @@
                   <small class="panel-subtitle">Calibración precisa del espectro de frecuencias audible de 31 Hz a 16 kHz</small>
                 </div>
                 <div class="eq-header-controls">
-                  <button class="toggle-pill active" id="btn-toggle-eq" onclick="toggleEqMaster()" title="Activar o Desactivar todo el ecualizador">🟢 EQ ACTIVADO</button>
+                  <button class="toggle-pill active" id="btn-toggle-eq" onclick="toggleEqMaster()" title="Activar o desactivar el ecualizador">Ecualizador activado</button>
                   <div class="eq-status-badge" id="eq-current-preset-label">Preset Activo: FPS Competitivo</div>
                 </div>
               </div>
@@ -1196,7 +1281,7 @@
                     <input type="range" min="-12" max="12" value="6" class="eq-slider" orient="vertical" data-band="7" oninput="updateEqBand(7, this.value)">
                   </div>
                   <span class="eq-freq-label">4 kHz</span>
-                  <small class="eq-sub-label">Táctico</small>
+                  <small class="eq-sub-label">Detalle</small>
                 </div>
 
                 <div class="eq-band-col highlight-fps">
@@ -1221,16 +1306,16 @@
               <!-- CONTROLES ADICIONALES DE MEJORA ACÚSTICA -->
               <div class="audio-enhancements-row">
                 <div class="aer-item">
-                  <span>💥 Realce de Graves (Bass Boost):</span>
-                  <button class="toggle-pill active" id="btn-bass-boost" onclick="toggleAudioEnhance('bass')">ACTIVO (+4dB)</button>
+                  <span><svg class="i" aria-hidden="true"><use href="#i-waves"/></svg> Refuerzo de graves</span>
+                  <button class="toggle-pill active" id="btn-bass-boost" onclick="toggleAudioEnhance('bass')">Activo (+4 dB)</button>
                 </div>
                 <div class="aer-item">
-                  <span>🗣️ Claridad de Voces:</span>
-                  <button class="toggle-pill active" id="btn-voice-clarity" onclick="toggleAudioEnhance('voice')">ACTIVO</button>
+                  <span><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg> Claridad de voces</span>
+                  <button class="toggle-pill active" id="btn-voice-clarity" onclick="toggleAudioEnhance('voice')">Activo</button>
                 </div>
                 <div class="aer-item">
-                  <span>🔊 Normalización de Sonoridad (Loudness EQ):</span>
-                  <button class="toggle-pill" id="btn-loudness-eq" onclick="toggleAudioEnhance('loudness')">DESACTIVADO</button>
+                  <span><svg class="i" aria-hidden="true"><use href="#i-volume"/></svg> Volumen uniforme</span>
+                  <button class="toggle-pill" id="btn-loudness-eq" onclick="toggleAudioEnhance('loudness')">Desactivado</button>
                 </div>
               </div>
 
@@ -1248,12 +1333,24 @@
                 <div class="asrc-item">
                   <strong>1. Loudness EQ y Ecualizador Nativo de Windows 11</strong>
                   <p>Windows incluye un compresor de rango dinámico para escuchar pasos lejanos (Loudness EQ) y un ecualizador de 10 bandas nativo en el controlador de audio sin instalar nada extra.</p>
-                  <button class="clean-btn" onclick="openSoundSettings()">⚙️ Abrir Propiedades y Mejoras de Audio</button>
+                  <button class="clean-btn" onclick="openSoundSettings()"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span>Mejoras de audio de Windows</span></button>
                 </div>
                 <div class="asrc-item">
-                  <strong>2. Sincronización Automática con Equalizer APO</strong>
-                  <p>Si usas <strong>Equalizer APO</strong> (el motor estándar de PC gaming), VortexCore Hub exporta automáticamente los 10 sliders a su archivo `config.txt` para aplicar la curva en vivo a todos los juegos.</p>
-                  <button class="clean-btn primary" onclick="syncEqualizerAPO()">⚡ Sincronizar Curva Actual con APO</button>
+                  <div class="asrc-head">
+                    <strong>2. Sincronización Automática con Equalizer APO</strong>
+                    <span class="apo-status-pill" id="apo-status-pill">Comprobando...</span>
+                  </div>
+                  <p>Para que el ecualizador cambie el sonido de todos tus juegos y apps de Windows en tiempo real:</p>
+                  <ol class="apo-steps">
+                    <li><strong>Descarga e instala Equalizer APO</strong> (motor gratuito necesario para aplicar EQ global en Windows).</li>
+                    <li><strong>Ábrelo una sola vez:</strong> ejecuta <em>Configurator</em> (en tu Menú Inicio), marca tus auriculares o altavoces y reinicia el equipo si te lo pide.</li>
+                    <li><strong>Listo:</strong> al mover sliders o pulsar <em>Aplicar curva</em>, VortexCore Hub actualiza <code>config.txt</code> automáticamente sin abrir nada más.</li>
+                  </ol>
+                  <div class="asrc-actions">
+                    <button class="clean-btn outline" id="btn-apo-download" onclick="openApoAction('download')"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg><span>Descargar Equalizer APO</span></button>
+                    <button class="clean-btn outline" id="btn-apo-configurator" onclick="openApoAction('configurator')"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span>Abrir Configurator</span></button>
+                    <button class="clean-btn primary" onclick="syncEqualizerAPO()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Aplicar curva en Equalizer APO</span></button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1267,20 +1364,18 @@
             
             <div class="glass-card startup-hero">
               <div class="sh-info">
-                <span class="hero-label">ACELERACIÓN DE ARRANQUE & RENDIMIENTO</span>
-                <h2>Gestor de Inicio de Windows</h2>
-                <p>Deshabilita programas que se inician automáticamente al encender Windows para reducir el tiempo de arranque, ahorrar memoria RAM y eliminar procesos en segundo plano innecesarios.</p>
+                <p>Desactiva lo que no necesitas que se abra al encender el equipo: Windows arranca más rápido y queda más RAM libre. Es el mismo ajuste que la pestaña <em>Inicio</em> del Administrador de tareas.</p>
               </div>
               <div class="sh-actions">
-                <button class="clean-btn outline" onclick="loadStartupApps()">🔄 Actualizar Lista</button>
+                <button class="clean-btn outline" onclick="loadStartupApps()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Actualizar</span></button>
               </div>
             </div>
 
             <div class="glass-card startup-card">
               <div class="panel-header">
                 <div>
-                  <h3>Programas Detectados en el Registro de Arranque</h3>
-                  <small class="panel-subtitle">Haz clic en el interruptor para deshabilitar o habilitar cualquier aplicación al encender la PC</small>
+                  <h3>Programas que se abren al iniciar</h3>
+                  <small class="panel-subtitle">Usa el interruptor de cada programa para activarlo o desactivarlo.</small>
                 </div>
                 <div class="badge-count" id="startup-count-badge">Consultando...</div>
               </div>
@@ -1292,30 +1387,47 @@
           </div>
         </section>
 
-        <!-- PESTAÑA 8: DEBLOAT DE WINDOWS (MICROSOFT EDGE PROTEGIDO) -->
+        <!-- PESTAÑA 8: LIMPIEZA DE WINDOWS (ESPACIO REAL + DEBLOAT) -->
         <section class="tab-view" id="tab-debloat">
           <div class="settings-stack">
+
+            <!-- LIMPIADOR DE ESPACIO REAL (TEMPORALES + CACHÉ DE SHADERS) -->
+            <div class="glass-card cleanup-card">
+              <div class="panel-header">
+                <div>
+                  <h3>Limpiador de espacio real (Temporales y caché de shaders)</h3>
+                  <small class="panel-subtitle">Elimina archivos temporales y caché gráfica sin tocar documentos, contraseñas ni datos personales.</small>
+                </div>
+                <div class="cleanup-head-actions">
+                  <span class="badge-count" id="cleanup-total-badge">Sin escanear</span>
+                  <button class="clean-btn outline" onclick="scanDiskCleanup()"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><span>Escanear</span></button>
+                  <button class="clean-btn primary" id="btn-run-cleanup" onclick="runDiskCleanup()" disabled><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg><span>Limpiar seleccionadas</span></button>
+                </div>
+              </div>
+              <div class="cleanup-grid" id="cleanup-items-container">
+                <div class="dev-item-loading">Calculando tamaño real de archivos temporales y caché de shaders...</div>
+              </div>
+            </div>
             
             <div class="glass-card debloat-hero">
               <div class="dh-info">
-                <div class="safety-shield-badge">🛡️ PROTECCIÓN ACTIVA: MICROSOFT EDGE BLINDADO (NO SE TOCA)</div>
-                <h2>Limpieza y Debloat de Windows</h2>
-                <p>Elimina de forma 100% segura aplicaciones basura preinstaladas, widgets con telemetría y software innecesario de Windows. <strong>Microsoft Edge, WebView2 y la Tienda de Windows están blindados y protegidos contra desinstalación.</strong></p>
+                <p>Quita aplicaciones que vienen preinstaladas y no usas. Solo aparecen las que están en este equipo.</p>
+                <div class="safety-shield-badge"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span>Microsoft Edge, WebView2 y la Tienda nunca se tocan</span></div>
               </div>
               <div class="dh-actions">
-                <button class="clean-btn outline" onclick="loadDebloatApps()">🔄 Escanear</button>
-                <button class="clean-btn primary" onclick="selectRecommendedDebloat()">✨ Selección Recomendada</button>
-                <button class="clean-btn danger" id="btn-uninstall-debloat" onclick="uninstallSelectedDebloat()">🗑️ Desinstalar Seleccionadas</button>
+                <button class="clean-btn outline" onclick="loadDebloatApps()"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Volver a buscar</span></button>
+                <button class="clean-btn primary" onclick="selectRecommendedDebloat()"><svg class="i" aria-hidden="true"><use href="#i-sparkles"/></svg><span>Marcar recomendadas</span></button>
+                <button class="clean-btn danger" id="btn-uninstall-debloat" onclick="uninstallSelectedDebloat()" disabled><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg><span>Quitar seleccionadas</span></button>
               </div>
             </div>
 
             <div class="glass-card debloat-card">
               <div class="panel-header">
                 <div>
-                  <h3>Catálogo Seguro de Bloatware UWP</h3>
-                  <small class="panel-subtitle">Selecciona los paquetes que no utilices para recuperar espacio y detener telemetría en segundo plano</small>
+                  <h3>Aplicaciones preinstaladas</h3>
+                  <small class="panel-subtitle">Marca las que quieras quitar y pulsa <strong>Quitar seleccionadas</strong>.</small>
                 </div>
-                <div class="debloat-stats-badge" id="debloat-stats-badge">Detectando apps instaladas...</div>
+                <div class="debloat-stats-badge" id="debloat-stats-badge">Buscando...</div>
               </div>
               <div class="debloat-grid" id="debloat-apps-container">
                 <div class="dev-item-loading">Escaneando paquetes UWP instalados...</div>
@@ -1329,16 +1441,16 @@
 
       <!-- CONSOLA INFERIOR DISCRETA -->
       <footer class="app-console-bar">
-        <span class="console-label">SISTEMA:</span>
-        <span class="console-text" id="console-text">VortexCore Hub v7.8 activo. Telemetría de silicio y periféricos conectada.</span>
+        <span class="console-label">Registro</span>
+        <span class="console-text" id="console-text">VortexCore Hub listo.</span>
       </footer>
 
     </main>
   </div>
 
-  <!-- CONTENEDOR DE NOTIFICACIONES TOAST FLOTANTES HUD -->
+  <!-- NOTIFICACIONES FLOTANTES -->
   <div class="vortex-toast-container" id="vortex-toast-container"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=7.8.7"></script>
 </body>
 </html>

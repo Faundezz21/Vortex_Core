@@ -1,19 +1,18 @@
 name: Build & Release Official Installer
 
+# La versión sale SIEMPRE del archivo VERSION (única fuente de verdad).
+# Las notas del release se toman de la sección correspondiente de CHANGELOG.md.
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: 'Etiqueta de la versión (ej. v7.8.6)'
-        required: true
-        default: 'v7.8.6'
       release_name:
-        description: 'Título del Release'
-        required: true
-        default: 'VortexCore Hub v7.8.6 // Cyber-Reactor Edition & Manual Tuning Lab'
+        description: 'Título del Release (vacío = "VortexCore Hub vX.Y.Z")'
+        required: false
+        default: ''
       draft:
         description: '¿Crear como borrador (Draft)?'
         required: false
@@ -40,6 +39,20 @@ jobs:
       - name: 📥 Clonar Repositorio
         uses: actions/checkout@v4
 
+      - name: 🏷️ Leer Versión (archivo VERSION)
+        id: version
+        shell: powershell
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "VERSION inválido: '$version'" }
+          $tag = "v$version"
+          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne $tag) {
+            throw "El tag '${{ github.ref_name }}' no coincide con VERSION ($tag). Actualiza VERSION o el tag."
+          }
+          "version=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          "tag=$tag" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+          Write-Host "Versión: $version (tag $tag)"
+
       - name: 🐍 Configurar Entorno Python 3.13
         uses: actions/setup-python@v5
         with:
@@ -49,7 +62,10 @@ jobs:
       - name: 📦 Instalar Dependencias de Compilación
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pyinstaller
+          python -m pip install -r requirements-build.txt
+
+      - name: 🧪 Ejecutar Pruebas
+        run: python -m unittest discover -s tests -v
 
       - name: ⚙️ Compilar Binario Nativo con PyInstaller
         run: |
@@ -68,61 +84,68 @@ jobs:
             $iscc = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
           Write-Host "Compilando installer.iss con $iscc"
-          & $iscc "$PWD\installer.iss"
+          & $iscc "/DMyAppVersion=${{ steps.version.outputs.version }}" "$PWD\installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falló con código $LASTEXITCODE" }
 
       - name: 🗜️ Generar Paquete Portátil y Sumas de Verificación
         shell: powershell
         run: |
-          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\VortexCoreHub-v7.8.6-Portable.zip" -Force
+          $zipName = "VortexCoreHub-${{ steps.version.outputs.tag }}-Portable.zip"
+          Compress-Archive -Path "dist\VortexCoreHub\*" -DestinationPath "dist\$zipName" -Force
           $setupHash = (Get-FileHash dist\Vortex-core-hub-Setup.exe -Algorithm SHA256).Hash
-          $zipHash = (Get-FileHash dist\VortexCoreHub-v7.8.6-Portable.zip -Algorithm SHA256).Hash
-          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  VortexCoreHub-v7.8.6-Portable.zip" | Out-File -Encoding ascii dist\checksums-sha256.txt
+          $zipHash = (Get-FileHash "dist\$zipName" -Algorithm SHA256).Hash
+          "$setupHash  Vortex-core-hub-Setup.exe`r`n$zipHash  $zipName" | Out-File -Encoding ascii dist\checksums-sha256.txt
           Write-Host "SHA256 Setup: $setupHash"
           Write-Host "SHA256 Portable: $zipHash"
+
+      - name: 📝 Generar Notas del Release desde CHANGELOG.md
+        shell: python
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          import os, re
+          version, tag = os.environ["VERSION"], os.environ["TAG"]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(rf"^## {re.escape(version)}\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+          if not m:
+              raise SystemExit(f"CHANGELOG.md no tiene una sección '## {version}'")
+          base = f"https://github.com/${{ github.repository }}/releases/download/{tag}"
+          notes = f"""# 🌀 VortexCore Hub {tag}
+
+          **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**
+
+          ### 📦 Descargas Oficiales
+          * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`]({base}/Vortex-core-hub-Setup.exe) *(asistente de instalación, accesos directos y desinstalador limpio)*.
+          * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-{tag}-Portable.zip`]({base}/VortexCoreHub-{tag}-Portable.zip).
+          * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`]({base}/checksums-sha256.txt).
+
+          > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**.
+
+          ---
+
+          ## Novedades en {tag}
+          {{changes}}
+
+          ---
+
+          ### 💻 Requisitos del Sistema
+          * **Sistema Operativo**: Windows 11 o Windows 10 (64 bits).
+          * **Permisos**: Requiere permisos de Administrador para controlar ventiladores, inicio y memoria RAM.
+          """
+          notes = notes.replace("{changes}", m.group(1).strip())
+          open("release_notes.md", "w", encoding="utf-8").write(notes)
+          print(notes)
 
       - name: 🚀 Publicar Release en GitHub con Setup.exe
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}
-          name: ${{ inputs.release_name || 'VortexCore Hub v7.8.6 // Cyber-Reactor Edition & Manual Tuning Lab' }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ inputs.release_name || format('VortexCore Hub {0}', steps.version.outputs.tag) }}
           draft: ${{ inputs.draft || false }}
           prerelease: ${{ inputs.prerelease || false }}
+          body_path: release_notes.md
           files: |
             dist/Vortex-core-hub-Setup.exe
-            dist/VortexCoreHub-v7.8.6-Portable.zip
+            dist/VortexCoreHub-${{ steps.version.outputs.tag }}-Portable.zip
             dist/checksums-sha256.txt
-          body: |
-            # 🌀 VortexCore Hub v7.8.6 // Cyber-Reactor Edition & Manual Tuning Lab
-            
-            **Desarrollado por [Faundezz21](https://github.com/Faundezz21)**  
-            *Centro de control de hardware con identidad propia VortexCore Cyber-Reactor, Laboratorio Manual avanzado (CPU SPL/SPPT/FPPT + GPU Clock/Boost/TGP + Curva de 8 Puntos), detección instantánea de mandos 2.4GHz/BT y ventana nativa aislada.*
-
-            ---
-
-            ### 📦 Descargas Oficiales
-            * **Instalador Oficial Recomendado**: [`Vortex-core-hub-Setup.exe`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/Vortex-core-hub-Setup.exe) *(Con asistente visual, ícono oficial, accesos directos y desinstalador limpio)*.
-            * **Versión Portátil (Sin instalación)**: [`VortexCoreHub-v7.8.6-Portable.zip`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/VortexCoreHub-v7.8.6-Portable.zip).
-            * **Sumas de Verificación (SHA-256)**: [`checksums-sha256.txt`](https://github.com/Faundezz21/VortexCore-Hub/releases/download/${{ github.ref_name != '' && startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag_name }}/checksums-sha256.txt).
-
-            > 💡 **Nota:** Esta suite viene **100% empaquetada**. **NO requiere tener Python instalado**. Solo haz doble clic y se abrirá de inmediato.
-
-            ---
-
-            ### 🛠️ Novedades y Mejoras Principales en v7.8.4:
-            * **🎨 Nuevo Diseño Táctico "Tactical Armoury" (VortexCore Hub)**:
-              * Interfaz oscura mate en negro carbón y ámbar táctico con barra lateral compacta y biseles diagonales (`\\\`).
-              * Showcase visual 3D del equipo detectado con emblema luminoso **VORTEX CORE HUB** y especificaciones reales de CPU y GPU.
-              * Cuadrícula táctica **Uso del sistema** (`CPU`, `GPU`, `Ventilador`, `Memoria`) con barras de frecuencia en MHz, uso, voltaje (mV), temperatura (°C), acústica (dBA) y almacenamiento total en GB.
-              * Barra inferior de **Modo operativo** con 5 modos directos: `Windows®`, `Silencio`, `Rendimiento`, `Turbo` y `Manual`.
-            * **🎮 Detección Instantánea de Mandos y Periféricos (2.4 GHz & Bluetooth en <25ms)**:
-              * Integración nativa con APIs Win32 en C (`XInputGetState`, `winmm.joyGetPosEx`, `CfgMgr32` y `MMDevices`) sin bloqueos de PowerShell.
-              * Detecta en tiempo real al encender cualquier mando Xbox, DualSense PS5/PS4, receptores inalámbricos USB 2.4 GHz y auriculares Bluetooth/Dongle.
-            * **🚀 Gestor Nativo de Inicio de Windows (`StartupApproved\Run`)**:
-              * Sincronización 100% real y bidireccional con el Administrador de Tareas de Windows 10/11 al habilitar o deshabilitar aplicaciones de arranque.
-            * **🧹 Limpiador y Debloat de Windows (Microsoft Edge 100% Protegido)**.
-
-            ---
-
-            ### 💻 Requisitos del Sistema:
-            * **Sistema Operativo**: Windows 11 o Windows 10 (64 bits).
-            * **Permisos**: Requiere permisos de Administrador para controlar ventiladores, inicio y memoria RAM.
