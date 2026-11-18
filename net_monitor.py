@@ -151,6 +151,86 @@ def pick_game_server(remote_rates: dict, names: dict, prefer_name: str | None = 
     return {"pid": pid, "name": names.get(pid), "ip": ip, "port": port, "pps": round(pps, 1)}
 
 
+IP_SUCCESS = 0
+IP_TTL_EXPIRED_TRANSIT = 11013
+PROXY_AFTER_FAILS = 4
+
+if IS_WINDOWS:
+    class IP_OPTION_INFORMATION(ctypes.Structure):
+        _fields_ = [("Ttl", ctypes.c_ubyte), ("Tos", ctypes.c_ubyte), ("Flags", ctypes.c_ubyte),
+                    ("OptionsSize", ctypes.c_ubyte), ("OptionsData", ctypes.c_void_p)]
+
+    class ICMP_ECHO_REPLY(ctypes.Structure):
+        _fields_ = [("Address", ctypes.c_ulong), ("Status", ctypes.c_ulong), ("RoundTripTime", ctypes.c_ulong),
+                    ("DataSize", ctypes.c_ushort), ("Reserved", ctypes.c_ushort), ("Data", ctypes.c_void_p),
+                    ("Options", IP_OPTION_INFORMATION)]
+
+    _iph = ctypes.WinDLL("iphlpapi", use_last_error=True)
+    _iph.IcmpCreateFile.restype = ctypes.c_void_p
+    _iph.IcmpCloseHandle.argtypes = [ctypes.c_void_p]
+    _iph.IcmpSendEcho.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_ushort,
+                                  ctypes.POINTER(IP_OPTION_INFORMATION), ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong]
+    _iph.IcmpSendEcho.restype = ctypes.c_ulong
+
+
+# envia un eco icmp ipv4 con un ttl dado: (estado, ip que respondio, ms) o none
+def icmp_probe(ip: str, ttl: int = 128, timeout_ms: int = 1000):
+    if not IS_WINDOWS:
+        return None
+    try:
+        addr = int.from_bytes(socket.inet_aton(ip), "little")
+    except OSError:
+        return None
+    handle = _iph.IcmpCreateFile()
+    if not handle or handle == ctypes.c_void_p(-1).value:
+        return None
+    try:
+        data = ctypes.create_string_buffer(b"vortexcore", 10)
+        opts = IP_OPTION_INFORMATION(ttl, 0, 0, 0, None)
+        buf = ctypes.create_string_buffer(ctypes.sizeof(ICMP_ECHO_REPLY) + 64)
+        _iph.IcmpSendEcho(handle, addr, data, 10, ctypes.byref(opts), buf, len(buf), timeout_ms)
+        reply = ICMP_ECHO_REPLY.from_buffer(buf)
+        if not reply.Address:
+            return None
+        hop = socket.inet_ntoa(reply.Address.to_bytes(4, "little"))
+        return reply.Status, hop, reply.RoundTripTime
+    finally:
+        _iph.IcmpCloseHandle(handle)
+
+
+# elige el ultimo salto publico que responde antes del servidor
+def pick_last_hop(probes: dict):
+    hops = [(ttl, r[1], r[2]) for ttl, r in probes.items()
+            if r and r[0] in (IP_SUCCESS, IP_TTL_EXPIRED_TRANSIT) and is_public_ip(r[1])]
+    if not hops:
+        return None
+    ttl, ip, rtt = max(hops)
+    return {"ip": ip, "ttl": ttl, "rtt": rtt}
+
+
+# rastrea la ruta en paralelo (un eco por salto) para no tardar mas de un segundo
+def find_last_hop(ip: str, max_hops: int = 24):
+    probes = {}
+
+    def run(ttl):
+        probes[ttl] = icmp_probe(ip, ttl, 900)
+
+    threads = [threading.Thread(target=run, args=(ttl,), daemon=True) for ttl in range(1, max_hops + 1)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(2)
+    return pick_last_hop(probes)
+
+
+# mide hasta el salto enviando al servidor con el ttl justo para que expire ahi (como mtr)
+def ping_proxy(target_ip: str, hop: dict):
+    r = icmp_probe(target_ip, hop["ttl"], 1000)
+    if r and r[0] in (IP_SUCCESS, IP_TTL_EXPIRED_TRANSIT) and is_public_ip(r[1]):
+        return r[2]
+    return None
+
+
 def ping_stats(samples) -> dict:
     samples = list(samples)
     ok = [s for s in samples if s is not None]
@@ -289,6 +369,9 @@ class NetMonitor:
         self._names_at = 0.0
         self._target = None
         self._pings = deque(maxlen=20)
+        self._proxy = None      # salto que responde cuando el servidor bloquea el ping
+        self._proxy_for = None
+        self._proxy_tried = None
         self._ping_thread = None
         self.events = 0
 
@@ -403,10 +486,21 @@ class NetMonitor:
         target = self._target
         if not target or not self.ping_func:
             return
+        ip = target["ip"]
+        proxy = self._proxy if self._proxy_for == ip else None
         try:
-            self._pings.append(self.ping_func(target["ip"]))
+            self._pings.append(ping_proxy(ip, proxy) if proxy else self.ping_func(ip))
         except Exception:
             self._pings.append(None)
+        # si el servidor no contesta ningun ping se mide hasta el ultimo salto de la ruta
+        recent = list(self._pings)[-PROXY_AFTER_FAILS:]
+        if (not proxy and self._proxy_tried != ip and ":" not in ip
+                and len(recent) == PROXY_AFTER_FAILS and all(p is None for p in recent)):
+            self._proxy_tried = ip
+            hop = find_last_hop(ip)
+            if hop and self._target and self._target["ip"] == ip:
+                self._proxy, self._proxy_for = hop, ip
+                self._pings.clear()
 
     def snapshot(self, top: int = 6) -> dict:
         self.touch()
@@ -427,6 +521,11 @@ class NetMonitor:
                 self._pings.clear()
             self._target = game
             game.update(ping_stats(self._pings))
+            proxy = self._proxy if self._proxy_for == game["ip"] else None
+            game["approx"] = bool(proxy)
+            game["via"] = proxy["ip"] if proxy else None
+            if self._proxy_tried == game["ip"] and not proxy and not game.get("responds"):
+                game["route_failed"] = True
         else:
             self._target = None
             self._pings.clear()

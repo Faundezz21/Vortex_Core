@@ -477,10 +477,11 @@ function renderNetworkApps(st) {
     } else if (!hasNum(g.ping_ms)) {
       pingHtml = `<strong style="color:var(--text-tertiary)">…</strong><span>midiendo</span>`;
     } else {
-      pingHtml = `<strong style="color:${q.color}">${g.ping_ms} ms</strong><span>ping</span>`;
+      pingHtml = `<strong style="color:${q.color}">${g.approx ? "≈" : ""}${g.ping_ms} ms</strong><span>${g.approx ? "ping aproximado" : "ping"}</span>`;
       chips.push(`<span class="net-chip" style="color:${q.color}">${q.label}</span>`);
       chips.push(`<span class="net-chip muted" title="Cuánto varía el ping entre mediciones; más de 10 ms se nota como tirones">Variación ± ${Math.round(g.jitter_ms || 0)} ms</span>`);
       chips.push(`<span class="net-chip muted" title="Mediciones que no recibieron respuesta">Pérdida ${g.loss_pct || 0}%</span>`);
+      if (g.approx) chips.push(`<span class="net-chip muted" title="El servidor del juego bloquea el ping, así que se mide hasta el último equipo de red antes del servidor (${netEscape(g.via)}). Suele quedar a pocos ms del ping real.">Medido hasta la entrada del servidor</span>`);
     }
     gameBox.innerHTML = `
       <div class="net-game-box">

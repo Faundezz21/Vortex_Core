@@ -87,6 +87,16 @@ class GameServerTests(unittest.TestCase):
         remotes = {(40, "udp", "142.250.1.1", 443): (9000.0, 80.0), (40, "udp", "1.1.1.1", 53): (900.0, 30.0)}
         self.assertIsNone(nm.pick_game_server(remotes, self.NAMES))
 
+    def test_pick_last_hop(self):
+        probes = {
+            1: (nm.IP_TTL_EXPIRED_TRANSIT, "192.168.1.1", 2),
+            8: (nm.IP_TTL_EXPIRED_TRANSIT, "200.1.2.3", 40),
+            15: (nm.IP_TTL_EXPIRED_TRANSIT, "51.10.8.90", 97),
+            16: None, 17: None,
+        }
+        self.assertEqual(nm.pick_last_hop(probes), {"ip": "51.10.8.90", "ttl": 15, "rtt": 97})
+        self.assertIsNone(nm.pick_last_hop({1: (nm.IP_TTL_EXPIRED_TRANSIT, "10.0.0.1", 1), 2: None}))
+
     def test_ping_stats(self):
         self.assertEqual(nm.ping_stats([]), {"ping_ms": None, "jitter_ms": None, "loss_pct": None, "responds": None})
         st = nm.ping_stats([30, 34, None, 30, 32])

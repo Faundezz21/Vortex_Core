@@ -161,7 +161,8 @@ def _ping_tile(net: dict | None) -> dict:
         tile["foot"] = "midiendo…"
         return tile
     quality = ping_quality(game["ping_ms"], game.get("jitter_ms"), game.get("loss_pct"))
-    tile["main"] = f"{game['ping_ms']} ms"
+    # si se mide hasta el ultimo salto de la ruta se marca como aproximado
+    tile["main"] = ("≈" if game.get("approx") else "") + f"{game['ping_ms']} ms"
     tile["main_color"] = quality[1]
     tile["badge"] = quality
     tile["foot"] = f"±{game.get('jitter_ms', 0):.0f} ms · {game.get('loss_pct', 0)}% pérdida"
