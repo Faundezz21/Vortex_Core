@@ -36,7 +36,10 @@ def is_newer(latest, current) -> bool:
 def summarize_notes(body: str, limit: int = 6) -> list:
     # extrae las primeras vinetas de las notas del release para mostrarlas en la app
     items = []
-    for line in (body or "").splitlines():
+    lines = (body or "").splitlines()
+    # las notas traen primero las descargas; se leen solo desde la seccion de novedades
+    start = next((i for i, l in enumerate(lines) if l.lstrip("# ").lower().startswith("novedades")), -1)
+    for line in lines[start + 1:]:
         line = line.strip()
         if line.startswith(("- ", "* ")):
             text = re.sub(r"\*\*|`|\[([^\]]+)\]\([^)]+\)", lambda m: m.group(1) or "", line[2:]).strip()

@@ -1,5 +1,30 @@
 # Changelog
 
+## 7.11.0
+
+### Hub gaming: overlay dentro del juego
+- **Overlay en juego (HUD):** FPS reales medidos con PresentMon (Intel, MIT), tiempo por frame y 1% low, temperaturas y uso de CPU y GPU, consumo en W, VRAM, RAM, ventiladores, ping, batería y hora, encima de cualquier juego en ventana o pantalla completa sin bordes.
+- **Estilo integrado al juego:** texto con contorno fino y sin caja, en blanco, que solo se pinta en ámbar o rojo cuando algo está mal. También hay estilo compacto (barra) y detallado (tarjetas con anillos de uso).
+- **Temas según el juego:** el HUD cambia solo de tipografía y colores según el juego detectado (Táctico para PUBG y Apex, Arena para Rocket League y Fortnite, Operaciones para CS2, Pixel para Minecraft y Competitivo para Valorant), con opción de elegir uno fijo.
+- **Solo mientras juegas:** el overlay aparece cuando un juego está en primer plano y se oculta en el escritorio, el navegador y otras apps.
+- **Límites térmicos por componente:** la CPU se marca en ámbar desde 85 °C y en rojo desde 95 °C; la GPU desde 78 °C y 87 °C.
+- **Atajo y posición configurables:** el atajo para mostrar u ocultar se graba presionando la combinación (por defecto `Ctrl+Shift+F10`) y el HUD se puede ubicar en 6 posiciones de la pantalla.
+
+### Red
+- **Consumo por app:** la tarjeta Red muestra qué programas están usando internet y a qué velocidad, leyendo los eventos de red del kernel de Windows (ETW), como el Monitor de recursos.
+- **Ping real al servidor del juego:** detecta solo a qué servidor está conectado el juego y mide ping, variación y pérdida de paquetes con su calidad (buena, regular o mala).
+- **Ping aproximado para servidores que bloquean el ping:** si el servidor no responde (como los de PUBG en Azure), se mide hasta el último equipo de red antes del datacenter y se marca con `≈`.
+- La optimización de red ahora explica qué hace cada ajuste y aclara que cambiar el DNS no baja el ping dentro del juego.
+
+### Actualizaciones
+- **Aviso de nuevas versiones:** la app revisa los releases de GitHub al iniciar y cada 6 horas, y avisa con una notificación de Windows y un aviso dentro de la app con las novedades, con opción de omitir una versión.
+
+### Correcciones
+- La app ya no se cierra por el error de LibreHardwareMonitor al leer la potencia de la GPU Intel integrada (`AccessViolationException`).
+- La temperatura del paquete de CPU y el Vcore se leen correctamente con PawnIO.
+- Se descartan lecturas imposibles de potencia de GPU en reposo y se corrige la VRAM, que mostraba el total en vez de la usada.
+- Los enlaces de descarga del README apuntan al repositorio correcto.
+
 ## 7.10.1
 
 ### Correcciones

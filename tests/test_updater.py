@@ -38,6 +38,15 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(r["notes"], ["Overlay en juego con FPS", "Ping al servidor del juego", "Red por app"])
 
 
+class NotesTests(unittest.TestCase):
+    def test_skips_download_links(self):
+        body = "\n".join([
+            "# VortexCore Hub v7.11.0", "", "### Descargas Oficiales", "* **Instalador**: [`Setup.exe`](https://x)", "",
+            "## Novedades en v7.11.0", "### Hub gaming", "- **Overlay en juego** con FPS", "- Ping al juego",
+        ])
+        self.assertEqual(updater.summarize_notes(body), ["Overlay en juego con FPS", "Ping al juego"])
+
+
 class CheckerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
