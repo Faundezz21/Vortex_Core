@@ -1277,6 +1277,13 @@ class VortexCoreManager:
 
 
                     self.telemetry["ram_pct"] = ram_pct
+                    # bateria del portatil para avisar en el hud si se juega desenchufado
+                    try:
+                        bat = psutil.sensors_battery()
+                        self.telemetry["battery_pct"] = int(round(bat.percent)) if bat else None
+                        self.telemetry["on_battery"] = bool(bat) and not bat.power_plugged
+                    except Exception:
+                        self.telemetry["battery_pct"] = None
                     self.telemetry["ram_used"] = f"{used_gb:.1f}"
                     self.telemetry["ram_total"] = f"{total_gb:.1f}"
                     self.telemetry["ram_free"] = f"{available_gb:.1f}"
@@ -1360,7 +1367,11 @@ class VortexCoreManager:
                                 self.telemetry["cpu_temp"] = int(round(native["package_c"]))
                             if native.get("vcore_mv") is not None:
                                 self.telemetry["cpu_volt_mv"] = native["vcore_mv"]
+                            self.telemetry["cpu_power_w"] = native.get("cpu_power_w")
                             ngpu = native.get("gpu") or {}
+                            self.telemetry["gpu_hotspot"] = ngpu.get("hotspot")
+                            self.telemetry["gpu_vram_used_mb"] = ngpu.get("vram_used_mb")
+                            self.telemetry["gpu_vram_total_mb"] = ngpu.get("vram_total_mb")
                             if ngpu and (not self._has_nvidia_smi or self.telemetry.get("gpu_temp") is None):
                                 if ngpu.get("temp") is not None:
                                     self.telemetry["gpu_temp"] = ngpu["temp"]

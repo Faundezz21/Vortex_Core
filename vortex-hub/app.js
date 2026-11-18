@@ -1515,6 +1515,15 @@ async function toggleAutostart() {
 // overlay en juego
 let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: true, style: "compact", items: [] };
 let overlayTelemetry = null;
+// colores de la vista previa de cada tema del hud
+const HUD_THEMES = {
+  vortex: { name: "Vortex", bg: "12,16,24", label: "#8b95a9", accent: "#00e5ff", border: "rgba(255,255,255,.14)", r: 1, font: "'Segoe UI'" },
+  tactico: { name: "Táctico", bg: "18,18,16", label: "#f2a900", accent: "#f2a900", border: "rgba(242,169,0,.45)", r: 0.15, font: "Bahnschrift", stripe: "#f2a900" },
+  arena: { name: "Arena", bg: "11,18,52", label: "#5cb8ff", accent: "#3b9cff", border: "rgba(127,184,255,.4)", r: 1, font: "Bahnschrift", stripe: "#2e8bff", stripe2: "#ff7a1a" },
+  ops: { name: "Operaciones", bg: "28,36,46", label: "#e0a33f", accent: "#e0a33f", border: "rgba(255,255,255,.12)", r: 0.25, font: "Bahnschrift", topline: "#e0a33f" },
+  pixel: { name: "Pixel", bg: "30,30,30", label: "#ffff55", accent: "#55ff55", border: "#555", r: 0, font: "Consolas", shadow: "1px 1px 0 #3f3f3f" },
+  competitivo: { name: "Competitivo", bg: "15,25,35", label: "#ff4655", accent: "#ff4655", border: "rgba(255,70,85,.4)", r: 0.1, font: "Bahnschrift", stripe: "#ff4655" },
+};
 const overlayFpsDemo = [138, 142, 140, 144, 139, 131, 136, 143, 141, 144, 137, 140, 128, 135, 142, 144, 141, 139, 143, 140];
 
 async function loadOverlayConfig() {
@@ -1527,10 +1536,10 @@ async function loadOverlayConfig() {
   } catch (err) {}
 }
 
-function ovTempColor(t) {
+function ovTempColor(t, warn = 80, hot = 90) {
   if (t == null) return "#8b95a8";
-  if (t >= 90) return "#f87171";
-  if (t >= 80) return "#fbbf24";
+  if (t >= hot) return "#f87171";
+  if (t >= warn) return "#fbbf24";
   return "#34d399";
 }
 
@@ -1549,16 +1558,30 @@ function renderOverlayPreview() {
   box.style.setProperty("--ov-alpha", (Math.min(245, overlayCfg.opacity * 2.45) / 255).toFixed(2));
   box.style.transform = `scale(${scale})`;
   box.classList.toggle("ovp-compact", (overlayCfg.style || "compact") === "compact");
+  const themeKey = (overlayCfg.theme || "auto") === "auto" ? (overlayCfg.active_theme || "vortex") : overlayCfg.theme;
+  const th = HUD_THEMES[themeKey] || HUD_THEMES.vortex;
+  box.style.setProperty("--hud-bg", th.bg);
+  box.style.setProperty("--hud-label", th.label);
+  box.style.setProperty("--hud-accent", th.accent);
+  box.style.setProperty("--hud-border", th.border);
+  box.style.setProperty("--hud-r", th.r);
+  box.style.setProperty("--hud-font", th.font);
+  box.style.setProperty("--hud-stripe", th.stripe || "transparent");
+  box.style.setProperty("--hud-stripe2", th.stripe2 || "transparent");
+  box.style.setProperty("--hud-topline", th.topline || "transparent");
+  box.style.setProperty("--hud-shadow", th.shadow || "none");
   if ((overlayCfg.style || "compact") === "compact") {
     // franja de una linea igual a la del juego
     const seg = (label, val, color, extra) => `<span class="ovp-seg">${label ? `<em>${label}</em>` : ""}<b style="color:${color}">${val}</b>${extra ? `<i>${extra}</i>` : ""}</span>`;
     const parts = [];
     if (items.includes("fps")) parts.push(`<span class="ovp-seg"><b class="big" style="color:#34d399">144</b><em>FPS</em></span>`);
-    if (items.includes("cpu")) { const tc = ovNum(t.cpu_temp), u = ovNum(t.cpu_usage); parts.push(seg("CPU", tc != null ? `${Math.round(tc)}°` : "--", ovTempColor(tc), u != null ? `${Math.round(u)}%` : "")); }
-    if (items.includes("gpu")) { const tg = ovNum(t.gpu_temp), u = ovNum(t.gpu_usage); parts.push(seg("GPU", tg != null ? `${Math.round(tg)}°` : "--", ovTempColor(tg), u != null ? `${Math.round(u)}%` : "")); }
+    if (items.includes("cpu")) { const tc = ovNum(t.cpu_temp), u = ovNum(t.cpu_usage); parts.push(seg("CPU", tc != null ? `<i class="ovp-tpill" style="--c:${ovTempColor(tc, 85, 95)}">${Math.round(tc)}°</i>` : "--", ovTempColor(tc, 85, 95), u != null ? `${Math.round(u)}%` : "")); }
+    if (items.includes("gpu")) { const tg = ovNum(t.gpu_temp), u = ovNum(t.gpu_usage); parts.push(seg("GPU", tg != null ? `<i class="ovp-tpill" style="--c:${ovTempColor(tg, 78, 87)}">${Math.round(tg)}°</i>` : "--", ovTempColor(tg, 78, 87), u != null ? `${Math.round(u)}%` : "")); }
+    if (items.includes("vram")) { const vu = ovNum(t.gpu_vram_used_mb), vt = ovNum(t.gpu_vram_total_mb); if (vu != null && vt) parts.push(seg("VRAM", `${(vu / 1024).toFixed(1)}/${Math.round(vt / 1024)}G`, "#f4f6fa")); }
     if (items.includes("ram")) { const pct = ovNum(t.ram_pct); parts.push(seg("RAM", pct != null ? `${Math.round(pct)}%` : "--", "#f4f6fa")); }
     if (items.includes("ping")) parts.push(seg("PING", "34 ms", "#34d399"));
     if (items.includes("fan")) { const r = [ovNum(t.fan1_rpm), ovNum(t.fan2_rpm)].filter(v => v); if (r.length) parts.push(seg("FAN", r.map(v => (v / 1000).toFixed(1) + "k").join(" · "), "#f4f6fa")); }
+    if (items.includes("sys")) { const now = new Date(); parts.push(seg(t.on_battery && t.battery_pct != null ? "BAT" : "", t.on_battery && t.battery_pct != null ? `${t.battery_pct}%` : "", "#fbbf24", `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`)); }
     box.innerHTML = parts.join('<span class="ovp-div"></span>') || `<span class="ovp-seg"><em>Sin datos</em></span>`;
     return;
   }
@@ -1630,6 +1653,11 @@ function renderOverlayConfig() {
   const stage = document.getElementById("overlay-stage");
   stage.dataset.corner = overlayCfg.corner;
   stage.classList.toggle("is-off", !overlayCfg.enabled);
+  document.querySelectorAll("#overlay-theme [data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === (overlayCfg.theme || "auto")));
+  const hint = document.getElementById("overlay-theme-hint");
+  if (hint && (overlayCfg.theme || "auto") === "auto" && overlayCfg.active_theme) {
+    hint.dataset.active = `Ahora: ${(HUD_THEMES[overlayCfg.active_theme] || HUD_THEMES.vortex).name}`;
+  }
   document.querySelectorAll("#overlay-style [data-style]").forEach(b => b.classList.toggle("active", b.dataset.style === (overlayCfg.style || "compact")));
   document.querySelectorAll("#overlay-size [data-size]").forEach(b => b.classList.toggle("active", b.dataset.size === overlayCfg.size));
   document.querySelectorAll("#overlay-items [data-item]").forEach(b => b.classList.toggle("active", (overlayCfg.items || []).includes(b.dataset.item)));
@@ -1678,7 +1706,7 @@ function toggleOverlay() {
 function toggleOverlayItem(item) {
   const items = new Set(overlayCfg.items || []);
   if (items.has(item)) items.delete(item); else items.add(item);
-  setOverlay({ items: ["fps", "ping", "cpu", "gpu", "ram", "fan"].filter(i => items.has(i)) });
+  setOverlay({ items: ["fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "sys"].filter(i => items.has(i)) });
 }
 
 // aviso de nuevas versiones

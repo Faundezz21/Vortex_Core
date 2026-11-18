@@ -1117,9 +1117,24 @@
                       <button class="ov-chip" data-item="ping" onclick="toggleOverlayItem('ping')">Ping del juego</button>
                       <button class="ov-chip" data-item="cpu" onclick="toggleOverlayItem('cpu')">CPU</button>
                       <button class="ov-chip" data-item="gpu" onclick="toggleOverlayItem('gpu')">GPU</button>
+                      <button class="ov-chip" data-item="vram" onclick="toggleOverlayItem('vram')">VRAM</button>
                       <button class="ov-chip" data-item="ram" onclick="toggleOverlayItem('ram')">RAM</button>
                       <button class="ov-chip" data-item="fan" onclick="toggleOverlayItem('fan')">Ventiladores</button>
+                      <button class="ov-chip" data-item="sys" onclick="toggleOverlayItem('sys')">Hora y batería</button>
                     </div>
+                  </div>
+                  <div class="ov-field">
+                    <span class="ov-field-label">Tema</span>
+                    <div class="ov-themes" id="overlay-theme">
+                      <button data-theme="auto" onclick="setOverlay({theme: 'auto'})"><i class="ov-sw ov-sw-auto"></i>Según el juego</button>
+                      <button data-theme="vortex" onclick="setOverlay({theme: 'vortex'})"><i class="ov-sw" style="--a:#00e5ff;--b:#0c1018"></i>Vortex</button>
+                      <button data-theme="tactico" onclick="setOverlay({theme: 'tactico'})"><i class="ov-sw" style="--a:#f2a900;--b:#121210"></i>Táctico</button>
+                      <button data-theme="arena" onclick="setOverlay({theme: 'arena'})"><i class="ov-sw" style="--a:#2e8bff;--b:#ff7a1a"></i>Arena</button>
+                      <button data-theme="ops" onclick="setOverlay({theme: 'ops'})"><i class="ov-sw" style="--a:#e0a33f;--b:#1c242e"></i>Operaciones</button>
+                      <button data-theme="pixel" onclick="setOverlay({theme: 'pixel'})"><i class="ov-sw" style="--a:#55ff55;--b:#1e1e1e"></i>Pixel</button>
+                      <button data-theme="competitivo" onclick="setOverlay({theme: 'competitivo'})"><i class="ov-sw" style="--a:#ff4655;--b:#0f1923"></i>Competitivo</button>
+                    </div>
+                    <small class="ov-theme-hint" id="overlay-theme-hint">Táctico: PUBG, Apex · Arena: Rocket League, Fortnite, Overwatch · Operaciones: CS2, Rainbow Six · Pixel: Minecraft, Terraria · Competitivo: Valorant, LoL</small>
                   </div>
                   <div class="ov-field">
                     <span class="ov-field-label">Estilo</span>

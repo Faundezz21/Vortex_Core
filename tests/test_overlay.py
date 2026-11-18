@@ -79,23 +79,44 @@ class OverlayRowsTests(unittest.TestCase):
     def test_model_full(self):
         fps = {"fps": 144, "frametime_ms": 6.9, "low1_fps": 101, "app": "Cyberpunk2077.exe"}
         net = {"available": True, "game": {"ping_ms": 34, "jitter_ms": 2.4, "loss_pct": 0, "responds": True}}
-        m = game_overlay.build_model(self.TEL, fps, game_overlay.ITEMS, history=[140, 144], net=net)
+        tel = dict(self.TEL, cpu_power_w=45.2, gpu_hotspot=81, gpu_vram_used_mb=5325, gpu_vram_total_mb=8188,
+                   battery_pct=72, on_battery=True)
+        m = game_overlay.build_model(tel, fps, game_overlay.ITEMS, history=[140, 144], net=net, clock="21:45")
         self.assertEqual(m["fps"]["value"], 144)
         self.assertEqual(m["fps"]["frametime"], "6.9 ms")
         self.assertEqual(m["fps"]["low"], "1% low 101")
         self.assertEqual(m["fps"]["app"], "Cyberpunk2077")
         self.assertEqual(m["fps"]["history"], [140, 144])
         # orden fijo de tarjetas y la ultima impar ocupa todo el ancho
-        self.assertEqual([t["label"] for t in m["tiles"]], ["CPU", "GPU", "RAM", "PING", "VENTILADORES"])
-        self.assertEqual([t["span"] for t in m["tiles"]], [1, 1, 1, 1, 2])
+        self.assertEqual([t["label"] for t in m["tiles"]], ["CPU", "GPU", "VRAM", "RAM", "PING", "VENTILADORES", "SISTEMA"])
+        self.assertEqual([t["span"] for t in m["tiles"]], [1, 1, 1, 1, 1, 1, 2])
         tiles = {t["label"]: t for t in m["tiles"]}
         cpu = tiles["CPU"]
+        # la cpu de portatil recien se marca en amarillo desde 85 grados
         self.assertEqual((cpu["main"], cpu["main_color"], cpu["ring_text"], cpu["sub"]),
-                         ("82°C", game_overlay.C_WARN, "45%", "4.2 GHz"))
+                         ("82°C", game_overlay.C_OK, "45%", "45 W · 4.2 GHz"))
         self.assertAlmostEqual(cpu["ring"], 0.45)
-        self.assertEqual(tiles["GPU"]["sub"], "95 W · 2550 MHz")
+        gpu = tiles["GPU"]
+        self.assertEqual((gpu["main_color"], gpu["sub"]), (game_overlay.C_OK, "95 W · hotspot 81°"))
+        self.assertEqual((tiles["VRAM"]["main"], tiles["VRAM"]["ring_text"], tiles["VRAM"]["short"]), ("5.2 GB", "65%", "5.2/8G"))
         self.assertEqual((tiles["RAM"]["main"], tiles["RAM"]["sub"], tiles["RAM"]["ring_text"]), ("12.1 GB", "de 16 GB", "77%"))
         self.assertEqual(tiles["VENTILADORES"]["fans"], [("CPU", 4100)])
+        self.assertEqual((tiles["SISTEMA"]["main"], tiles["SISTEMA"]["badge"][0], tiles["SISTEMA"]["foot"]),
+                         ("21:45", "72%", "jugando con batería"))
+
+    def test_temp_limits_per_device(self):
+        m = game_overlay.build_model({"cpu_temp": 96, "gpu_temp": 80}, None, ["cpu", "gpu"])
+        cpu, gpu = m["tiles"]
+        self.assertEqual((cpu["main_color"], cpu["hot"]), (game_overlay.C_HOT, True))
+        self.assertEqual((gpu["main_color"], gpu["hot"]), (game_overlay.C_WARN, False))
+
+    def test_old_config_gets_new_items(self):
+        cfg = game_overlay.migrate_items(game_overlay.sanitize_config({"items": ["fps", "cpu"]}), 1)
+        self.assertEqual(cfg["items"], ["fps", "cpu", "vram", "sys"])
+        self.assertEqual(cfg["items_version"], game_overlay.ITEMS_VERSION)
+        # si el usuario quita un dato nuevo despues de migrar no vuelve a aparecer
+        cfg2 = game_overlay.migrate_items(game_overlay.sanitize_config({"items": ["fps"]}), game_overlay.ITEMS_VERSION)
+        self.assertEqual(cfg2["items"], ["fps"])
 
     def test_fans_named_cpu_and_gpu(self):
         m = game_overlay.build_model({"fan1_rpm": 5400, "fan2_rpm": 5200}, None, ["fan"])
@@ -133,12 +154,45 @@ class OverlayRowsTests(unittest.TestCase):
     def test_compact_segments(self):
         fps = {"fps": 144, "frametime_ms": 6.9, "low1_fps": 101, "app": "x.exe"}
         net = {"available": True, "game": {"ping_ms": 84, "jitter_ms": 26, "loss_pct": 5, "responds": True}}
-        tel = dict(self.TEL, fan2_rpm=5200)
-        segs = game_overlay.compact_segments(game_overlay.build_model(tel, fps, game_overlay.ITEMS, net=net))
+        tel = dict(self.TEL, fan2_rpm=5200, cpu_temp=96, cpu_power_w=45, gpu_vram_used_mb=5325, gpu_vram_total_mb=8188,
+                   battery_pct=15, on_battery=True)
+        model = game_overlay.build_model(tel, fps, game_overlay.ITEMS, net=net, clock="21:45")
+        segs = game_overlay.compact_segments(model)
         text = ["".join(r[0] for r in seg) for seg in segs]
-        self.assertEqual(text, ["144 FPS", "CPU 82°  45%", "GPU 70°  97%", "RAM 77%", "PING 84 ms", "FAN 4.1k · 5.2k"])
-        self.assertEqual(segs[1][1][3], game_overlay.C_WARN)
-        self.assertEqual(segs[4][1][3], game_overlay.C_HOT)
+        self.assertEqual(text, ["144 FPS  6.9ms", "CPU96°  45%  45W", "GPU70°  97%  95W", "VRAM 5.2/8G", "RAM 77%",
+                                "PING 84 ms", "FAN 4.1k · 5.2k", "BAT 15%   21:45"])
+        # la temperatura va en pastilla y con el color de su limite termico
+        self.assertEqual(segs[1][1][3:], (game_overlay.C_HOT, True))
+        self.assertEqual(segs[5][1][3], game_overlay.C_HOT)
+        self.assertEqual(segs[7][1][3], game_overlay.C_HOT)
+
+    def test_theme_for_game(self):
+        self.assertEqual(game_overlay.theme_for_app("TslGame.exe"), "tactico")
+        self.assertEqual(game_overlay.theme_for_app("RocketLeague.exe"), "arena")
+        self.assertEqual(game_overlay.theme_for_app("cs2.exe"), "ops")
+        self.assertEqual(game_overlay.theme_for_app("javaw.exe"), "pixel")
+        self.assertEqual(game_overlay.theme_for_app("RocketLeague"), "arena")
+        self.assertEqual(game_overlay.theme_for_app("juego_raro.exe"), "vortex")
+        self.assertEqual(game_overlay.theme_for_app(None), "vortex")
+
+    def test_apply_theme_maps_colors_and_fonts(self):
+        try:
+            game_overlay.apply_theme("pixel")
+            # el fondo y las etiquetas cambian; los colores de estado (temperaturas) se mantienen
+            self.assertEqual(game_overlay._argb(game_overlay.C_BG) & 0xFFFFFF, 0x1E1E1E)
+            self.assertEqual(game_overlay._argb(game_overlay.C_LABEL) & 0xFFFFFF, 0xFFFF55)
+            self.assertEqual(game_overlay._argb(game_overlay.C_HOT) & 0xFFFFFF, 0xF87171)
+            self.assertEqual(game_overlay._FONT_MAP["Segoe UI"], "Consolas")
+            self.assertEqual(game_overlay._THEME["radius"], 0.0)
+        finally:
+            game_overlay.apply_theme("vortex")
+        self.assertEqual(game_overlay._argb(game_overlay.C_BG) & 0xFFFFFF, 0x0C1018)
+        self.assertEqual(game_overlay._FONT_MAP, {})
+
+    def test_theme_config(self):
+        self.assertEqual(game_overlay.sanitize_config({})["theme"], "auto")
+        self.assertEqual(game_overlay.sanitize_config({"theme": "arena"})["theme"], "arena")
+        self.assertEqual(game_overlay.sanitize_config({"theme": "logo"})["theme"], "auto")
 
     def test_style_default_and_sanitize(self):
         self.assertEqual(game_overlay.sanitize_config({})["style"], "compact")

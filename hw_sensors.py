@@ -1167,11 +1167,12 @@ class _NativeLhmReader:
                 raw_temps = []
                 pkg_temp = None
                 vcore_mv = None
+                cpu_power = None
                 gpu_data = {}
                 fan_rpms = []
 
                 def _walk(hw_node):
-                    nonlocal pkg_temp, vcore_mv
+                    nonlocal pkg_temp, vcore_mv, cpu_power
                     ht = hw_node.HardwareType
                     # se omite la gpu intel porque su update provoca accessviolation no capturable
                     if ht == self._hw_type.GpuIntel:
@@ -1193,11 +1194,20 @@ class _NativeLhmReader:
                                 raw_temps.append((sname, fval))
                                 if sname in ("CPU Package", "Core (Tctl/Tdie)", "Tctl/Tdie") and 0 < fval < 130:
                                     pkg_temp = round(fval, 1)
+                            elif st == self._sensor_type.Power and sname == "CPU Package" and 0 < fval < 400:
+                                cpu_power = round(fval, 1)
                             elif st == self._sensor_type.Voltage and sname in ("CPU Core", "Core (SVI2 TFN)", "Vcore"):
                                 if 0.2 < fval < 2.2:
                                     vcore_mv = int(round(fval * 1000))
                         elif is_gpu:
-                            if st == self._sensor_type.Temperature and 0 < fval < 130 and "hot spot" not in sname.lower():
+                            # hotspot y memoria de video usada para el hud
+                            if st == self._sensor_type.Temperature and "hot spot" in sname.lower() and 0 < fval < 130:
+                                gpu_data.setdefault("hotspot", int(round(fval)))
+                            elif st == self._sensor_type.SmallData and sname == "GPU Memory Used" and fval >= 0:
+                                gpu_data.setdefault("vram_used_mb", int(round(fval)))
+                            elif st == self._sensor_type.SmallData and sname == "GPU Memory Total" and fval > 0:
+                                gpu_data.setdefault("vram_total_mb", int(round(fval)))
+                            elif st == self._sensor_type.Temperature and 0 < fval < 130 and "hot spot" not in sname.lower():
                                 gpu_data.setdefault("temp", int(round(fval)))
                             elif st == self._sensor_type.Load and "core" in sname.lower():
                                 gpu_data.setdefault("usage", int(round(min(100.0, max(0.0, fval)))))
@@ -1226,6 +1236,7 @@ class _NativeLhmReader:
                     "vcore_mv": vcore_mv,
                     "gpu": gpu_data,
                     "fans": fan_rpms[:2],
+                    "cpu_power_w": cpu_power,
                     "source": "PawnIO (Nativo)",
                 }
             except Exception:

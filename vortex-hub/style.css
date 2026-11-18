@@ -2348,10 +2348,106 @@ details[open] .net-boost-title::before {
   color: #f4f6fa;
 }
 
+.ovp-tpill {
+  font-style: normal;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: var(--c);
+  border: 1px solid var(--c);
+  background: color-mix(in srgb, var(--c) 20%, transparent);
+}
+
 .ovp-div {
   width: 1px;
   height: 9px;
   background: rgba(255, 255, 255, 0.16);
+}
+
+/* temas del hud en la vista previa */
+.ov-preview {
+  background: rgba(var(--hud-bg, 12, 16, 24), var(--ov-alpha, 0.85));
+  border-color: var(--hud-border, rgba(255, 255, 255, 0.14));
+  font-family: var(--hud-font, 'Segoe UI'), 'Segoe UI', sans-serif;
+  border-radius: calc(8px * var(--hud-r, 1));
+  text-shadow: var(--hud-shadow, none);
+  box-shadow: inset 3px 0 0 var(--hud-stripe, transparent), inset -3px 0 0 var(--hud-stripe2, transparent),
+    inset 0 3px 0 var(--hud-topline, transparent), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ov-preview.ovp-compact {
+  border-radius: calc(9px * var(--hud-r, 1));
+}
+
+.ov-preview .ovp-seg em,
+.ov-preview .ovp-tile-txt em,
+.ov-preview .ovp-fans > em,
+.ov-preview .ovp-head span:first-child,
+.ov-preview .ovp-fan i {
+  color: var(--hud-label, #8b95a8);
+}
+
+.ov-preview .ovp-ring::before {
+  background: conic-gradient(var(--hud-accent, #00e5ff) calc(var(--p) * 1%), rgba(255, 255, 255, 0.11) 0);
+}
+
+.ov-preview .ovp-tile,
+.ov-preview .ovp-tpill {
+  border-radius: calc(6px * var(--hud-r, 1));
+}
+
+.ov-preview .ovp-fan s {
+  background: var(--hud-accent, #00e5ff);
+}
+
+.ov-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ov-themes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ov-themes button.active {
+  color: var(--text-primary);
+  border-color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.1);
+}
+
+.ov-sw {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--a) 0 50%, var(--b) 50% 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.ov-sw-auto {
+  background: conic-gradient(#f2a900, #2e8bff, #e0a33f, #55ff55, #ff4655, #f2a900);
+}
+
+.ov-theme-hint {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+.ov-theme-hint[data-active]::before {
+  content: attr(data-active) " · ";
+  color: var(--accent-cyan);
+  font-weight: 700;
 }
 
 .ov-stage-hint {

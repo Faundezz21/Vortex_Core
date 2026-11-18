@@ -16,7 +16,11 @@ IS_WINDOWS = sys.platform == "win32"
 CORNERS = ("tl", "tr", "bl", "br")
 SIZES = {"s": 0.85, "m": 1.0, "l": 1.25}
 STYLES = ("compact", "detailed")
-ITEMS = ("fps", "ping", "cpu", "gpu", "ram", "fan")
+THEME_CHOICES = ("auto", "vortex", "tactico", "arena", "ops", "pixel", "competitivo")
+ITEMS = ("fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "sys")
+# datos agregados en versiones nuevas que se activan solos en configuraciones antiguas
+ITEMS_VERSION = 2
+NEW_ITEMS = {2: ("vram", "sys")}
 DEFAULT_CONFIG = {
     "enabled": False,
     "corner": "tl",
@@ -24,6 +28,7 @@ DEFAULT_CONFIG = {
     "opacity": 85,
     "only_games": True,
     "style": "compact",
+    "theme": "auto",
     "items": list(ITEMS),
 }
 HOTKEY_LABEL = "Ctrl+Shift+F10"
@@ -34,6 +39,8 @@ HISTORY_LEN = 48
 C_ACCENT = (0x00, 0xE5, 0xFF)
 C_TEXT = (0xF4, 0xF6, 0xFA)
 C_MUTED = (0x8B, 0x95, 0xA8)
+# las etiquetas usan su propio color para que cada tema las pinte distinto
+C_LABEL = (0x8B, 0x95, 0xA9)
 C_OK = (0x34, 0xD3, 0x99)
 C_WARN = (0xFB, 0xBF, 0x24)
 C_HOT = (0xF8, 0x71, 0x71)
@@ -59,6 +66,8 @@ def sanitize_config(data, base: dict | None = None) -> dict:
         cfg["size"] = data["size"]
     if data.get("style") in STYLES:
         cfg["style"] = data["style"]
+    if data.get("theme") in THEME_CHOICES:
+        cfg["theme"] = data["theme"]
     try:
         cfg["opacity"] = max(30, min(100, int(data.get("opacity", cfg["opacity"]))))
     except (TypeError, ValueError):
@@ -71,9 +80,20 @@ def sanitize_config(data, base: dict | None = None) -> dict:
 def load_config() -> dict:
     try:
         with open(config_path(), encoding="utf-8") as f:
-            return sanitize_config(json.load(f))
+            data = json.load(f)
     except (OSError, ValueError):
         return dict(DEFAULT_CONFIG)
+    cfg = sanitize_config(data)
+    return migrate_items(cfg, data.get("items_version", 1) if isinstance(data, dict) else 1)
+
+
+def migrate_items(cfg: dict, version: int) -> dict:
+    items = list(cfg["items"])
+    for v in range(version + 1, ITEMS_VERSION + 1):
+        items += [i for i in NEW_ITEMS.get(v, ()) if i not in items]
+    cfg["items"] = [i for i in ITEMS if i in items]
+    cfg["items_version"] = ITEMS_VERSION
+    return cfg
 
 
 def save_config(cfg: dict) -> None:
@@ -92,12 +112,12 @@ def _num(v):
         return None
 
 
-def temp_color(t):
+def temp_color(t, warn=80, hot=90):
     if t is None:
         return C_MUTED
-    if t >= 90:
+    if t >= hot:
         return C_HOT
-    if t >= 80:
+    if t >= warn:
         return C_WARN
     return C_OK
 
@@ -154,12 +174,20 @@ def _app_title(app: str) -> str:
 
 
 # orden fijo de las tarjetas para que la grilla quede pareja
-TILE_ORDER = ("cpu", "gpu", "ram", "ping", "fan")
+TILE_ORDER = ("cpu", "gpu", "vram", "ram", "ping", "fan", "sys")
 FAN_MAX_RPM = 6000
+# limites termicos: desde aqui la cpu o la gpu empiezan a bajar su rendimiento
+TEMP_LIMITS = {"cpu": (85, 95), "gpu": (78, 87)}
+
+
+def _w(v):
+    n = _num(v)
+    return f"{n:.0f} W" if n is not None else ""
 
 
 # arma el modelo que dibuja el overlay a partir de la telemetria
-def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=(), net=None) -> dict:
+def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=(), net=None,
+                clock: str | None = None) -> dict:
     model = {"fps": None, "tiles": []}
     if "fps" in items:
         value = fps.get("fps") if fps else None
@@ -178,30 +206,44 @@ def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None,
         if item in ("cpu", "gpu"):
             usage = _num(tel.get(f"{item}_usage"))
             temp = _num(tel.get(f"{item}_temp"))
+            warn, hot = TEMP_LIMITS[item]
+            power = _w(tel.get("cpu_power_w") if item == "cpu" else tel.get("gpu_power"))
             if item == "cpu":
                 ghz = _num(tel.get("cpu_freq"))
-                sub = f"{ghz:.1f} GHz" if ghz else ""
+                extra = f"{ghz:.1f} GHz" if ghz else ""
             else:
-                power = _num(tel.get("gpu_power"))
+                hs = _num(tel.get("gpu_hotspot"))
                 mhz = _num(tel.get("gpu_freq_mhz"))
-                sub = " · ".join(x for x in (f"{power:.0f} W" if power is not None else "",
-                                             f"{mhz:.0f} MHz" if mhz else "") if x)
+                extra = f"hotspot {hs:.0f}°" if hs else (f"{mhz:.0f} MHz" if mhz else "")
             model["tiles"].append({
-                "kind": "gauge", "label": item.upper(),
+                "kind": "gauge", "label": item.upper(), "id": item,
+                "temp": temp,
                 "main": f"{temp:.0f}°C" if temp is not None else "--",
-                "main_color": temp_color(temp) if temp is not None else C_MUTED,
+                "main_color": temp_color(temp, warn, hot) if temp is not None else C_MUTED,
+                "hot": temp is not None and temp >= hot,
                 "ring": max(0.0, min(1.0, usage / 100)) if usage is not None else None,
                 "ring_text": f"{usage:.0f}%" if usage is not None else "--",
-                "sub": sub,
+                "power": power,
+                "sub": " · ".join(x for x in (power, extra) if x),
             })
+        elif item == "vram":
+            used, total = _num(tel.get("gpu_vram_used_mb")), _num(tel.get("gpu_vram_total_mb"))
+            if used is not None and total:
+                pct = 100 * used / total
+                model["tiles"].append({
+                    "kind": "gauge", "label": "VRAM", "id": "vram",
+                    "main": f"{used / 1024:.1f} GB", "main_color": C_WARN if pct >= 90 else C_TEXT,
+                    "ring": max(0.0, min(1.0, pct / 100)), "ring_text": f"{pct:.0f}%",
+                    "sub": f"de {total / 1024:.0f} GB", "short": f"{used / 1024:.1f}/{total / 1024:.0f}G",
+                })
         elif item == "ram":
             used = _num(tel.get("ram_used"))
             total = _num(tel.get("ram_total"))
             pct = _num(tel.get("ram_pct"))
             model["tiles"].append({
-                "kind": "gauge", "label": "RAM",
+                "kind": "gauge", "label": "RAM", "id": "ram",
                 "main": f"{used:.1f} GB" if used is not None else "--",
-                "main_color": C_TEXT if used is not None else C_MUTED,
+                "main_color": (C_WARN if (pct or 0) >= 90 else C_TEXT) if used is not None else C_MUTED,
                 "ring": max(0.0, min(1.0, pct / 100)) if pct is not None else None,
                 "ring_text": f"{pct:.0f}%" if pct is not None else "--",
                 "sub": f"de {total:.0f} GB" if total else "",
@@ -212,6 +254,16 @@ def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None,
             fans = [(name, int(r)) for name, r in (("CPU", _num(tel.get("fan1_rpm"))), ("GPU", _num(tel.get("fan2_rpm")))) if r]
             if fans:
                 model["tiles"].append({"kind": "fans", "label": "VENTILADORES", "fans": fans})
+        elif item == "sys":
+            pct = _num(tel.get("battery_pct"))
+            on_bat = bool(tel.get("on_battery")) and pct is not None
+            model["tiles"].append({
+                "kind": "ping", "label": "SISTEMA", "id": "sys",
+                "main": clock or "--", "main_color": C_TEXT,
+                "badge": (f"{pct:.0f}%", C_HOT if pct < 20 else C_WARN) if on_bat else None,
+                "foot": "jugando con batería" if on_bat else "enchufado",
+                "battery": pct if on_bat else None,
+            })
     # si queda una tarjeta sola en la ultima fila ocupa todo el ancho
     for i, t in enumerate(model["tiles"]):
         t["span"] = 2 if (i == len(model["tiles"]) - 1 and len(model["tiles"]) % 2 == 1) else 1
@@ -389,7 +441,88 @@ UNIT_PIXEL = 2
 
 
 def _argb(c, a=255) -> int:
+    c = _COLOR_MAP.get(c, c)
     return ((a & 0xFF) << 24) | (c[0] << 16) | (c[1] << 8) | c[2]
+
+# temas originales inspirados en el estilo visual de cada tipo de juego (sin logos ni fuentes de los juegos)
+THEMES = {
+    "vortex": {"name": "Vortex"},
+    "tactico": {"name": "Táctico", "bg": (0x12, 0x12, 0x10), "label": (0xF2, 0xA9, 0x00), "accent": (0xF2, 0xA9, 0x00),
+                "text": (0xF5, 0xF0, 0xE6), "muted": (0x9A, 0x93, 0x84), "border": (0xF2, 0xA9, 0x00), "border_a": 70,
+                "radius": 0.15, "font": "Bahnschrift", "font_bold": "Bahnschrift SemiBold", "stripe": (0xF2, 0xA9, 0x00)},
+    "arena": {"name": "Arena", "bg": (0x0B, 0x12, 0x34), "label": (0x5C, 0xB8, 0xFF), "accent": (0x3B, 0x9C, 0xFF),
+              "text": (0xF2, 0xF6, 0xFF), "muted": (0x8A, 0x9B, 0xC4), "border": (0x7F, 0xB8, 0xFF), "border_a": 60,
+              "radius": 1.0, "font": "Bahnschrift", "font_bold": "Bahnschrift SemiBold",
+              "stripe": (0x2E, 0x8B, 0xFF), "stripe2": (0xFF, 0x7A, 0x1A)},
+    "ops": {"name": "Operaciones", "bg": (0x1C, 0x24, 0x2E), "label": (0xE0, 0xA3, 0x3F), "accent": (0xE0, 0xA3, 0x3F),
+            "text": (0xEC, 0xEC, 0xEC), "muted": (0x8E, 0x94, 0x9C), "border": (0xFF, 0xFF, 0xFF), "border_a": 26,
+            "radius": 0.25, "font": "Bahnschrift", "font_bold": "Bahnschrift SemiBold", "topline": (0xE0, 0xA3, 0x3F)},
+    "pixel": {"name": "Pixel", "bg": (0x1E, 0x1E, 0x1E), "label": (0xFF, 0xFF, 0x55), "accent": (0x55, 0xFF, 0x55),
+              "text": (0xFF, 0xFF, 0xFF), "muted": (0xAA, 0xAA, 0xAA), "border": (0x55, 0x55, 0x55), "border_a": 255,
+              "border_w": 2.0, "radius": 0.0, "font": "Consolas", "font_bold": "Consolas",
+              "shadow": (0x3F, 0x3F, 0x3F), "bevel": True},
+    "competitivo": {"name": "Competitivo", "bg": (0x0F, 0x19, 0x23), "label": (0xFF, 0x46, 0x55),
+                    "accent": (0xFF, 0x46, 0x55), "text": (0xEC, 0xE8, 0xE1), "muted": (0x8B, 0x97, 0x8F),
+                    "border": (0xFF, 0x46, 0x55), "border_a": 60, "radius": 0.1, "font": "Bahnschrift",
+                    "font_bold": "Bahnschrift SemiBold", "stripe": (0xFF, 0x46, 0x55)},
+}
+# ejecutables conocidos y el tema que les queda
+GAME_THEMES = {
+    "tslgame.exe": "tactico", "r5apex.exe": "tactico", "r5apex_dx12.exe": "tactico",
+    "escapefromtarkov.exe": "tactico", "arma3_x64.exe": "tactico", "dayz_x64.exe": "tactico",
+    "rocketleague.exe": "arena", "fortniteclient-win64-shipping.exe": "arena", "overwatch.exe": "arena",
+    "fallguys_client_game.exe": "arena", "brawlhalla.exe": "arena",
+    "cs2.exe": "ops", "csgo.exe": "ops", "r6-siege.exe": "ops", "rainbowsix.exe": "ops",
+    "rainbowsix_vulkan.exe": "ops", "cod.exe": "ops", "bf2042.exe": "ops",
+    "javaw.exe": "pixel", "minecraft.windows.exe": "pixel", "minecraft.exe": "pixel", "terraria.exe": "pixel",
+    "valorant-win64-shipping.exe": "competitivo", "league of legends.exe": "competitivo",
+    "overwatch2.exe": "arena", "dota2.exe": "competitivo",
+}
+_THEME = {}
+_COLOR_MAP = {}
+_FONT_MAP = {}
+
+
+def theme_for_app(app: str | None) -> str:
+    name = (app or "").lower()
+    if not name.endswith(".exe"):
+        name += ".exe"
+    return GAME_THEMES.get(name, "vortex")
+
+
+# deja activo un tema: cambia colores base, fuentes y forma de las esquinas al dibujar
+def apply_theme(key: str):
+    th = THEMES.get(key) or THEMES["vortex"]
+    _THEME.clear()
+    _THEME.update(th)
+    _COLOR_MAP.clear()
+    for const, field in ((C_BG, "bg"), (C_LABEL, "label"), (C_ACCENT, "accent"), (C_TEXT, "text"), (C_MUTED, "muted")):
+        if field in th:
+            _COLOR_MAP[const] = th[field]
+    _FONT_MAP.clear()
+    if "font" in th:
+        _FONT_MAP["Segoe UI"] = th["font"]
+        _FONT_MAP["Segoe UI Semibold"] = th.get("font_bold", th["font"])
+
+
+def _paint_frame(p, width, height, opacity, radius):
+    s = p.s
+    bg_alpha = int(min(245, 2.45 * opacity))
+    border = _THEME.get("border", (255, 255, 255))
+    bw = _THEME.get("border_w", 1.0) * (s if _THEME.get("border_w") else 1)
+    p.round_rect(bw / 2, bw / 2, width - bw, height - bw, radius, fill=_argb(C_BG, bg_alpha),
+                 stroke=_argb(border, _THEME.get("border_a", 30)), stroke_w=bw)
+    if _THEME.get("bevel"):
+        # relieve interior estilo bloque
+        p.round_rect(bw + 1.5 * s, bw + 1.5 * s, width - 2 * bw - 3 * s, height - 2 * bw - 3 * s, 0,
+                     stroke=_argb((255, 255, 255), 45), stroke_w=max(1.0, s))
+    if _THEME.get("topline"):
+        p.rect(radius * 0.6, 0, width - radius * 1.2, max(3.0, 3 * s), _argb(_THEME["topline"], 240))
+    if _THEME.get("stripe"):
+        p.round_rect(2 * s, height * 0.22, 3 * s, height * 0.56, 1.5 * s, fill=_argb(_THEME["stripe"], 235))
+    if _THEME.get("stripe2"):
+        p.round_rect(width - 5 * s, height * 0.22, 3 * s, height * 0.56, 1.5 * s, fill=_argb(_THEME["stripe2"], 235))
+
 
 
 class _Painter:
@@ -411,6 +544,7 @@ class _Painter:
             _gdip.GdipDeleteFontFamily(fam)
 
     def font(self, size: float, bold: bool = False, family: str = "Segoe UI"):
+        family = _FONT_MAP.get(family, family)
         key = (round(size * self.s, 2), bold, family)
         if key not in self._fonts:
             fam = self._families.get(family)
@@ -430,6 +564,7 @@ class _Painter:
         return b
 
     def round_rect(self, x, y, w, h, r, fill=None, stroke=None, stroke_w=1.0):
+        r *= _THEME.get("radius", 1.0)
         r = max(0.5, min(r, w / 2, h / 2))
         d = r * 2
         path = VP()
@@ -469,6 +604,12 @@ class _Painter:
             x -= w
         elif align == "center":
             x -= w / 2
+        if _THEME.get("shadow"):
+            # sombra dura desplazada como en los juegos de bloques
+            off = max(1.0, 1.4 * self.s)
+            sb = self._brush(_argb(_THEME["shadow"], (argb >> 24) & 0xFF))
+            _gdip.GdipDrawString(self.g, text, len(text), font, ctypes.byref(RectF(x + off, y + off, w + 4, h + 4)), self.fmt, sb)
+            _gdip.GdipDeleteBrush(sb)
         b = self._brush(argb)
         _gdip.GdipDrawString(self.g, text, len(text), font, ctypes.byref(RectF(x, y, w + 4, h + 4)), self.fmt, b)
         _gdip.GdipDeleteBrush(b)
@@ -519,7 +660,7 @@ def _paint_gauge(p, t, x, y, w, h):
     _, th = p.measure(t["ring_text"], rf)
     p.text(t["ring_text"], rf, _argb(C_TEXT), cx + d / 2, cy + (d - th) / 2, "center")
     tx = cx + d + 9 * s
-    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), tx, y + 9 * s)
+    p.text(t["label"], p.font(8.5, True), _argb(C_LABEL), tx, y + 9 * s)
     p.text(t["main"], p.font(16, True, "Segoe UI Semibold"), _argb(t["main_color"]), tx - 1 * s, y + 19 * s)
     if t["sub"]:
         # quita datos secundarios del final si no caben en la tarjeta
@@ -531,7 +672,7 @@ def _paint_gauge(p, t, x, y, w, h):
 
 def _paint_ping(p, t, x, y, w, h):
     s = p.s
-    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), x + 11 * s, y + 9 * s)
+    p.text(t["label"], p.font(8.5, True), _argb(C_LABEL), x + 11 * s, y + 9 * s)
     if t["badge"]:
         label, color = t["badge"]
         bf = p.font(8.5, True)
@@ -547,7 +688,7 @@ def _paint_ping(p, t, x, y, w, h):
 
 def _paint_fans(p, t, x, y, w, h):
     s = p.s
-    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), x + 11 * s, y + 9 * s)
+    p.text(t["label"], p.font(8.5, True), _argb(C_LABEL), x + 11 * s, y + 9 * s)
     fans = t["fans"]
     if t["span"] == 2:
         cols = [(x + 11 * s + i * (w / 2), w / 2 - 20 * s) for i in range(len(fans))]
@@ -570,21 +711,21 @@ def paint_model(p, model: dict, width: int, height: int, opacity: int):
     s = p.s
     pad = 12 * s
     bg_alpha = int(min(245, 2.45 * opacity))
-    p.round_rect(0.5, 0.5, width - 1, height - 1, 14 * s, fill=_argb(C_BG, bg_alpha),
-                 stroke=_argb((255, 255, 255), 30), stroke_w=1.0)
+    _paint_frame(p, width, height, opacity, 14 * s)
     y = pad
     inner_w = width - pad * 2
     fps = model["fps"]
     if fps is not None:
         # encabezado con marca y nombre del juego
         p.round_rect(pad, y + 3.5 * s, 6 * s, 6 * s, 3 * s, fill=_argb(fps["color"] if fps["value"] else C_MUTED))
-        p.text("VORTEX", p.font(8.5, True), _argb(C_MUTED), pad + 10 * s, y + 0.5 * s)
+        p.text(_THEME.get("name", "Vortex").upper() if _THEME.get("name") != "Vortex" else "VORTEX",
+               p.font(8.5, True), _argb(C_LABEL), pad + 10 * s, y + 0.5 * s)
         if fps["app"]:
             p.text(fps["app"], p.font(9.5), _argb(C_MUTED), width - pad, y, "right")
         y += 16 * s
         big = str(fps["value"]) if fps["value"] else "--"
         bw = p.text(big, p.font(32, True, "Segoe UI Semibold"), _argb(fps["color"]), pad - 1.5 * s, y - 4 * s)
-        p.text("FPS", p.font(9.5, True), _argb(C_MUTED), pad + bw + 4 * s, y + 21 * s)
+        p.text("FPS", p.font(9.5, True), _argb(C_LABEL), pad + bw + 4 * s, y + 21 * s)
         if fps["value"]:
             p.text(fps["frametime"] or "", p.font(13, True), _argb(C_TEXT), width - pad, y + 3 * s, "right")
             p.text(fps["low"] or "", p.font(9.5), _argb(C_MUTED), width - pad, y + 21 * s, "right")
@@ -616,59 +757,89 @@ def paint_model(p, model: dict, width: int, height: int, opacity: int):
             y += tile_h + TILE_GAP * s
 
 
-COMPACT_H = 30
+COMPACT_H = 32
 
 
-# convierte el modelo en segmentos de una sola linea: [(texto, tamano, negrita, color), ...]
+# convierte el modelo en segmentos de una sola linea
+# cada pieza es (texto, tamano, negrita, color, pastilla) y la pastilla pinta un fondo de color detras
 def compact_segments(model: dict) -> list:
     segs = []
     # gdi+ ignora espacios finales, por eso el espacio va al inicio del valor
-    label = lambda t: (t, 8.5, True, C_MUTED)
+    label = lambda t: (t, 8.5, True, C_LABEL, False)
     fps = model["fps"]
     if fps is not None:
-        segs.append([(str(fps["value"]) if fps["value"] else "--", 15, True, fps["color"]), (" FPS", 8.5, True, C_MUTED)])
+        seg = [(str(fps["value"]) if fps["value"] else "--", 16, True, fps["color"], False), (" FPS", 8.5, True, C_LABEL, False)]
+        if fps["value"] and fps["frametime"]:
+            seg.append(("  " + fps["frametime"].replace(" ", ""), 9.5, False, C_MUTED, False))
+        segs.append(seg)
     for t in model["tiles"]:
-        if t["kind"] == "gauge" and t["label"] in ("CPU", "GPU"):
-            seg = [label(t["label"]), (" " + t["main"].replace("°C", "°"), 12.5, True, t["main_color"])]
+        tid = t.get("id")
+        if tid in ("cpu", "gpu"):
+            seg = [label(t["label"]), (t["main"].replace("°C", "°"), 13, True, t["main_color"], t["temp"] is not None)]
             if t["ring_text"] != "--":
-                seg.append(("  " + t["ring_text"], 11, False, C_TEXT))
+                seg.append(("  " + t["ring_text"], 11, False, C_TEXT, False))
+            if t["power"]:
+                seg.append(("  " + t["power"].replace(" ", ""), 9.5, False, C_MUTED, False))
             segs.append(seg)
-        elif t["kind"] == "gauge":
-            segs.append([label(t["label"]), (" " + t["ring_text"], 12.5, True, C_TEXT)])
+        elif tid == "vram":
+            segs.append([label("VRAM"), (" " + t["short"], 11.5, True, t["main_color"], False)])
+        elif tid == "ram":
+            segs.append([label("RAM"), (" " + t["ring_text"], 11.5, True, t["main_color"], False)])
+        elif tid == "sys":
+            seg = []
+            if t["battery"] is not None:
+                seg += [label("BAT"), (f" {t['battery']:.0f}%", 11.5, True, t["badge"][1], False)]
+            seg.append((("   " if seg else "") + t["main"], 11, False, C_MUTED, False))
+            segs.append(seg)
         elif t["kind"] == "ping":
-            segs.append([label("PING"), (" " + t["main"], 12.5, True, t["main_color"])])
+            segs.append([label("PING"), (" " + t["main"], 11.5, True, t["main_color"], False)])
         elif t["kind"] == "fans":
             rpms = " · ".join(f"{rpm / 1000:.1f}k" for _, rpm in t["fans"])
-            segs.append([label("FAN"), (" " + rpms, 12, True, C_TEXT)])
+            segs.append([label("FAN"), (" " + rpms, 11, True, C_TEXT, False)])
     return segs
+
+
+def _run_font(p, size, bold):
+    return p.font(size, bold, "Segoe UI Semibold" if size >= 12 else "Segoe UI")
+
+
+PILL_PAD = 6
 
 
 def compact_width(p, segs) -> int:
     s = p.s
     total = 12 * s * 2 + max(0, len(segs) - 1) * 21 * s
     for seg in segs:
-        total += sum(p.measure(text, p.font(size, bold, "Segoe UI Semibold" if size >= 12 else "Segoe UI"))[0]
-                     for text, size, bold, _ in seg)
+        for text, size, bold, _, pill in seg:
+            total += p.measure(text, _run_font(p, size, bold))[0] + (PILL_PAD * 2 + 4) * s * pill
     return int(round(total + 2 * s))
 
 
 def paint_compact(p, segs, width: int, height: int, opacity: int):
     s = p.s
     bg_alpha = int(min(245, 2.45 * opacity))
-    p.round_rect(0.5, 0.5, width - 1, height - 1, (height - 1) / 2, fill=_argb(C_BG, bg_alpha),
-                 stroke=_argb((255, 255, 255), 30), stroke_w=1.0)
+    _paint_frame(p, width, height, opacity, (height - 1) / 2)
     x = 12 * s
     for i, seg in enumerate(segs):
         if i:
             # separador vertical fino entre datos
             p.rect(x + 10 * s, height * 0.28, max(1.0, s), height * 0.44, _argb((255, 255, 255), 34))
             x += 21 * s
-        for text, size, bold, color in seg:
-            f = p.font(size, bold, "Segoe UI Semibold" if size >= 12 else "Segoe UI")
+        for text, size, bold, color, pill in seg:
+            f = _run_font(p, size, bold)
             w, h = p.measure(text, f)
             # alinea las etiquetas chicas con la linea base de los numeros grandes
             dy = (size * 0.22 * s) if size < 12 else 0
-            x += p.text(text, f, _argb(color), x, (height - h) / 2 + dy)
+            if pill:
+                # la temperatura va en una pastilla de su color para leerla de un vistazo
+                x += 4 * s
+                ph = height * 0.62
+                p.round_rect(x, (height - ph) / 2, w + PILL_PAD * 2 * s, ph, ph / 2,
+                             fill=_argb(color, 52), stroke=_argb(color, 120))
+                p.text(text, f, _argb(color), x + PILL_PAD * s, (height - h) / 2)
+                x += w + PILL_PAD * 2 * s
+            else:
+                x += p.text(text, f, _argb(color), x, (height - h) / 2 + dy)
 
 
 class GameOverlay:
@@ -689,6 +860,7 @@ class GameOverlay:
         self._misses = 0
         self._segs = []
         self._game_seen = 0.0
+        self._theme_key = "vortex"
         self._sync_fps()
 
     def start(self):
@@ -701,6 +873,7 @@ class GameOverlay:
         cfg["hotkey_ok"] = self.hotkey_ok
         cfg["fps_available"] = bool(self.fps and self.fps.available)
         cfg["fps_error"] = getattr(self.fps, "error", None) if self.fps else None
+        cfg["active_theme"] = self._theme_key
         return cfg
 
     def update_config(self, data: dict) -> dict:
@@ -808,7 +981,8 @@ class GameOverlay:
             except Exception:
                 net = None
         self.model = build_model(tel, fps if "fps" in self.config["items"] else None,
-                                 self.config["items"], self._fps_note(), self._history, net)
+                                 self.config["items"], self._fps_note(), self._history, net,
+                                 time.strftime("%H:%M"))
         if self.model["fps"] is None and not self.model["tiles"]:
             _user32.ShowWindow(self.hwnd, SW_HIDE)
             return
@@ -822,6 +996,13 @@ class GameOverlay:
         except Exception:
             dpi = 96
         s = SIZES[self.config["size"]] * dpi / 96
+        # el tema automatico sigue al juego que tiene el foco
+        theme = self.config.get("theme", "auto")
+        if theme == "auto":
+            app = (fps or {}).get("app") or (self.fps.recent_game() if self.fps else None)
+            theme = theme_for_app(app)
+        self._theme_key = theme
+        apply_theme(theme)
         if self.config.get("style") == "compact":
             self._segs = compact_segments(self.model)
             width = self._measure_compact(s)
