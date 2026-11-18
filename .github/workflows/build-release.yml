@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: 📥 Clonar Repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 🏷️ Leer Versión (archivo VERSION)
         id: version
@@ -54,7 +54,7 @@ jobs:
           Write-Host "Versión: $version (tag $tag)"
 
       - name: 🐍 Configurar Entorno Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -139,7 +139,7 @@ jobs:
           print(notes)
 
       - name: 🚀 Publicar Release en GitHub con Setup.exe
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ inputs.release_name || format('VortexCore Hub {0}', steps.version.outputs.tag) }}
