@@ -24,6 +24,7 @@ import hw_sensors
 import fps_monitor
 import game_overlay
 import net_monitor
+import updater
 from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
 
 # Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
@@ -1775,6 +1776,8 @@ class VortexCoreManager:
 # En modo prueba (tests automáticos) no se inicia el gestor de hardware real
 manager = None if os.environ.get("VORTEXCORE_TEST_MODE") == "1" else VortexCoreManager()
 # overlay en juego con fps de presentmon
+# aviso de nuevas versiones publicadas en github
+update_checker = updater.UpdateChecker(APP_VERSION)
 fps_mon = fps_monitor.FpsMonitor(fps_monitor.find_presentmon(get_app_dir()))
 # consumo de red por app y ping al servidor del juego (se enciende solo cuando se consulta)
 net_mon = net_monitor.NetMonitor(ping_func=hw_sensors.measure_ping_ms, prefer_game=fps_mon.recent_game)
@@ -1926,6 +1929,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json({"enabled": is_autostart_enabled()})
         elif path == "/api/overlay":
             self._send_json(overlay.get_config())
+        elif path == "/api/update":
+            self._send_json(update_checker.get_state())
         elif path == "/api/audio_mixer":
             self._send_json(get_audio_mixer_data())
         elif path == "/api/apo_status":
@@ -2135,6 +2140,25 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(run_disk_cleanup(targets))
         elif self.path == "/api/overlay":
             self._send_json(overlay.update_config(data))
+        elif self.path == "/api/update":
+            action = str(data.get("action", "")).lower()
+            if action == "check":
+                self._send_json(update_checker.check())
+            elif action == "dismiss":
+                self._send_json(update_checker.dismiss())
+            elif action == "open":
+                # solo abre paginas del repositorio oficial en el navegador
+                st = update_checker.get_state()
+                url = st.get("url") or st["releases_url"]
+                if not url.startswith(f"https://github.com/{updater.REPO}/"):
+                    url = st["releases_url"]
+                try:
+                    os.startfile(url)
+                    self._send_json({"status": "ok"})
+                except Exception as e:
+                    self._send_json({"status": "error", "message": str(e)}, code=500)
+            else:
+                self._reject(400, "Acción de actualización desconocida")
         elif self.path == "/api/autostart":
             enable = bool(data.get("enabled", True))
             ok = set_autostart(enable)
@@ -2537,6 +2561,8 @@ if __name__ == "__main__":
     )
     threading.Thread(target=tray.run, daemon=True).start()
     overlay.start()
+    update_checker.notify = tray.notify
+    update_checker.start()
 
     # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
     is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])

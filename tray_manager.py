@@ -85,6 +85,7 @@ WM_COMMAND = 0x0111
 WM_LBUTTONUP = 0x0202
 WM_LBUTTONDBLCLK = 0x0203
 WM_RBUTTONUP = 0x0205
+NIN_BALLOONUSERCLICK = WM_USER + 5
 
 TPM_BOTTOMALIGN = 0x0020
 TPM_RIGHTALIGN = 0x0008
@@ -294,6 +295,19 @@ class SystemTrayApp:
         self.on_exit = on_exit_callback
         self.hwnd = None
         self.nid = None
+        self._pending_notice = None
+
+    # muestra una notificacion de windows desde el icono de la bandeja
+    def notify(self, title: str, message: str):
+        if not self.nid:
+            self._pending_notice = (title, message)
+            return
+        self.nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_INFO
+        self.nid.szInfoTitle = title[:63]
+        self.nid.szInfo = message[:255]
+        self.nid.dwInfoFlags = NIIF_INFO
+        shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(self.nid))
+        self.nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
 
     def run(self):
         # Registrar ventana oculta para recibir mensajes de la bandeja (Win64 LRESULT)
@@ -374,6 +388,9 @@ class SystemTrayApp:
         self.nid.szTip = "VortexCore Hub // Por Faundezz21"
 
         shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(self.nid))
+        if self._pending_notice:
+            self.notify(*self._pending_notice)
+            self._pending_notice = None
 
         # Message loop
         msg = wintypes.MSG()
@@ -435,6 +452,8 @@ class SystemTrayApp:
                         self.on_open()
             elif lparam == WM_RBUTTONUP:
                 self._show_context_menu()
+            elif lparam == NIN_BALLOONUSERCLICK and self.on_open:
+                self.on_open()
             return 0
 
         elif msg == WM_COMMAND:

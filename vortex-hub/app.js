@@ -1681,6 +1681,90 @@ function toggleOverlayItem(item) {
   setOverlay({ items: ["fps", "ping", "cpu", "gpu", "ram", "fan"].filter(i => items.has(i)) });
 }
 
+// aviso de nuevas versiones
+let updateState = null;
+
+function updEscape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function updAgo(ts) {
+  if (!ts) return "";
+  const min = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+  if (min < 1) return "revisado recién";
+  if (min < 60) return `revisado hace ${min} min`;
+  return `revisado hace ${Math.round(min / 60)} h`;
+}
+
+function renderUpdateState(st) {
+  if (!st) return;
+  updateState = st;
+  const cur = document.getElementById("upd-current");
+  if (cur) cur.textContent = st.current || "--";
+  const msg = {
+    pending: "Aún no se revisa",
+    current: `Estás al día${st.latest ? ` (última: ${st.latest})` : ""}`,
+    update: `Hay una versión nueva: ${st.latest}`,
+    none: "Todavía no hay versiones publicadas en GitHub",
+    error: "No se pudo conectar con GitHub",
+  }[st.status] || "";
+  const status = document.getElementById("upd-status");
+  if (status) status.textContent = [msg, updAgo(st.checked_at)].filter(Boolean).join(" · ");
+  const banner = document.getElementById("update-banner");
+  if (!banner) return;
+  const show = st.status === "update" && !st.dismissed;
+  banner.hidden = !show;
+  if (show) {
+    document.getElementById("ub-title").textContent = `Nueva versión ${st.latest} disponible`;
+    document.getElementById("ub-sub").textContent = `Tienes la ${st.current}. Descarga el instalador desde GitHub y ejecútalo; tu configuración se mantiene.`;
+    document.getElementById("ub-notes").innerHTML = (st.notes || []).slice(0, 4).map(n => `<li>${updEscape(n)}</li>`).join("");
+  }
+}
+
+async function loadUpdateState() {
+  try {
+    const res = await fetch(`${API_BASE}/api/update`);
+    if (res.ok) renderUpdateState(await res.json());
+  } catch (e) {}
+}
+
+async function updatePost(action) {
+  const res = await fetch(`${API_BASE}/api/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action })
+  });
+  return res.ok ? res.json() : null;
+}
+
+async function checkUpdates() {
+  const btn = document.getElementById("btn-upd-check");
+  if (btn) { btn.disabled = true; btn.textContent = "Buscando…"; }
+  try {
+    const st = await updatePost("check");
+    renderUpdateState(st);
+    if (st) {
+      showToast({
+        icon: st.status === "update" ? "zap" : (st.status === "error" ? "alert" : "check-circle"),
+        title: "Actualizaciones",
+        message: st.status === "update" ? `Hay una versión nueva: ${st.latest}` : (st.status === "current" ? "Ya tienes la última versión." : (st.status === "none" ? "Todavía no hay versiones publicadas." : "No se pudo conectar con GitHub.")),
+        type: st.status === "error" ? "error" : (st.status === "update" ? "info" : "success")
+      });
+    }
+  } catch (e) {
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Buscar ahora"; }
+  }
+}
+
+async function openUpdate() {
+  try { await updatePost("open"); } catch (e) {}
+}
+
+async function dismissUpdate() {
+  try { renderUpdateState(await updatePost("dismiss")); } catch (e) {}
+}
+
 // -------------------------------------------------------------
 // 12. AUDIO SUITE & MOTOR DSP DE ECUALIZACIÓN REAL (WEB AUDIO API)
 // -------------------------------------------------------------
@@ -3262,6 +3346,8 @@ window.addEventListener("DOMContentLoaded", () => {
   setInterval(loadNetworkApps, 2000);
   checkAutostart();
   loadOverlayConfig();
+  loadUpdateState();
+  setInterval(loadUpdateState, 60000);
   setInterval(loadOverlayConfig, 5000);
   refreshTopProcesses();
   refreshAudioMixer();

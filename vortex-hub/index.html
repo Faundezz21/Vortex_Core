@@ -150,6 +150,22 @@
         </div>
       </header>
 
+      <!-- aviso de nueva version -->
+      <div class="update-banner" id="update-banner" hidden>
+        <div class="ub-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-5-5m5 5l5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="ub-text">
+          <b id="ub-title">Nueva versión disponible</b>
+          <span id="ub-sub">Tienes la versión actual</span>
+          <ul class="ub-notes" id="ub-notes"></ul>
+        </div>
+        <div class="ub-actions">
+          <button class="clean-btn primary" onclick="openUpdate()">Ver y descargar</button>
+          <button class="clean-btn" onclick="dismissUpdate()">Omitir esta versión</button>
+        </div>
+      </div>
+
       <!-- VISTAS / PESTAÑAS -->
       <div class="views-wrapper">
         
@@ -1053,6 +1069,18 @@
               </div>
               <div class="setting-controls">
                 <button class="toggle-pill" id="btn-autostart" onclick="toggleAutostart()">Inicio automático: no</button>
+              </div>
+            </div>
+
+            <!-- actualizaciones -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Actualizaciones</h3>
+                <p>VortexCore revisa GitHub al iniciar y cada 6 horas. Cuando sale una versión nueva te avisa con una notificación de Windows y un aviso arriba en la app.</p>
+                <div class="throttle-feedback">Versión instalada: <b id="upd-current">--</b> · <span id="upd-status">Aún no se revisa</span></div>
+              </div>
+              <div class="setting-controls">
+                <button class="clean-btn" id="btn-upd-check" onclick="checkUpdates()">Buscar ahora</button>
               </div>
             </div>
 

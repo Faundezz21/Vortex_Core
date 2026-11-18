@@ -68,6 +68,7 @@ a = Analysis(
         'fps_monitor',
         'game_overlay',
         'net_monitor',
+        'updater',
         'psutil',
         'pycaw',
         'pycaw.pycaw',
