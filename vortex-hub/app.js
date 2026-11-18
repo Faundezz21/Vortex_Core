@@ -574,6 +574,8 @@ async function updateTelemetry() {
     const res = await fetch(`${API_BASE}/api/telemetry`);
     if (!res.ok) return;
     const d = await res.json();
+    overlayTelemetry = d;
+    if (document.getElementById("tab-tuning")?.classList.contains("active")) renderOverlayPreview();
 
     // 0. DETECCIÓN DINÁMICA DE HARDWARE REAL
     if (d.system_specs) {
@@ -1450,6 +1452,152 @@ async function toggleAutostart() {
   } catch (err) {
     logConsole(`Error en auto-inicio: ${err.message}`);
   }
+}
+
+// overlay en juego
+let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: false, items: [] };
+let overlayTelemetry = null;
+const overlayFpsDemo = [138, 142, 140, 144, 139, 131, 136, 143, 141, 144, 137, 140, 128, 135, 142, 144, 141, 139, 143, 140];
+
+async function loadOverlayConfig() {
+  try {
+    const res = await fetch(`${API_BASE}/api/overlay`);
+    if (res.ok) {
+      overlayCfg = await res.json();
+      renderOverlayConfig();
+    }
+  } catch (err) {}
+}
+
+function ovTempColor(t) {
+  if (t == null) return "#8b95a8";
+  if (t >= 90) return "#f87171";
+  if (t >= 80) return "#fbbf24";
+  return "#34d399";
+}
+
+function ovNum(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// dibuja una replica del overlay real dentro de la pantalla en miniatura
+function renderOverlayPreview() {
+  const box = document.getElementById("overlay-preview");
+  if (!box) return;
+  const t = overlayTelemetry || {};
+  const items = overlayCfg.items || [];
+  const parts = [];
+  if (items.includes("fps")) {
+    const max = Math.max(...overlayFpsDemo) + 4, min = Math.min(...overlayFpsDemo) - 12;
+    const pts = overlayFpsDemo.map((v, i) => `${(i / (overlayFpsDemo.length - 1)) * 100},${14 - ((v - min) / (max - min)) * 14}`).join(" ");
+    parts.push(`
+      <div class="ovp-head"><span><i class="ovp-dot"></i>VORTEX</span><span>Tu juego</span></div>
+      <div class="ovp-fps">
+        <div class="ovp-fps-num">144<small>FPS</small></div>
+        <div class="ovp-fps-side"><b>6.9 ms</b>1% low 118</div>
+      </div>
+      <div class="ovp-chart"><svg viewBox="0 0 100 14" preserveAspectRatio="none">
+        <polygon points="0,14 ${pts} 100,14" fill="rgba(52,211,153,0.18)"/>
+        <polyline points="${pts}" fill="none" stroke="#34d399" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+      </svg></div>`);
+  }
+  const rows = [];
+  const row = (label, val, extra, pill, pillColor, bar) => `
+    <div class="ovp-row">
+      <span class="ovp-row-label">${label}</span>
+      <span class="ovp-row-val">${val}${extra ? `<small>${extra}</small>` : ""}</span>
+      ${pill ? `<span class="ovp-pill" style="color:${pillColor}">${pill}</span>` : "<span></span>"}
+      ${bar != null ? `<span class="ovp-bar"><i style="width:${Math.max(0, Math.min(100, bar))}%"></i></span>` : ""}
+    </div>`;
+  if (items.includes("cpu")) {
+    const u = ovNum(t.cpu_usage), tc = ovNum(t.cpu_temp), g = ovNum(t.cpu_freq);
+    rows.push(row("CPU", u != null ? `${Math.round(u)}%` : "--", g ? `${g.toFixed(1)} GHz` : "", tc != null ? `${Math.round(tc)}°C` : "", ovTempColor(tc), u));
+  }
+  if (items.includes("gpu")) {
+    const u = ovNum(t.gpu_usage), tg = ovNum(t.gpu_temp), w = ovNum(t.gpu_power), mhz = ovNum(t.gpu_freq_mhz);
+    const extra = [w != null ? `${Math.round(w)} W` : "", mhz ? `${Math.round(mhz)} MHz` : ""].filter(Boolean).join(" · ");
+    rows.push(row("GPU", u != null ? `${Math.round(u)}%` : "--", extra, tg != null ? `${Math.round(tg)}°C` : "", ovTempColor(tg), u));
+  }
+  if (items.includes("ram")) {
+    const used = ovNum(t.ram_used), total = ovNum(t.ram_total), pct = ovNum(t.ram_pct);
+    rows.push(row("RAM", used != null ? used.toFixed(1) : "--", total ? `/ ${Math.round(total)} GB` : "", pct != null ? `${Math.round(pct)}%` : "", "#00e5ff", pct));
+  }
+  if (items.includes("fan")) {
+    const rpms = [ovNum(t.fan1_rpm), ovNum(t.fan2_rpm)].filter(v => v);
+    if (rpms.length) rows.push(row("FAN", `${Math.round(rpms[0])}`, rpms[1] ? `/ ${Math.round(rpms[1])} RPM` : "RPM", "", "", null));
+  }
+  if (parts.length && rows.length) parts.push(`<div class="ovp-sep"></div>`);
+  box.innerHTML = parts.join("") + rows.join("") || `<div class="ovp-head"><span>Sin datos seleccionados</span></div>`;
+  const scale = { s: 0.85, m: 1, l: 1.22 }[overlayCfg.size] || 1;
+  box.style.transform = `scale(${scale})`;
+  box.style.setProperty("--ov-alpha", (Math.min(245, overlayCfg.opacity * 2.45) / 255).toFixed(2));
+}
+
+function previewOverlayOpacity(val) {
+  overlayCfg.opacity = Number(val);
+  const lbl = document.getElementById("overlay-opacity-val");
+  if (lbl) lbl.textContent = `${val}%`;
+  renderOverlayPreview();
+}
+
+function renderOverlayConfig() {
+  const btn = document.getElementById("btn-overlay");
+  if (!btn) return;
+  btn.classList.toggle("active", !!overlayCfg.enabled);
+  btn.setAttribute("aria-checked", overlayCfg.enabled ? "true" : "false");
+  document.getElementById("btn-overlay-label").textContent = overlayCfg.enabled ? "Encendido" : "Apagado";
+  const stage = document.getElementById("overlay-stage");
+  stage.dataset.corner = overlayCfg.corner;
+  stage.classList.toggle("is-off", !overlayCfg.enabled);
+  document.querySelectorAll("#overlay-size [data-size]").forEach(b => b.classList.toggle("active", b.dataset.size === overlayCfg.size));
+  document.querySelectorAll("#overlay-items [data-item]").forEach(b => b.classList.toggle("active", (overlayCfg.items || []).includes(b.dataset.item)));
+  const op = document.getElementById("overlay-opacity");
+  if (op && document.activeElement !== op) op.value = overlayCfg.opacity;
+  document.getElementById("overlay-opacity-val").textContent = `${overlayCfg.opacity}%`;
+  document.getElementById("overlay-only-games").checked = !!overlayCfg.only_games;
+  const hk = document.getElementById("overlay-hotkey");
+  if (hk && overlayCfg.hotkey) hk.innerHTML = overlayCfg.hotkey.split("+").map(k => `<kbd>${k}</kbd>`).join("+");
+  const st = document.getElementById("overlay-status");
+  if (st) {
+    const notes = [];
+    if (!overlayCfg.fps_available) notes.push(`<span class="warn">Medidor de FPS no encontrado</span>`);
+    else if (overlayCfg.fps_error) notes.push(`<span class="warn">FPS: ${overlayCfg.fps_error.toLowerCase().includes("access") ? "abre la app como administrador" : overlayCfg.fps_error}</span>`);
+    else notes.push(`<span class="ok">Medidor de FPS listo</span>`);
+    if (overlayCfg.hotkey_ok === false) notes.push(`<span class="warn">Otro programa usa el atajo</span>`);
+    st.innerHTML = notes.join("");
+  }
+  renderOverlayPreview();
+}
+
+async function setOverlay(patch) {
+  Object.assign(overlayCfg, patch);
+  renderOverlayConfig();
+  try {
+    const res = await fetch(`${API_BASE}/api/overlay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    });
+    if (res.ok) {
+      overlayCfg = await res.json();
+      renderOverlayConfig();
+    }
+  } catch (err) {
+    logConsole(`Error en overlay: ${err.message}`);
+  }
+}
+
+function toggleOverlay() {
+  setOverlay({ enabled: !overlayCfg.enabled }).then(() => {
+    logConsole(overlayCfg.enabled ? `Overlay en juego activado (${overlayCfg.hotkey || "atajo"} para ocultarlo).` : "Overlay en juego desactivado.");
+  });
+}
+
+function toggleOverlayItem(item) {
+  const items = new Set(overlayCfg.items || []);
+  if (items.has(item)) items.delete(item); else items.add(item);
+  setOverlay({ items: ["fps", "cpu", "gpu", "ram", "fan"].filter(i => items.has(i)) });
 }
 
 // -------------------------------------------------------------
@@ -3030,6 +3178,8 @@ window.addEventListener("DOMContentLoaded", () => {
   updateTelemetry();
   loadNetworkBoostStatus();
   checkAutostart();
+  loadOverlayConfig();
+  setInterval(loadOverlayConfig, 5000);
   refreshTopProcesses();
   refreshAudioMixer();
   setInterval(updateTelemetry, 500);

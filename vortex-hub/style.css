@@ -1646,6 +1646,455 @@ body {
   box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
 }
 
+/* overlay en juego */
+.ov-card {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ov-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.ov-head-info h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.ov-head-info p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  max-width: 560px;
+}
+
+.ov-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ov-switch-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.ov-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.ov-switch.active .ov-switch-track {
+  background: rgba(0, 240, 255, 0.25);
+  border-color: var(--accent-cyan);
+}
+
+.ov-switch.active .ov-switch-thumb {
+  transform: translateX(18px);
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+
+.ov-switch.active .ov-switch-label {
+  color: var(--accent-cyan);
+}
+
+.ov-body {
+  display: grid;
+  grid-template-columns: minmax(280px, 440px) minmax(260px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.ov-stage-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ov-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background:
+    radial-gradient(ellipse at 70% 120%, rgba(255, 120, 60, 0.35), transparent 60%),
+    radial-gradient(ellipse at 20% -10%, rgba(0, 160, 255, 0.30), transparent 55%),
+    linear-gradient(160deg, #1a2238 0%, #0d1220 55%, #1c1410 100%);
+  transition: opacity 0.2s ease;
+}
+
+.ov-stage.is-off {
+  opacity: 0.55;
+}
+
+.ov-corner {
+  position: absolute;
+  width: 46%;
+  height: 46%;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ov-corner[data-corner="tl"] { top: 3%; left: 2%; }
+.ov-corner[data-corner="tr"] { top: 3%; right: 2%; }
+.ov-corner[data-corner="bl"] { bottom: 3%; left: 2%; }
+.ov-corner[data-corner="br"] { bottom: 3%; right: 2%; }
+
+.ov-corner:hover {
+  background: rgba(0, 240, 255, 0.06);
+  border-color: rgba(0, 240, 255, 0.45);
+}
+
+.ov-preview {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  width: 50%;
+  min-width: 168px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 16, 24, var(--ov-alpha, 0.85));
+  font-family: 'Segoe UI', var(--font-sans);
+  color: #f4f6fa;
+  transition: transform 0.2s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ov-stage[data-corner="tl"] .ov-preview { top: 5%; left: 3%; transform-origin: top left; }
+.ov-stage[data-corner="tr"] .ov-preview { top: 5%; right: 3%; transform-origin: top right; }
+.ov-stage[data-corner="bl"] .ov-preview { bottom: 5%; left: 3%; transform-origin: bottom left; }
+.ov-stage[data-corner="br"] .ov-preview { bottom: 5%; right: 3%; transform-origin: bottom right; }
+
+.ovp-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 7.5px;
+  color: #8b95a8;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ovp-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
+.ovp-fps {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 2px;
+}
+
+.ovp-fps-num {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: #34d399;
+}
+
+.ovp-fps-num small {
+  font-size: 8px;
+  font-weight: 700;
+  color: #8b95a8;
+  margin-left: 3px;
+}
+
+.ovp-fps-side {
+  text-align: right;
+  font-size: 7.5px;
+  color: #8b95a8;
+}
+
+.ovp-fps-side b {
+  display: block;
+  font-size: 10px;
+  color: #f4f6fa;
+}
+
+.ovp-chart {
+  height: 14px;
+  margin: 4px 0 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.ovp-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ovp-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.10);
+  margin: 5px 0;
+}
+
+.ovp-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  column-gap: 4px;
+  margin-top: 4px;
+}
+
+.ovp-row-label {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #00e5ff;
+}
+
+.ovp-row-val {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ovp-row-val small {
+  font-size: 7.5px;
+  font-weight: 400;
+  color: #8b95a8;
+  margin-left: 3px;
+}
+
+.ovp-pill {
+  font-size: 7.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.ovp-bar {
+  grid-column: 2 / 4;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+  margin-top: 3px;
+  overflow: hidden;
+}
+
+.ovp-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: #00e5ff;
+  transition: width 0.4s ease;
+}
+
+.ov-stage-hint {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.ov-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ov-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ov-field-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ov-field-label b {
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  margin-left: 4px;
+}
+
+.ov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 9px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ov-chip::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.ov-chip.active {
+  color: var(--text-primary);
+  border-color: rgba(0, 240, 255, 0.55);
+  background: rgba(0, 240, 255, 0.10);
+}
+
+.ov-chip.active::before {
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.3 2.3 4.7-5' fill='none' stroke='%23001018' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat;
+}
+
+.ov-segment {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: fit-content;
+}
+
+.ov-segment button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ov-segment button.active {
+  background: var(--accent-cyan);
+  color: #001018;
+}
+
+.ov-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.ov-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-cyan);
+  cursor: pointer;
+}
+
+.ov-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.ov-hotkey kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 2px 6px;
+  margin: 0 2px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom-width: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-align: center;
+}
+
+.ov-status {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.ov-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ov-status span::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.ov-status .ok::before { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.7); }
+.ov-status .warn::before { background: #fbbf24; }
+
+@media (max-width: 1100px) {
+  .ov-body { grid-template-columns: 1fr; }
+}
+
 /* ==========================================================================
    11. TAB 5: MEMORIA RAM & GAME BOOST
    ========================================================================== */

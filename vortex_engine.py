@@ -21,6 +21,8 @@ import platform
 import socket
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import hw_sensors
+import fps_monitor
+import game_overlay
 from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
 
 # Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
@@ -1771,6 +1773,9 @@ class VortexCoreManager:
 
 # En modo prueba (tests automáticos) no se inicia el gestor de hardware real
 manager = None if os.environ.get("VORTEXCORE_TEST_MODE") == "1" else VortexCoreManager()
+# overlay en juego con fps de presentmon
+overlay = None if manager is None else game_overlay.GameOverlay(
+    lambda: manager.telemetry, fps_monitor.FpsMonitor(fps_monitor.find_presentmon(get_app_dir())))
 
 
 def _clamp_int(value, lo: int, hi: int, default: int) -> int:
@@ -1915,6 +1920,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json({"apps": get_installed_debloat_apps()})
         elif path == "/api/autostart":
             self._send_json({"enabled": is_autostart_enabled()})
+        elif path == "/api/overlay":
+            self._send_json(overlay.get_config())
         elif path == "/api/audio_mixer":
             self._send_json(get_audio_mixer_data())
         elif path == "/api/apo_status":
@@ -2120,6 +2127,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             if not targets:
                 return self._reject(400, "No se especificó ninguna categoría de limpieza válida")
             self._send_json(run_disk_cleanup(targets))
+        elif self.path == "/api/overlay":
+            self._send_json(overlay.update_config(data))
         elif self.path == "/api/autostart":
             enable = bool(data.get("enabled", True))
             ok = set_autostart(enable)
@@ -2521,6 +2530,7 @@ if __name__ == "__main__":
         on_exit_callback=lambda: os._exit(0)
     )
     threading.Thread(target=tray.run, daemon=True).start()
+    overlay.start()
 
     # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
     is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])

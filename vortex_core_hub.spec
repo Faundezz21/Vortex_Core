@@ -20,6 +20,26 @@ for _pkg in ('HardwareMonitor', 'pythonnet', 'clr_loader'):
     except Exception:
         pass
 
+# presentmon de intel para medir fps en el overlay (se descarga y verifica si falta)
+PRESENTMON_URL = "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe"
+PRESENTMON_SHA256 = "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+presentmon_exe = os.path.join(project_dir, 'tools', 'PresentMon.exe')
+
+
+def _sha256(path):
+    import hashlib
+    with open(path, 'rb') as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+if not os.path.isfile(presentmon_exe) or _sha256(presentmon_exe) != PRESENTMON_SHA256:
+    import urllib.request
+    os.makedirs(os.path.dirname(presentmon_exe), exist_ok=True)
+    urllib.request.urlretrieve(PRESENTMON_URL, presentmon_exe)
+    if _sha256(presentmon_exe) != PRESENTMON_SHA256:
+        os.remove(presentmon_exe)
+        raise SystemExit('presentmon descargado no coincide con el sha256 esperado')
+
 # Solo los archivos de la interfaz web (sin carpetas de desarrollo)
 hub_dir = os.path.join(project_dir, 'vortex-hub')
 hub_files = [
@@ -34,6 +54,7 @@ added_datas = hub_files + [
     (os.path.join(project_dir, 'oem_fan_controller.ps1'), '.'),
     (os.path.join(project_dir, 'vortex_icon.ico'), '.'),
     (os.path.join(project_dir, 'VERSION'), '.'),
+    (presentmon_exe, 'tools'),
 ]
 
 a = Analysis(
@@ -44,6 +65,8 @@ a = Analysis(
     hiddenimports=[
         'hw_sensors',
         'tray_manager',
+        'fps_monitor',
+        'game_overlay',
         'psutil',
         'pycaw',
         'pycaw.pycaw',

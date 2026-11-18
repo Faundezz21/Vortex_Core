@@ -1047,6 +1047,69 @@
               </div>
             </div>
 
+            <!-- overlay en juego -->
+            <div class="glass-card ov-card">
+              <div class="ov-head">
+                <div class="ov-head-info">
+                  <h3>Overlay en juego</h3>
+                  <p>Tus FPS y la temperatura del equipo en una esquina de la pantalla mientras juegas. Funciona con juegos en ventana o en pantalla completa sin bordes.</p>
+                </div>
+                <button class="ov-switch" id="btn-overlay" role="switch" aria-checked="false" onclick="toggleOverlay()">
+                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
+                  <span class="ov-switch-label" id="btn-overlay-label">Apagado</span>
+                </button>
+              </div>
+
+              <div class="ov-body">
+                <div class="ov-stage-wrap">
+                  <div class="ov-stage" id="overlay-stage" data-corner="tl">
+                    <button class="ov-corner" data-corner="tl" onclick="setOverlay({corner: 'tl'})" title="Arriba a la izquierda"></button>
+                    <button class="ov-corner" data-corner="tr" onclick="setOverlay({corner: 'tr'})" title="Arriba a la derecha"></button>
+                    <button class="ov-corner" data-corner="bl" onclick="setOverlay({corner: 'bl'})" title="Abajo a la izquierda"></button>
+                    <button class="ov-corner" data-corner="br" onclick="setOverlay({corner: 'br'})" title="Abajo a la derecha"></button>
+                    <div class="ov-preview" id="overlay-preview"></div>
+                  </div>
+                  <div class="ov-stage-hint">Haz clic en una esquina para mover el overlay</div>
+                </div>
+
+                <div class="ov-options">
+                  <div class="ov-field">
+                    <span class="ov-field-label">Datos que se muestran</span>
+                    <div class="ov-chips" id="overlay-items">
+                      <button class="ov-chip" data-item="fps" onclick="toggleOverlayItem('fps')">FPS</button>
+                      <button class="ov-chip" data-item="cpu" onclick="toggleOverlayItem('cpu')">CPU</button>
+                      <button class="ov-chip" data-item="gpu" onclick="toggleOverlayItem('gpu')">GPU</button>
+                      <button class="ov-chip" data-item="ram" onclick="toggleOverlayItem('ram')">RAM</button>
+                      <button class="ov-chip" data-item="fan" onclick="toggleOverlayItem('fan')">Ventiladores</button>
+                    </div>
+                  </div>
+                  <div class="ov-field">
+                    <span class="ov-field-label">Tamaño</span>
+                    <div class="ov-segment" id="overlay-size">
+                      <button data-size="s" onclick="setOverlay({size: 's'})">Chico</button>
+                      <button data-size="m" onclick="setOverlay({size: 'm'})">Mediano</button>
+                      <button data-size="l" onclick="setOverlay({size: 'l'})">Grande</button>
+                    </div>
+                  </div>
+                  <div class="ov-field">
+                    <span class="ov-field-label">Opacidad del fondo <b id="overlay-opacity-val">85%</b></span>
+                    <input type="range" min="30" max="100" step="5" value="85" class="clean-slider" id="overlay-opacity"
+                           oninput="previewOverlayOpacity(this.value)"
+                           onchange="setOverlay({opacity: Number(this.value)})">
+                  </div>
+                  <label class="ov-check">
+                    <input type="checkbox" id="overlay-only-games" onchange="setOverlay({only_games: this.checked})">
+                    <span>Mostrar solo cuando hay un juego abierto</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="ov-foot">
+                <div class="ov-hotkey">Mostrar u ocultar en cualquier momento con <span id="overlay-hotkey"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F10</kbd></span></div>
+                <div class="ov-status" id="overlay-status">Cargando…</div>
+              </div>
+            </div>
+
           </div>
         </section>
 
