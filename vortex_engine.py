@@ -23,6 +23,7 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import hw_sensors
 import fps_monitor
 import game_overlay
+import net_monitor
 from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
 
 # Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
@@ -1774,8 +1775,11 @@ class VortexCoreManager:
 # En modo prueba (tests automáticos) no se inicia el gestor de hardware real
 manager = None if os.environ.get("VORTEXCORE_TEST_MODE") == "1" else VortexCoreManager()
 # overlay en juego con fps de presentmon
+fps_mon = fps_monitor.FpsMonitor(fps_monitor.find_presentmon(get_app_dir()))
+# consumo de red por app y ping al servidor del juego (se enciende solo cuando se consulta)
+net_mon = net_monitor.NetMonitor(ping_func=hw_sensors.measure_ping_ms, prefer_game=fps_mon.recent_game)
 overlay = None if manager is None else game_overlay.GameOverlay(
-    lambda: manager.telemetry, fps_monitor.FpsMonitor(fps_monitor.find_presentmon(get_app_dir())))
+    lambda: manager.telemetry, fps_mon, get_net=net_mon.snapshot)
 
 
 def _clamp_int(value, lo: int, hi: int, default: int) -> int:
@@ -1932,6 +1936,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(scan_disk_cleanup())
         elif path == "/api/top_processes":
             self._send_json({"processes": get_top_memory_processes(8)})
+        elif path == "/api/network/apps":
+            self._send_json(net_mon.snapshot())
         elif path == "/api/network/status":
             iface = (manager.telemetry.get("network") or {}).get("iface")
             self._send_json(hw_sensors.get_network_boost_status(iface))

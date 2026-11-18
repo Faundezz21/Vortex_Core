@@ -194,6 +194,7 @@ class FpsMonitor:
         self._wanted = False
         self._last_start = 0.0
         self.error = None
+        self.last_game = None  # (exe, instante) del ultimo juego con foco
 
     @property
     def available(self) -> bool:
@@ -286,6 +287,12 @@ class FpsMonitor:
         except Exception:
             pass
 
+    # nombre del ultimo juego visto con foco en el ultimo minuto
+    def recent_game(self) -> str | None:
+        if self.last_game and time.time() - self.last_game[1] < 60:
+            return self.last_game[0]
+        return None
+
     # fps del proceso indicado o del que tiene el foco
     def snapshot(self, pid: int | None = None) -> dict | None:
         self._ensure_running()
@@ -311,4 +318,6 @@ class FpsMonitor:
                 return None
             stats["app"] = self._apps.get(pid, "")
             stats["pid"] = pid
+            if fg_exe:
+                self.last_game = (stats["app"], now)
             return stats

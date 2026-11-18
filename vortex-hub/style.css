@@ -1646,6 +1646,245 @@ body {
   box-shadow: 0 0 14px rgba(0, 240, 255, 0.25);
 }
 
+/* tarjeta de red */
+.net-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.net-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.net-tile-label {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.net-tile strong {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.net-section {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.net-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.net-section-head span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.net-section-head small {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.net-empty {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.10);
+  text-align: center;
+}
+
+.net-game-box {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 240, 255, 0.04);
+  border: 1px solid rgba(0, 240, 255, 0.18);
+}
+
+.net-game-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.net-game-server {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.net-game-ping {
+  grid-row: span 2;
+  text-align: right;
+}
+
+.net-game-ping strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.net-game-ping span {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+.net-game-metrics {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.net-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.net-chip.muted {
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.net-apps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.net-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 84px;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.net-app-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-app-rate {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.net-app-rate.down {
+  color: var(--accent-cyan);
+}
+
+.net-app-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.net-app-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent-cyan);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+details.net-boost-box {
+  margin-top: 14px;
+}
+
+details.net-boost-box summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.net-boost-box summary::-webkit-details-marker {
+  display: none;
+}
+
+.net-boost-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.net-boost-title::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--accent-cyan);
+  transition: transform 0.2s ease;
+}
+
+details[open] .net-boost-title::before {
+  transform: rotate(90deg);
+}
+
+.net-boost-title small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.net-boost-list {
+  margin: 10px 0 6px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.net-boost-list b {
+  color: var(--text-primary);
+}
+
+@media (max-width: 760px) {
+  .net-summary { grid-template-columns: 1fr 1fr; }
+}
+
 /* overlay en juego */
 .ov-card {
   padding: 20px 22px;

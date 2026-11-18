@@ -415,38 +415,96 @@ function renderNetworkStats(d) {
   if (badge) {
     badge.textContent = net.iface
       ? (hasNum(net.link_mbps) ? `${net.iface} · ${net.link_mbps} Mbps` : net.iface)
-      : "Sin interfaz activa";
+      : "Sin conexión";
   }
-
   const dlEl = document.getElementById("net-dl-speed");
   if (dlEl) dlEl.textContent = formatNetSpeed(net.rx_bps);
-
   const ulEl = document.getElementById("net-ul-speed");
   if (ulEl) ulEl.textContent = formatNetSpeed(net.tx_bps);
-
-  const rxTot = document.getElementById("net-rx-total");
-  if (rxTot) rxTot.textContent = `Recibido: ${formatNetTotal(net.rx_total_mb)}`;
-
-  const txTot = document.getElementById("net-tx-total");
-  if (txTot) txTot.textContent = `Enviado: ${formatNetTotal(net.tx_total_mb)}`;
-
-  const maxBps = hasNum(net.link_mbps) && net.link_mbps > 0 ? net.link_mbps * 125000 : 12500000;
-  const rxPct = net.rx_bps > 0 ? Math.min(100, Math.max(2, Math.round((net.rx_bps / maxBps) * 100))) : 0;
-  const txPct = net.tx_bps > 0 ? Math.min(100, Math.max(2, Math.round((net.tx_bps / maxBps) * 100))) : 0;
-
-  const rxBar = document.getElementById("net-rx-bar");
-  if (rxBar) rxBar.style.width = `${rxPct}%`;
-  const txBar = document.getElementById("net-tx-bar");
-  if (txBar) txBar.style.width = `${txPct}%`;
-
   const pingEl = document.getElementById("net-ping-ms");
   if (pingEl) pingEl.textContent = hasNum(net.ping_ms) ? `${net.ping_ms} ms` : ND;
+}
 
-  const ipEl = document.getElementById("net-ipv4");
-  if (ipEl) ipEl.textContent = net.ipv4 || ND;
+// consumo por app y ping al servidor del juego
+let netAppsBusy = false;
 
-  const linkEl = document.getElementById("net-link-speed");
-  if (linkEl) linkEl.textContent = hasNum(net.link_mbps) ? `Enlace: ${net.link_mbps} Mbps` : `Enlace: ${ND}`;
+function netEscape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function netAppTitle(name) {
+  return String(name || "").replace(/\.exe$/i, "");
+}
+
+function netPingQuality(g) {
+  if (!hasNum(g.ping_ms)) return null;
+  const j = g.jitter_ms || 0, l = g.loss_pct || 0;
+  if (g.ping_ms < 60 && l === 0 && j < 10) return { label: "Conexión buena", color: "#34d399" };
+  if (g.ping_ms < 120 && l <= 2 && j < 25) return { label: "Conexión regular", color: "#fbbf24" };
+  return { label: "Conexión mala", color: "#f87171" };
+}
+
+async function loadNetworkApps() {
+  if (netAppsBusy || !document.getElementById("tab-overview")?.classList.contains("active")) return;
+  netAppsBusy = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/network/apps`);
+    if (res.ok) renderNetworkApps(await res.json());
+  } catch (e) {
+  } finally {
+    netAppsBusy = false;
+  }
+}
+
+function renderNetworkApps(st) {
+  const gameBox = document.getElementById("net-game");
+  const appsBox = document.getElementById("net-apps");
+  if (!gameBox || !appsBox) return;
+  if (!st || !st.available) {
+    const msg = st && st.error === "requiere admin"
+      ? "Abre VortexCore como administrador para ver qué apps usan la red y el ping de tu juego."
+      : "No se pudo leer el tráfico de red de Windows.";
+    gameBox.innerHTML = `<div class="net-empty">${msg}</div>`;
+    appsBox.innerHTML = "";
+    return;
+  }
+  const g = st.game;
+  if (g) {
+    const q = netPingQuality(g);
+    let pingHtml, chips = [];
+    if (g.responds === false) {
+      pingHtml = `<strong style="color:var(--text-tertiary)">--</strong><span>el servidor no responde ping</span>`;
+    } else if (!hasNum(g.ping_ms)) {
+      pingHtml = `<strong style="color:var(--text-tertiary)">…</strong><span>midiendo</span>`;
+    } else {
+      pingHtml = `<strong style="color:${q.color}">${g.ping_ms} ms</strong><span>ping</span>`;
+      chips.push(`<span class="net-chip" style="color:${q.color}">${q.label}</span>`);
+      chips.push(`<span class="net-chip muted" title="Cuánto varía el ping entre mediciones; más de 10 ms se nota como tirones">Variación ± ${Math.round(g.jitter_ms || 0)} ms</span>`);
+      chips.push(`<span class="net-chip muted" title="Mediciones que no recibieron respuesta">Pérdida ${g.loss_pct || 0}%</span>`);
+    }
+    gameBox.innerHTML = `
+      <div class="net-game-box">
+        <div class="net-game-name">${netEscape(netAppTitle(g.name))}</div>
+        <div class="net-game-ping">${pingHtml}</div>
+        <div class="net-game-server">Servidor ${netEscape(g.ip)}:${g.port}</div>
+        ${chips.length ? `<div class="net-game-metrics">${chips.join("")}</div>` : ""}
+      </div>`;
+  } else {
+    gameBox.innerHTML = `<div class="net-empty">Abre un juego en línea y aquí verás el ping real a su servidor.</div>`;
+  }
+  const apps = st.apps || [];
+  if (!apps.length) {
+    appsBox.innerHTML = `<div class="net-empty">Ninguna app está usando la red ahora.</div>`;
+    return;
+  }
+  const top = Math.max(...apps.map(a => a.down_bps + a.up_bps), 1);
+  appsBox.innerHTML = apps.map(a => `
+    <div class="net-app" title="${netEscape(a.name)}">
+      <span class="net-app-name">${netEscape(netAppTitle(a.name))}</span>
+      <span class="net-app-rate down">↓ ${formatNetSpeed(a.down_bps)}</span>
+      <span class="net-app-rate">↑ ${formatNetSpeed(a.up_bps)}</span>
+      <span class="net-app-bar"><i style="width:${Math.max(3, Math.round(((a.down_bps + a.up_bps) / top) * 100))}%"></i></span>
+    </div>`).join("");
 }
 
 async function loadNetworkBoostStatus() {
@@ -1510,6 +1568,9 @@ function renderOverlayPreview() {
       ${pill ? `<span class="ovp-pill" style="color:${pillColor}">${pill}</span>` : "<span></span>"}
       ${bar != null ? `<span class="ovp-bar"><i style="width:${Math.max(0, Math.min(100, bar))}%"></i></span>` : ""}
     </div>`;
+  if (items.includes("ping")) {
+    rows.push(row("PING", "34 ms", "± 2 · pérdida 0%", "Buena", "#34d399", null));
+  }
   if (items.includes("cpu")) {
     const u = ovNum(t.cpu_usage), tc = ovNum(t.cpu_temp), g = ovNum(t.cpu_freq);
     rows.push(row("CPU", u != null ? `${Math.round(u)}%` : "--", g ? `${g.toFixed(1)} GHz` : "", tc != null ? `${Math.round(tc)}°C` : "", ovTempColor(tc), u));
@@ -1597,7 +1658,7 @@ function toggleOverlay() {
 function toggleOverlayItem(item) {
   const items = new Set(overlayCfg.items || []);
   if (items.has(item)) items.delete(item); else items.add(item);
-  setOverlay({ items: ["fps", "cpu", "gpu", "ram", "fan"].filter(i => items.has(i)) });
+  setOverlay({ items: ["fps", "ping", "cpu", "gpu", "ram", "fan"].filter(i => items.has(i)) });
 }
 
 // -------------------------------------------------------------
@@ -3177,6 +3238,8 @@ window.addEventListener("DOMContentLoaded", () => {
   loadManualPreset("mode1");
   updateTelemetry();
   loadNetworkBoostStatus();
+  loadNetworkApps();
+  setInterval(loadNetworkApps, 2000);
   checkAutostart();
   loadOverlayConfig();
   setInterval(loadOverlayConfig, 5000);

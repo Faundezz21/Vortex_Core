@@ -96,9 +96,21 @@ class OverlayRowsTests(unittest.TestCase):
 
     def test_model_height(self):
         m = game_overlay.build_model(self.TEL, None, game_overlay.ITEMS)
-        self.assertEqual(game_overlay.model_height(m, 1.0), 24 + 76 + 12 + 30 * 3 + 22 + 6 * 3)
+        self.assertEqual(game_overlay.model_height(m, 1.0), 24 + 76 + 12 + 30 * 3 + 22 * 2 + 6 * 4)
         only_fps = game_overlay.build_model({}, None, ["fps"])
         self.assertEqual(game_overlay.model_height(only_fps, 1.0), 24 + 76)
+
+    def test_ping_row(self):
+        row = lambda net: game_overlay.build_model({}, None, ["ping"], net=net)["rows"][0]
+        self.assertEqual(row(None)["value"], "--")
+        self.assertEqual(row({"available": False, "error": "requiere admin"})["extra"], "requiere admin")
+        self.assertEqual(row({"available": True, "game": None})["extra"], "sin juego en línea")
+        self.assertEqual(row({"available": True, "game": {"responds": False}})["extra"], "el servidor no responde ping")
+        r = row({"available": True, "game": {"ping_ms": 34, "jitter_ms": 2.4, "loss_pct": 0, "responds": True}})
+        self.assertEqual((r["value"], r["extra"]), ("34 ms", "± 2 · pérdida 0%"))
+        self.assertEqual(r["pill"], ("Buena", game_overlay.C_OK))
+        self.assertEqual(game_overlay.ping_quality(90, 5, 1), ("Regular", game_overlay.C_WARN))
+        self.assertEqual(game_overlay.ping_quality(40, 5, 5), ("Mala", game_overlay.C_HOT))
 
     def test_sanitize_config(self):
         cfg = game_overlay.sanitize_config({"corner": "xx", "size": "l", "opacity": 5,

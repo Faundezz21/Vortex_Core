@@ -515,56 +515,65 @@
               </div>
             </div>
 
-            <!-- CARD 2: USO DE RED EN TIEMPO REAL -->
-            <div class="glass-card vc-deep-card">
+            <!-- tarjeta de red: que usa la conexion y ping al servidor del juego -->
+            <div class="glass-card vc-deep-card net-card">
               <div class="vc-deep-head">
                 <div class="vc-deep-title">
                   <svg class="i" aria-hidden="true"><use href="#i-globe"/></svg>
                   <div>
-                    <h3>Uso de red</h3>
-                    <span class="vc-deep-sub" id="net-sub-meta">Tráfico en vivo de la interfaz activa y latencia</span>
+                    <h3>Red</h3>
+                    <span class="vc-deep-sub">Qué está usando tu conexión y cómo llega el ping a tu juego</span>
                   </div>
                 </div>
                 <span class="vc-deep-badge" id="net-iface-badge">Sin interfaz</span>
               </div>
 
-              <div class="net-stats-grid">
-                <div class="net-stat-box">
-                  <span class="ns-label">Descarga</span>
-                  <strong class="ns-value" id="net-dl-speed">0 KB/s</strong>
-                  <div class="net-bar-track"><div class="net-bar-fill net-rx" id="net-rx-bar" style="width:0%"></div></div>
-                  <span class="ns-sub" id="net-rx-total">Recibido: 0 MB</span>
+              <div class="net-summary">
+                <div class="net-tile">
+                  <span class="net-tile-label">↓ Descarga</span>
+                  <strong id="net-dl-speed">0 KB/s</strong>
                 </div>
-
-                <div class="net-stat-box">
-                  <span class="ns-label">Subida</span>
-                  <strong class="ns-value" id="net-ul-speed">0 KB/s</strong>
-                  <div class="net-bar-track"><div class="net-bar-fill net-tx" id="net-tx-bar" style="width:0%"></div></div>
-                  <span class="ns-sub" id="net-tx-total">Enviado: 0 MB</span>
+                <div class="net-tile">
+                  <span class="net-tile-label">↑ Subida</span>
+                  <strong id="net-ul-speed">0 KB/s</strong>
                 </div>
-
-                <div class="net-stat-box net-stat-compact">
-                  <span class="ns-label">Latencia (Ping)</span>
-                  <strong class="ns-value" id="net-ping-ms">N/D</strong>
-                  <span class="ns-sub">Tiempo de respuesta de red</span>
-                </div>
-
-                <div class="net-stat-box net-stat-compact">
-                  <span class="ns-label">IPv4 y enlace</span>
-                  <strong class="ns-value" id="net-ipv4">N/D</strong>
-                  <span class="ns-sub" id="net-link-speed">Enlace: N/D</span>
+                <div class="net-tile" title="Tiempo de respuesta hasta internet (Cloudflare 1.1.1.1). No es el ping de tu juego.">
+                  <span class="net-tile-label">Ping a internet</span>
+                  <strong id="net-ping-ms">N/D</strong>
                 </div>
               </div>
 
-              <!-- INTENSIFICADOR DE RED -->
-              <div class="net-boost-box" id="net-boost-box">
-                <div class="net-boost-top">
-                  <div>
-                    <strong>Intensificador de red</strong>
-                    <span class="net-boost-sub" id="net-boost-meta">Elimina el límite multimedia de Windows, fija rendimiento Wi-Fi y optimiza DNS</span>
-                  </div>
-                  <span class="vc-deep-badge" id="net-boost-pill">Estándar</span>
+              <div class="net-section">
+                <div class="net-section-head">
+                  <span>Ping a tu juego</span>
+                  <small>Se detecta solo el servidor al que está conectado el juego abierto</small>
                 </div>
+                <div class="net-game" id="net-game">
+                  <div class="net-empty">Abre un juego en línea y aquí verás el ping real a su servidor.</div>
+                </div>
+              </div>
+
+              <div class="net-section">
+                <div class="net-section-head">
+                  <span>Apps usando internet ahora</span>
+                  <small>Si el juego va con lag, revisa si algo está descargando en segundo plano</small>
+                </div>
+                <div class="net-apps" id="net-apps">
+                  <div class="net-empty">Cargando…</div>
+                </div>
+              </div>
+
+              <details class="net-boost-box" id="net-boost-box">
+                <summary>
+                  <span class="net-boost-title">Optimizar conexión <small>avanzado</small></span>
+                  <span class="vc-deep-badge" id="net-boost-pill">Estándar</span>
+                </summary>
+                <ul class="net-boost-list">
+                  <li><b>Wi-Fi a máximo rendimiento:</b> el adaptador deja de ahorrar energía, lo que evita picos de ping. Solo influye si juegas por Wi-Fi.</li>
+                  <li><b>Sin límite de red multimedia:</b> Windows deja de frenar el tráfico de red mientras se reproduce audio o video.</li>
+                  <li><b>DNS:</b> las páginas y los lanzadores encuentran sus servidores más rápido. No cambia el ping dentro del juego.</li>
+                </ul>
+                <div class="net-boost-sub" id="net-boost-meta">DNS actual: detectando…</div>
                 <div class="net-boost-controls">
                   <select id="net-dns-select" class="net-dns-select" aria-label="Servidor DNS">
                     <option value="cloudflare">Cloudflare DNS (Rápido)</option>
@@ -576,13 +585,13 @@
                   </select>
                   <button type="button" class="clean-btn primary" id="btn-net-boost" onclick="applyNetworkBoost(true)">
                     <svg class="i" aria-hidden="true"><use href="#i-zap"/></svg>
-                    <span>Activar boost</span>
+                    <span>Aplicar optimización</span>
                   </button>
-                  <button type="button" class="clean-btn" id="btn-net-bench" onclick="runNetworkBenchmark()">Medir ping / DNS</button>
+                  <button type="button" class="clean-btn" id="btn-net-bench" onclick="runNetworkBenchmark()">Probar mi conexión</button>
                   <button type="button" class="clean-btn" id="btn-net-reset" onclick="applyNetworkBoost(false)">Restaurar</button>
                 </div>
                 <div class="net-bench-results" id="net-bench-results" style="display:none;"></div>
-              </div>
+              </details>
             </div>
 
           </div>
@@ -1077,6 +1086,7 @@
                     <span class="ov-field-label">Datos que se muestran</span>
                     <div class="ov-chips" id="overlay-items">
                       <button class="ov-chip" data-item="fps" onclick="toggleOverlayItem('fps')">FPS</button>
+                      <button class="ov-chip" data-item="ping" onclick="toggleOverlayItem('ping')">Ping del juego</button>
                       <button class="ov-chip" data-item="cpu" onclick="toggleOverlayItem('cpu')">CPU</button>
                       <button class="ov-chip" data-item="gpu" onclick="toggleOverlayItem('gpu')">GPU</button>
                       <button class="ov-chip" data-item="ram" onclick="toggleOverlayItem('ram')">RAM</button>

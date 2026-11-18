@@ -12,7 +12,7 @@ IS_WINDOWS = sys.platform == "win32"
 
 CORNERS = ("tl", "tr", "bl", "br")
 SIZES = {"s": 0.85, "m": 1.0, "l": 1.25}
-ITEMS = ("fps", "cpu", "gpu", "ram", "fan")
+ITEMS = ("fps", "ping", "cpu", "gpu", "ram", "fan")
 DEFAULT_CONFIG = {
     "enabled": False,
     "corner": "tl",
@@ -104,13 +104,47 @@ def fps_color(fps):
     return C_OK
 
 
+def ping_quality(ping, jitter, loss):
+    # clasifica la conexion al servidor como la percibe un jugador
+    if ping is None:
+        return None
+    if ping < 60 and (loss or 0) == 0 and (jitter or 0) < 10:
+        return ("Buena", C_OK)
+    if ping < 120 and (loss or 0) <= 2 and (jitter or 0) < 25:
+        return ("Regular", C_WARN)
+    return ("Mala", C_HOT)
+
+
+def _ping_row(net: dict | None) -> dict:
+    row = {"label": "PING", "value": "--", "extra": "", "pill": None, "bar": None, "bar_color": C_ACCENT}
+    if net is None:
+        return row
+    if not net.get("available"):
+        row["extra"] = "requiere admin" if net.get("error") == "requiere admin" else "no disponible"
+        return row
+    game = net.get("game")
+    if not game:
+        row["extra"] = "sin juego en línea"
+        return row
+    if game.get("responds") is False:
+        row["extra"] = "el servidor no responde ping"
+        return row
+    if game.get("ping_ms") is None:
+        row["extra"] = "midiendo…"
+        return row
+    row["value"] = f"{game['ping_ms']} ms"
+    row["extra"] = f"± {game.get('jitter_ms', 0):.0f} · pérdida {game.get('loss_pct', 0)}%"
+    row["pill"] = ping_quality(game["ping_ms"], game.get("jitter_ms"), game.get("loss_pct"))
+    return row
+
+
 def _app_title(app: str) -> str:
     name = os.path.splitext(app or "")[0]
     return name[:22]
 
 
 # arma el modelo que dibuja el overlay a partir de la telemetria
-def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=()) -> dict:
+def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=(), net=None) -> dict:
     model = {"fps": None, "rows": []}
     for item in items:
         if item == "fps":
@@ -124,6 +158,8 @@ def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None,
                 "note": None if value else (fps_note or "sin juego activo"),
                 "history": list(history),
             }
+        elif item == "ping":
+            model["rows"].append(_ping_row(net))
         elif item in ("cpu", "gpu"):
             usage = _num(tel.get(f"{item}_usage"))
             temp = _num(tel.get(f"{item}_temp"))
@@ -510,8 +546,9 @@ def paint_model(p, model: dict, width: int, height: int, opacity: int):
 
 
 class GameOverlay:
-    def __init__(self, get_telemetry, fps_monitor=None, on_change=None):
+    def __init__(self, get_telemetry, fps_monitor=None, on_change=None, get_net=None):
         self.get_telemetry = get_telemetry
+        self.get_net = get_net
         self.fps = fps_monitor
         self.on_change = on_change
         self.config = load_config()
@@ -632,8 +669,14 @@ class GameOverlay:
                 _user32.ShowWindow(self.hwnd, SW_HIDE)
             return
         tel = self.get_telemetry() or {}
+        net = None
+        if self.get_net and "ping" in self.config["items"]:
+            try:
+                net = self.get_net()
+            except Exception:
+                net = None
         self.model = build_model(tel, fps if "fps" in self.config["items"] else None,
-                                 self.config["items"], self._fps_note(), self._history)
+                                 self.config["items"], self._fps_note(), self._history, net)
         if self.model["fps"] is None and not self.model["rows"]:
             _user32.ShowWindow(self.hwnd, SW_HIDE)
             return
