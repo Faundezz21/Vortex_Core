@@ -1171,12 +1171,16 @@ class _NativeLhmReader:
                 fan_rpms = []
 
                 def _walk(hw_node):
+                    nonlocal pkg_temp, vcore_mv
+                    ht = hw_node.HardwareType
+                    # se omite la gpu intel porque su update provoca accessviolation no capturable
+                    if ht == self._hw_type.GpuIntel:
+                        return
                     hw_node.Update()
                     for sub in hw_node.SubHardware:
                         _walk(sub)
-                    ht = hw_node.HardwareType
                     is_cpu = (ht == self._hw_type.Cpu)
-                    is_gpu = ht in (self._hw_type.GpuNvidia, self._hw_type.GpuAmd, self._hw_type.GpuIntel)
+                    is_gpu = ht in (self._hw_type.GpuNvidia, self._hw_type.GpuAmd)
                     for s in hw_node.Sensors:
                         val = s.Value
                         if val is None or not math.isfinite(float(val)):
@@ -1208,6 +1212,10 @@ class _NativeLhmReader:
 
                 for hw in self._comp.Hardware:
                     _walk(hw)
+
+                # descarta potencias de gpu imposibles en reposo que entrega el driver al despertar
+                if "power_w" in gpu_data and gpu_data.get("usage", 0) < 5 and float(gpu_data["power_w"]) > 100:
+                    del gpu_data["power_w"]
 
                 cores = extract_lhm_core_temps(raw_temps)
                 if not cores and pkg_temp is None and vcore_mv is None and not gpu_data and not fan_rpms:
