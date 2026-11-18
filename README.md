@@ -10,6 +10,10 @@ Centro de control y telemetría de hardware para Windows 10/11, pensado como alt
 
 ---
 
+<p align="center">
+  <img src="docs/captura.webp" alt="Pantalla de inicio de VortexCore Hub con telemetría en vivo de CPU, GPU, ventiladores y memoria" width="100%" />
+</p>
+
 ## Motivación y enfoque
 
 Muchos programas de control térmico instalan drivers kernel vulnerables (como `WinRing0.sys`) que Windows 11 bloquea por *Aislamiento de Núcleo (HVCI)*, consumen cientos de megabytes en segundo plano o rellenan tarjetas con valores estimados cuando falta un sensor.
