@@ -166,6 +166,45 @@ class OverlayRowsTests(unittest.TestCase):
         self.assertEqual(segs[5][1][3], game_overlay.C_HOT)
         self.assertEqual(segs[7][1][3], game_overlay.C_HOT)
 
+    def test_integrated_only_colors_alerts(self):
+        fps = {"fps": 144, "frametime_ms": 6.9, "low1_fps": 101, "app": "x.exe"}
+        net = {"available": True, "game": {"ping_ms": 87, "jitter_ms": 6, "loss_pct": 0, "responds": True, "approx": True}}
+        tel = dict(self.TEL, cpu_temp=96, gpu_temp=60)
+        segs = game_overlay.integrated_segments(game_overlay.build_model(tel, fps, ["fps", "cpu", "gpu", "ping"], net=net))
+        text = ["".join(r[0] for r in seg) for seg in segs]
+        self.assertEqual(text, ["144 FPS", "CPU 96° 45%", "GPU 60° 97%", "PING ≈87 ms"])
+        # fps buenos, gpu normal y ping regular: blanco o ambar; solo la cpu caliente va en rojo
+        self.assertEqual(segs[0][0][3], game_overlay.C_TEXT)
+        self.assertEqual(segs[1][1][3], game_overlay.C_HOT)
+        self.assertEqual(segs[2][1][3], game_overlay.C_TEXT)
+        self.assertEqual(segs[3][1][3], game_overlay.C_WARN)
+
+    def test_hotkey_validation_and_label(self):
+        go = game_overlay
+        self.assertEqual(go.hotkey_label(go.HOTKEY_DEFAULT), "Ctrl+Shift+F10")
+        self.assertEqual(go.hotkey_label({"mods": go.HK_ALT, "vk": 0x48}), "Alt+H")
+        self.assertEqual(go.hotkey_label({"mods": 0, "vk": 0x77}), "F8")
+        self.assertEqual(go.sanitize_hotkey({"mods": go.HK_CTRL | go.HK_ALT, "vk": 0x4F}), {"mods": 3, "vk": 0x4F})
+        self.assertEqual(go.sanitize_hotkey({"mods": 0, "vk": 0x77}), {"mods": 0, "vk": 0x77})
+        # una letra sola o una tecla modificadora no sirven, y f12 la reserva windows
+        self.assertIsNone(go.sanitize_hotkey({"mods": 0, "vk": 0x48}))
+        self.assertIsNone(go.sanitize_hotkey({"mods": go.HK_CTRL, "vk": 0x11}))
+        self.assertIsNone(go.sanitize_hotkey({"mods": go.HK_CTRL, "vk": 0x7B}))
+        self.assertIsNone(go.sanitize_hotkey("ctrl+h"))
+        cfg = go.sanitize_config({"hotkey": {"mods": 1, "vk": 0x48}})
+        self.assertEqual(cfg["hotkey"], {"mods": 1, "vk": 0x48})
+        self.assertNotIn("hotkey", go.sanitize_config({"hotkey": {"mods": 0, "vk": 0x48}}))
+
+    def test_overlay_positions(self):
+        rect = (0, 0, 1920, 1080)
+        pos = lambda c: game_overlay.overlay_position(c, rect, 400, 24, 16)
+        self.assertEqual(pos("tl"), (16, 16))
+        self.assertEqual(pos("tc"), (760, 16))
+        self.assertEqual(pos("tr"), (1504, 16))
+        self.assertEqual(pos("bc"), (760, 1040))
+        self.assertEqual(pos("br"), (1504, 1040))
+        self.assertEqual(game_overlay.sanitize_config({"corner": "bc"})["corner"], "bc")
+
     def test_theme_for_game(self):
         self.assertEqual(game_overlay.theme_for_app("TslGame.exe"), "tactico")
         self.assertEqual(game_overlay.theme_for_app("RocketLeague.exe"), "arena")
@@ -195,9 +234,10 @@ class OverlayRowsTests(unittest.TestCase):
         self.assertEqual(game_overlay.sanitize_config({"theme": "logo"})["theme"], "auto")
 
     def test_style_default_and_sanitize(self):
-        self.assertEqual(game_overlay.sanitize_config({})["style"], "compact")
+        self.assertEqual(game_overlay.sanitize_config({})["style"], "integrated")
         self.assertEqual(game_overlay.sanitize_config({"style": "detailed"})["style"], "detailed")
-        self.assertEqual(game_overlay.sanitize_config({"style": "raro"})["style"], "compact")
+        self.assertEqual(game_overlay.sanitize_config({"style": "raro"})["style"], "integrated")
+        self.assertEqual(game_overlay.sanitize_config({"style": "compact"})["style"], "compact")
 
     def test_sanitize_config(self):
         cfg = game_overlay.sanitize_config({"corner": "xx", "size": "l", "opacity": 5,

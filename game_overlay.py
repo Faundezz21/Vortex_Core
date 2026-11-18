@@ -13,9 +13,9 @@ from ctypes import wintypes
 
 IS_WINDOWS = sys.platform == "win32"
 
-CORNERS = ("tl", "tr", "bl", "br")
+CORNERS = ("tl", "tc", "tr", "bl", "bc", "br")
 SIZES = {"s": 0.85, "m": 1.0, "l": 1.25}
-STYLES = ("compact", "detailed")
+STYLES = ("integrated", "compact", "detailed")
 THEME_CHOICES = ("auto", "vortex", "tactico", "arena", "ops", "pixel", "competitivo")
 ITEMS = ("fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "sys")
 # datos agregados en versiones nuevas que se activan solos en configuraciones antiguas
@@ -27,11 +27,53 @@ DEFAULT_CONFIG = {
     "size": "m",
     "opacity": 85,
     "only_games": True,
-    "style": "compact",
+    "style": "integrated",
     "theme": "auto",
     "items": list(ITEMS),
 }
-HOTKEY_LABEL = "Ctrl+Shift+F10"
+HOTKEY_DEFAULT = {"mods": 0x2 | 0x4, "vk": 0x79}  # ctrl+shift+f10
+HK_ALT, HK_CTRL, HK_SHIFT, HK_WIN = 0x1, 0x2, 0x4, 0x8
+_VK_NAMES = {0x08: "Retroceso", 0x09: "Tab", 0x0D: "Enter", 0x13: "Pausa", 0x14: "Bloq Mayús", 0x20: "Espacio",
+             0x21: "RePág", 0x22: "AvPág", 0x23: "Fin", 0x24: "Inicio", 0x25: "←", 0x26: "↑", 0x27: "→",
+             0x28: "↓", 0x2C: "ImprPant", 0x2D: "Insert", 0x2E: "Supr", 0x90: "Bloq Num", 0x91: "Bloq Despl",
+             0x6A: "Num *", 0x6B: "Num +", 0x6D: "Num -", 0x6E: "Num .", 0x6F: "Num /", 0xC0: "Ñ",
+             0xBA: "´", 0xBB: "+", 0xBC: ",", 0xBD: "-", 0xBE: ".", 0xBF: "Ç", 0xDB: "'", 0xDC: "º",
+             0xDD: "¡", 0xDE: "´", 0xE2: "<"}
+
+
+def vk_name(vk: int) -> str:
+    if 0x30 <= vk <= 0x39 or 0x41 <= vk <= 0x5A:
+        return chr(vk)
+    if 0x60 <= vk <= 0x69:
+        return f"Num {vk - 0x60}"
+    if 0x70 <= vk <= 0x87:
+        return f"F{vk - 0x6F}"
+    return _VK_NAMES.get(vk, f"Tecla {vk}")
+
+
+def hotkey_label(hk: dict) -> str:
+    mods = hk.get("mods", 0)
+    parts = [n for bit, n in ((HK_CTRL, "Ctrl"), (HK_ALT, "Alt"), (HK_SHIFT, "Shift"), (HK_WIN, "Win")) if mods & bit]
+    return "+".join(parts + [vk_name(hk.get("vk", 0))])
+
+
+# valida un atajo: necesita un modificador salvo en las teclas f, y f12 esta reservada por windows
+def sanitize_hotkey(data):
+    if not isinstance(data, dict):
+        return None
+    try:
+        mods, vk = int(data.get("mods", 0)), int(data.get("vk", 0))
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= mods <= 0xF) or not (0x08 <= vk <= 0xFE):
+        return None
+    if vk in (0x10, 0x11, 0x12, 0x5B, 0x5C, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x1B, 0x7B):
+        return None
+    is_f = 0x70 <= vk <= 0x87
+    if not mods and not is_f:
+        return None
+    return {"mods": mods, "vk": vk}
+
 GAME_GRACE_S = 4
 HISTORY_LEN = 48
 
@@ -62,6 +104,10 @@ def sanitize_config(data, base: dict | None = None) -> dict:
         cfg["only_games"] = bool(data["only_games"])
     if data.get("corner") in CORNERS:
         cfg["corner"] = data["corner"]
+    if "hotkey" in data:
+        hk = sanitize_hotkey(data["hotkey"])
+        if hk:
+            cfg["hotkey"] = hk
     if data.get("size") in SIZES:
         cfg["size"] = data["size"]
     if data.get("style") in STYLES:
@@ -75,6 +121,19 @@ def sanitize_config(data, base: dict | None = None) -> dict:
     if isinstance(data.get("items"), list):
         cfg["items"] = [i for i in ITEMS if i in data["items"]]
     return cfg
+
+
+# calcula la posicion del overlay en el monitor segun la esquina o el centro elegido
+def overlay_position(corner: str, rect, width: int, height: int, margin: int):
+    left, top, right, bottom = rect
+    if corner in ("tl", "bl"):
+        x = left + margin
+    elif corner in ("tc", "bc"):
+        x = left + (right - left - width) // 2
+    else:
+        x = right - width - margin
+    y = top + margin if corner in ("tl", "tc", "tr") else bottom - height - margin
+    return x, y
 
 
 def load_config() -> dict:
@@ -348,6 +407,7 @@ if IS_WINDOWS:
         (_user32, "DispatchMessageW"): ([ctypes.POINTER(wintypes.MSG)], LRESULT),
         (_user32, "SetTimer"): ([wintypes.HWND, ctypes.c_size_t, wintypes.UINT, VP], ctypes.c_size_t),
         (_user32, "RegisterHotKey"): ([wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT], wintypes.BOOL),
+        (_user32, "UnregisterHotKey"): ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
         (_user32, "ShowWindow"): ([wintypes.HWND, ctypes.c_int], wintypes.BOOL),
         (_user32, "IsWindowVisible"): ([wintypes.HWND], wintypes.BOOL),
         (_user32, "SetWindowPos"): ([wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -395,6 +455,8 @@ if IS_WINDOWS:
             (_gdip, "GdipClosePathFigure"): ([VP], ctypes.c_int),
             (_gdip, "GdipDeletePath"): ([VP], ctypes.c_int),
             (_gdip, "GdipFillPath"): ([VP, VP, VP], ctypes.c_int),
+            (_gdip, "GdipAddPathString"): ([VP, wintypes.LPCWSTR, ctypes.c_int, VP, ctypes.c_int, F,
+                                            ctypes.POINTER(RectF), VP], ctypes.c_int),
             (_gdip, "GdipDrawPath"): ([VP, VP, VP], ctypes.c_int),
             (_gdip, "GdipFillRectangle"): ([VP, VP, F, F, F, F], ctypes.c_int),
             (_gdip, "GdipDrawLines"): ([VP, VP, ctypes.POINTER(PointF), ctypes.c_int], ctypes.c_int),
@@ -558,6 +620,29 @@ class _Painter:
             _gdip.GdipCreateFont(fam, F(size * self.s), 1 if bold else 0, UNIT_PIXEL, ctypes.byref(f))
             self._fonts[key] = f
         return self._fonts[key]
+
+    def family(self, size: float, bold: bool):
+        self.font(size, bold, "Segoe UI Semibold" if bold else "Segoe UI")
+        name = _FONT_MAP.get("Segoe UI Semibold" if bold else "Segoe UI", "Segoe UI Semibold" if bold else "Segoe UI")
+        return self._families[name]
+
+    # texto de hud: contorno oscuro fino como el de los juegos, o sombra dura si el tema la usa
+    def text_hud(self, text, size, bold, argb, x, y):
+        if _THEME.get("shadow") or not text.strip():
+            return self.text(text, self.font(size, bold, "Segoe UI Semibold" if bold else "Segoe UI"), argb, x, y)
+        path = VP()
+        _gdip.GdipCreatePath(0, ctypes.byref(path))
+        _gdip.GdipAddPathString(path, text, len(text), self.family(size, bold), 0, F(size * self.s),
+                                ctypes.byref(RectF(x, y, 4000, 1000)), self.fmt)
+        pen = VP()
+        _gdip.GdipCreatePen1(((min(170, (argb >> 24) & 0xFF)) << 24), F(2.6 * self.s), UNIT_PIXEL, ctypes.byref(pen))
+        _gdip.GdipSetPenLineJoin(pen, 2)
+        _gdip.GdipDrawPath(self.g, pen, path)
+        _gdip.GdipDeletePen(pen)
+        brush = self._brush(argb)
+        _gdip.GdipFillPath(self.g, brush, path)
+        _gdip.GdipDeleteBrush(brush)
+        _gdip.GdipDeletePath(path)
 
     def _brush(self, argb):
         b = VP()
@@ -843,6 +928,93 @@ def paint_compact(p, segs, width: int, height: int, opacity: int):
                 x += p.text(text, f, _argb(color), x, (height - h) / 2 + dy)
 
 
+INTEG_H = 24
+INTEG_GAP = 15
+
+
+def _alert(color):
+    # en el estilo integrado solo se colorea lo que esta mal; lo normal va en blanco
+    return C_TEXT if color in (C_OK, C_ACCENT) else color
+
+
+# segmentos del estilo integrado: (texto, tamano, negrita, color) sin pastillas ni separadores
+def integrated_segments(model: dict) -> list:
+    segs = []
+    label = lambda t: (t, 9, True, C_LABEL)
+    fps = model["fps"]
+    if fps is not None:
+        val = fps["value"]
+        color = C_MUTED if not val else (C_TEXT if val >= 55 else fps["color"])
+        segs.append([(str(val) if val else "--", 15, True, color), (" FPS", 9, True, C_LABEL)])
+    for t in model["tiles"]:
+        tid = t.get("id")
+        if tid in ("cpu", "gpu"):
+            seg = [label(t["label"]), (" " + t["main"].replace("°C", "°"), 13, True,
+                                       _alert(t["main_color"]) if t["temp"] is not None else C_MUTED)]
+            if t["ring_text"] != "--":
+                seg.append((" " + t["ring_text"], 10.5, False, C_MUTED))
+            segs.append(seg)
+        elif tid == "vram":
+            segs.append([label("VRAM"), (" " + t["short"], 11.5, True, _alert(t["main_color"]))])
+        elif tid == "ram":
+            segs.append([label("RAM"), (" " + t["ring_text"], 11.5, True, _alert(t["main_color"]))])
+        elif tid == "sys":
+            seg = []
+            if t["battery"] is not None:
+                seg += [label("BAT"), (f" {t['battery']:.0f}%", 11.5, True, t["badge"][1])]
+            seg.append((("  " if seg else "") + t["main"], 10.5, False, C_MUTED))
+            segs.append(seg)
+        elif t["kind"] == "ping":
+            main = t["main"]
+            if main == "--":
+                segs.append([label("PING"), (" --", 11.5, True, C_MUTED)])
+            else:
+                color = _alert(t["badge"][1]) if t.get("badge") else C_TEXT
+                segs.append([label("PING"), (" " + main.replace(" ms", ""), 12.5, True, color), (" ms", 9, False, C_MUTED)])
+        elif t["kind"] == "fans":
+            rpms = "·".join(f"{rpm / 1000:.1f}k" for _, rpm in t["fans"])
+            segs.append([label("FAN"), (" " + rpms, 10.5, False, C_MUTED)])
+    return segs
+
+
+def _integ_font(p, size, bold):
+    return p.font(size, bold, "Segoe UI Semibold" if bold else "Segoe UI")
+
+
+def integrated_width(p, segs) -> int:
+    s = p.s
+    total = 9 * s * 2 + max(0, len(segs) - 1) * INTEG_GAP * s
+    for seg in segs:
+        total += sum(p.measure(text, _integ_font(p, size, bold))[0] for text, size, bold, _ in seg)
+    return int(round(total + 4 * s))
+
+
+def paint_integrated(p, segs, width: int, height: int, opacity: int):
+    s = p.s
+    # velo oscuro muy suave y sin borde, solo para que el texto se lea sobre fondos claros
+    veil = int(max(0, opacity - 30) / 70 * 75)
+    if veil:
+        p.round_rect(0, 0, width, height, 5 * s, fill=_argb((0, 0, 0), veil))
+    x = 9 * s
+    for i, seg in enumerate(segs):
+        if i:
+            x += INTEG_GAP * s
+        for text, size, bold, color in seg:
+            f = _integ_font(p, size, bold)
+            w, h = p.measure(text, f)
+            dy = (size * 0.2 * s) if size < 12 else 0
+            # lo secundario va en blanco translucido para leerse sobre cualquier escena
+            a = 255
+            if color == C_MUTED:
+                color, a = C_TEXT, 170
+            elif color == C_LABEL:
+                a = 215 if "label" in _THEME else 175
+                if "label" not in _THEME:
+                    color = C_TEXT
+            p.text_hud(text, size, bold, _argb(color, a), x, (height - h) / 2 + dy)
+            x += w
+
+
 class GameOverlay:
     def __init__(self, get_telemetry, fps_monitor=None, on_change=None, get_net=None):
         self.get_telemetry = get_telemetry
@@ -862,6 +1034,7 @@ class GameOverlay:
         self._segs = []
         self._game_seen = 0.0
         self._theme_key = "vortex"
+        self._hk_registered = None
         self._sync_fps()
 
     def start(self):
@@ -870,7 +1043,9 @@ class GameOverlay:
 
     def get_config(self) -> dict:
         cfg = dict(self.config)
-        cfg["hotkey"] = HOTKEY_LABEL
+        hk = self.config.get("hotkey") or HOTKEY_DEFAULT
+        cfg["hotkey"] = hotkey_label(hk)
+        cfg["hotkey_keys"] = hk
         cfg["hotkey_ok"] = self.hotkey_ok
         cfg["fps_available"] = bool(self.fps and self.fps.available)
         cfg["fps_error"] = getattr(self.fps, "error", None) if self.fps else None
@@ -949,7 +1124,7 @@ class GameOverlay:
                                             0, 0, 10, 10, None, None, hinst, None)
         if not self.hwnd:
             return
-        self.hotkey_ok = bool(_user32.RegisterHotKey(self.hwnd, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_F10))
+        self._register_hotkey()
         _user32.SetTimer(self.hwnd, TIMER_ID, 500, None)
         self._tick()
         msg = wintypes.MSG()
@@ -1004,9 +1179,13 @@ class GameOverlay:
             theme = theme_for_app(app)
         self._theme_key = theme
         apply_theme(theme)
-        if self.config.get("style") == "compact":
+        if self.config.get("style") == "integrated":
+            self._segs = integrated_segments(self.model)
+            width = self._measure(s, integrated_width)
+            height = int(round(INTEG_H * s))
+        elif self.config.get("style") == "compact":
             self._segs = compact_segments(self.model)
-            width = self._measure_compact(s)
+            width = self._measure(s, compact_width)
             height = int(round(COMPACT_H * s))
         else:
             width = int(round(264 * s))
@@ -1014,22 +1193,20 @@ class GameOverlay:
         self._size = (width, height)
         margin = int(16 * dpi / 96)
         r = mi.rcMonitor
-        corner = self.config["corner"]
-        x = r.left + margin if corner in ("tl", "bl") else r.right - width - margin
-        y = r.top + margin if corner in ("tl", "tr") else r.bottom - height - margin
+        x, y = overlay_position(self.config["corner"], (r.left, r.top, r.right, r.bottom), width, height, margin)
         self._render(x, y, width, height, s)
         _user32.SetWindowPos(self.hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                              SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
 
     # mide el ancho de la franja compacta con un lienzo de 1x1
-    def _measure_compact(self, s) -> int:
+    def _measure(self, s, width_fn) -> int:
         bmp, g = VP(), VP()
         _gdip.GdipCreateBitmapFromScan0(1, 1, 0, PIXEL_FORMAT_32BPP_PARGB, None, ctypes.byref(bmp))
         _gdip.GdipGetImageGraphicsContext(bmp, ctypes.byref(g))
         _gdip.GdipSetTextRenderingHint(g, 4)
         painter = _Painter(g, s)
         try:
-            return compact_width(painter, self._segs)
+            return width_fn(painter, self._segs)
         finally:
             painter.close()
             _gdip.GdipDeleteGraphics(g)
@@ -1056,7 +1233,9 @@ class GameOverlay:
             _gdip.GdipGraphicsClear(g, 0)
             painter = _Painter(g, s)
             try:
-                if self.config.get("style") == "compact":
+                if self.config.get("style") == "integrated":
+                    paint_integrated(painter, self._segs, width, height, self.config["opacity"])
+                elif self.config.get("style") == "compact":
                     paint_compact(painter, self._segs, width, height, self.config["opacity"])
                 else:
                     paint_model(painter, self.model, width, height, self.config["opacity"])
@@ -1078,8 +1257,19 @@ class GameOverlay:
             _gdi32.DeleteDC(mdc)
             _user32.ReleaseDC(None, screen)
 
+    # registra el atajo guardado; se llama de nuevo cuando el usuario lo cambia
+    def _register_hotkey(self):
+        hk = self.config.get("hotkey") or HOTKEY_DEFAULT
+        if self._hk_registered == (hk["mods"], hk["vk"]):
+            return
+        _user32.UnregisterHotKey(self.hwnd, HOTKEY_ID)
+        self.hotkey_ok = bool(_user32.RegisterHotKey(self.hwnd, HOTKEY_ID, hk["mods"] | MOD_NOREPEAT, hk["vk"]))
+        self._hk_registered = (hk["mods"], hk["vk"]) if self.hotkey_ok else None
+
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
         try:
+            if msg == WM_APP_REFRESH:
+                self._register_hotkey()
             if msg == WM_TIMER or msg == WM_APP_REFRESH:
                 self._tick()
                 return 0

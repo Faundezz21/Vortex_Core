@@ -1514,7 +1514,7 @@ async function toggleAutostart() {
 }
 
 // overlay en juego
-let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: true, style: "compact", items: [] };
+let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: true, style: "integrated", items: [] };
 let overlayTelemetry = null;
 // colores de la vista previa de cada tema del hud
 const HUD_THEMES = {
@@ -1557,8 +1557,11 @@ function renderOverlayPreview() {
   const items = overlayCfg.items || [];
   const scale = { s: 0.85, m: 1, l: 1.22 }[overlayCfg.size] || 1;
   box.style.setProperty("--ov-alpha", (Math.min(245, overlayCfg.opacity * 2.45) / 255).toFixed(2));
-  box.style.transform = `scale(${scale})`;
-  box.classList.toggle("ovp-compact", (overlayCfg.style || "compact") === "compact");
+  const centered = ["tc", "bc"].includes(overlayCfg.corner);
+  box.style.transform = `${centered ? "translateX(-50%) " : ""}scale(${scale})`;
+  const hudStyle = overlayCfg.style || "integrated";
+  box.classList.toggle("ovp-compact", hudStyle === "compact" || hudStyle === "integrated");
+  box.classList.toggle("ovp-integrated", hudStyle === "integrated");
   const themeKey = (overlayCfg.theme || "auto") === "auto" ? (overlayCfg.active_theme || "vortex") : overlayCfg.theme;
   const th = HUD_THEMES[themeKey] || HUD_THEMES.vortex;
   box.style.setProperty("--hud-bg", th.bg);
@@ -1571,7 +1574,7 @@ function renderOverlayPreview() {
   box.style.setProperty("--hud-stripe2", th.stripe2 || "transparent");
   box.style.setProperty("--hud-topline", th.topline || "transparent");
   box.style.setProperty("--hud-shadow", th.shadow || "none");
-  if ((overlayCfg.style || "compact") === "compact") {
+  if (hudStyle === "compact" || hudStyle === "integrated") {
     // franja de una linea igual a la del juego
     const seg = (label, val, color, extra) => `<span class="ovp-seg">${label ? `<em>${label}</em>` : ""}<b style="color:${color}">${val}</b>${extra ? `<i>${extra}</i>` : ""}</span>`;
     const parts = [];
@@ -1583,7 +1586,10 @@ function renderOverlayPreview() {
     if (items.includes("ping")) parts.push(seg("PING", "34 ms", "#34d399"));
     if (items.includes("fan")) { const r = [ovNum(t.fan1_rpm), ovNum(t.fan2_rpm)].filter(v => v); if (r.length) parts.push(seg("FAN", r.map(v => (v / 1000).toFixed(1) + "k").join(" · "), "#f4f6fa")); }
     if (items.includes("sys")) { const now = new Date(); parts.push(seg(t.on_battery && t.battery_pct != null ? "BAT" : "", t.on_battery && t.battery_pct != null ? `${t.battery_pct}%` : "", "#fbbf24", `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`)); }
-    box.innerHTML = parts.join('<span class="ovp-div"></span>') || `<span class="ovp-seg"><em>Sin datos</em></span>`;
+    let strip = parts.join(hudStyle === "integrated" ? "" : '<span class="ovp-div"></span>') || `<span class="ovp-seg"><em>Sin datos</em></span>`;
+    // en el estilo integrado lo normal va en blanco y solo se colorean las alertas
+    if (hudStyle === "integrated") strip = strip.replaceAll("#34d399", "#f4f6fa");
+    box.innerHTML = strip;
     return;
   }
   let html = "";
@@ -1659,7 +1665,7 @@ function renderOverlayConfig() {
   if (hint && (overlayCfg.theme || "auto") === "auto" && overlayCfg.active_theme) {
     hint.dataset.active = `Ahora: ${(HUD_THEMES[overlayCfg.active_theme] || HUD_THEMES.vortex).name}`;
   }
-  document.querySelectorAll("#overlay-style [data-style]").forEach(b => b.classList.toggle("active", b.dataset.style === (overlayCfg.style || "compact")));
+  document.querySelectorAll("#overlay-style [data-style]").forEach(b => b.classList.toggle("active", b.dataset.style === (overlayCfg.style || "integrated")));
   document.querySelectorAll("#overlay-size [data-size]").forEach(b => b.classList.toggle("active", b.dataset.size === overlayCfg.size));
   document.querySelectorAll("#overlay-items [data-item]").forEach(b => b.classList.toggle("active", (overlayCfg.items || []).includes(b.dataset.item)));
   const op = document.getElementById("overlay-opacity");
@@ -1668,6 +1674,9 @@ function renderOverlayConfig() {
   document.getElementById("overlay-only-games").checked = !!overlayCfg.only_games;
   const hk = document.getElementById("overlay-hotkey");
   if (hk && overlayCfg.hotkey) hk.innerHTML = overlayCfg.hotkey.split("+").map(k => `<kbd>${k}</kbd>`).join("+");
+  const hkKeys = document.getElementById("overlay-hk-keys");
+  if (hkKeys && overlayCfg.hotkey && !hotkeyRecording) hkKeys.innerHTML = overlayCfg.hotkey.split("+").map(k => `<kbd>${k}</kbd>`).join("+");
+  document.querySelectorAll("#overlay-pos [data-corner]").forEach(b => b.classList.toggle("active", b.dataset.corner === overlayCfg.corner));
   const st = document.getElementById("overlay-status");
   if (st) {
     const notes = [];
@@ -1681,7 +1690,9 @@ function renderOverlayConfig() {
 }
 
 async function setOverlay(patch) {
-  Object.assign(overlayCfg, patch);
+  // el atajo se muestra recien cuando el servidor lo valida
+  const { hotkey, ...local } = patch;
+  Object.assign(overlayCfg, local);
   renderOverlayConfig();
   try {
     const res = await fetch(`${API_BASE}/api/overlay`, {
@@ -1702,6 +1713,49 @@ function toggleOverlay() {
   setOverlay({ enabled: !overlayCfg.enabled }).then(() => {
     logConsole(overlayCfg.enabled ? `Overlay en juego activado (${overlayCfg.hotkey || "atajo"} para ocultarlo).` : "Overlay en juego desactivado.");
   });
+}
+
+// graba un atajo nuevo presionando la combinacion en la ventana
+let hotkeyRecording = false;
+
+function recordHotkey() {
+  if (hotkeyRecording) return;
+  hotkeyRecording = true;
+  const btn = document.getElementById("btn-hk-record");
+  const keys = document.getElementById("overlay-hk-keys");
+  const hint = document.getElementById("overlay-hk-hint");
+  btn.textContent = "Cancelar";
+  btn.onclick = () => finish(null);
+  keys.innerHTML = `<span class="ov-hk-listen">Presiona la combinación…</span>`;
+  keys.classList.add("listening");
+  const modOnly = ["Control", "Shift", "Alt", "Meta", "AltGraph"];
+  function finish(hotkey, msg) {
+    document.removeEventListener("keydown", onKey, true);
+    hotkeyRecording = false;
+    keys.classList.remove("listening");
+    btn.textContent = "Cambiar";
+    btn.onclick = recordHotkey;
+    if (msg) { hint.textContent = msg; hint.classList.add("warn"); }
+    else { hint.textContent = "Usa Ctrl, Alt o Shift con otra tecla, o una tecla F sola"; hint.classList.remove("warn"); }
+    if (hotkey) setOverlay({ hotkey }).then(() => {
+      if (overlayCfg.hotkey_ok === false) { hint.textContent = "Otro programa ya usa ese atajo; prueba con otra combinación"; hint.classList.add("warn"); }
+      else logConsole(`Atajo del overlay cambiado a ${overlayCfg.hotkey}.`);
+    });
+    else renderOverlayConfig();
+  }
+  function onKey(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === "Escape") return finish(null);
+    if (modOnly.includes(e.key)) return;
+    const mods = (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.shiftKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+    const vk = e.keyCode;
+    const isF = vk >= 0x70 && vk <= 0x87;
+    if (vk === 0x7B) return finish(null, "F12 la reserva Windows; elige otra tecla");
+    if (!mods && !isF) return finish(null, "Agrega Ctrl, Alt o Shift para no interferir con el juego");
+    finish({ mods, vk });
+  }
+  document.addEventListener("keydown", onKey, true);
 }
 
 function toggleOverlayItem(item) {

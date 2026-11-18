@@ -1101,8 +1101,10 @@
                 <div class="ov-stage-wrap">
                   <div class="ov-stage" id="overlay-stage" data-corner="tl">
                     <button class="ov-corner" data-corner="tl" onclick="setOverlay({corner: 'tl'})" title="Arriba a la izquierda"></button>
+                    <button class="ov-corner" data-corner="tc" onclick="setOverlay({corner: 'tc'})" title="Arriba al centro"></button>
                     <button class="ov-corner" data-corner="tr" onclick="setOverlay({corner: 'tr'})" title="Arriba a la derecha"></button>
                     <button class="ov-corner" data-corner="bl" onclick="setOverlay({corner: 'bl'})" title="Abajo a la izquierda"></button>
+                    <button class="ov-corner" data-corner="bc" onclick="setOverlay({corner: 'bc'})" title="Abajo al centro"></button>
                     <button class="ov-corner" data-corner="br" onclick="setOverlay({corner: 'br'})" title="Abajo a la derecha"></button>
                     <div class="ov-preview" id="overlay-preview"></div>
                   </div>
@@ -1123,6 +1125,27 @@
                       <button class="ov-chip" data-item="sys" onclick="toggleOverlayItem('sys')">Hora y batería</button>
                     </div>
                   </div>
+                  <div class="ov-field ov-field-row">
+                    <div>
+                      <span class="ov-field-label">Posición en pantalla</span>
+                      <div class="ov-pos" id="overlay-pos">
+                        <button data-corner="tl" onclick="setOverlay({corner: 'tl'})" title="Arriba a la izquierda">↖</button>
+                        <button data-corner="tc" onclick="setOverlay({corner: 'tc'})" title="Arriba al centro">↑</button>
+                        <button data-corner="tr" onclick="setOverlay({corner: 'tr'})" title="Arriba a la derecha">↗</button>
+                        <button data-corner="bl" onclick="setOverlay({corner: 'bl'})" title="Abajo a la izquierda">↙</button>
+                        <button data-corner="bc" onclick="setOverlay({corner: 'bc'})" title="Abajo al centro">↓</button>
+                        <button data-corner="br" onclick="setOverlay({corner: 'br'})" title="Abajo a la derecha">↘</button>
+                      </div>
+                    </div>
+                    <div>
+                      <span class="ov-field-label">Atajo para mostrar u ocultar</span>
+                      <div class="ov-hk">
+                        <span class="ov-hk-keys" id="overlay-hk-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F10</kbd></span>
+                        <button class="clean-btn" id="btn-hk-record" onclick="recordHotkey()">Cambiar</button>
+                      </div>
+                      <small class="ov-hk-hint" id="overlay-hk-hint">Usa Ctrl, Alt o Shift con otra tecla, o una tecla F sola</small>
+                    </div>
+                  </div>
                   <div class="ov-field">
                     <span class="ov-field-label">Tema</span>
                     <div class="ov-themes" id="overlay-theme">
@@ -1139,7 +1162,8 @@
                   <div class="ov-field">
                     <span class="ov-field-label">Estilo</span>
                     <div class="ov-segment" id="overlay-style">
-                      <button data-style="compact" onclick="setOverlay({style: 'compact'})">Compacto · una línea</button>
+                      <button data-style="integrated" onclick="setOverlay({style: 'integrated'})">Integrado · texto sobre el juego</button>
+                      <button data-style="compact" onclick="setOverlay({style: 'compact'})">Compacto · barra</button>
                       <button data-style="detailed" onclick="setOverlay({style: 'detailed'})">Detallado · tarjetas</button>
                     </div>
                   </div>
