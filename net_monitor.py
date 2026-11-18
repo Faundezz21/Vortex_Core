@@ -25,15 +25,8 @@ EVENTS = {
     58: ("tx", "udp", True), 59: ("rx", "udp", True),
 }
 
-# apps que mueven udp pero no son juegos
-NOT_GAMES = {
-    "system", "svchost.exe", "chrome.exe", "msedge.exe", "brave.exe", "firefox.exe", "opera.exe", "opera_gx.exe",
-    "discord.exe", "teams.exe", "ms-teams.exe", "zoom.exe", "slack.exe", "spotify.exe", "steam.exe",
-    "steamwebhelper.exe", "epicgameslauncher.exe", "battle.net.exe", "riotclientservices.exe", "obs64.exe",
-    "nvcontainer.exe", "nvidia share.exe", "whatsapp.exe", "telegram.exe", "msedgewebview2.exe", "parsecd.exe",
-    "lghub_agent.exe", "onedrive.exe", "dropbox.exe", "qbittorrent.exe", "utorrent.exe", "python.exe",
-    "pythonw.exe", "vortexcorehub.exe", "claude.exe", "code.exe",
-}
+# apps que mueven udp pero no son juegos (lista compartida con el medidor de fps)
+from fps_monitor import NON_GAME_APPS as NOT_GAMES  # noqa: E402
 
 
 def parse_payload(event_id: int, data: bytes):

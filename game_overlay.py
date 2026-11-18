@@ -5,23 +5,29 @@ import json
 import os
 import sys
 import threading
+import time
 from collections import deque
+
+from fps_monitor import is_game
 from ctypes import wintypes
 
 IS_WINDOWS = sys.platform == "win32"
 
 CORNERS = ("tl", "tr", "bl", "br")
 SIZES = {"s": 0.85, "m": 1.0, "l": 1.25}
+STYLES = ("compact", "detailed")
 ITEMS = ("fps", "ping", "cpu", "gpu", "ram", "fan")
 DEFAULT_CONFIG = {
     "enabled": False,
     "corner": "tl",
     "size": "m",
     "opacity": 85,
-    "only_games": False,
+    "only_games": True,
+    "style": "compact",
     "items": list(ITEMS),
 }
 HOTKEY_LABEL = "Ctrl+Shift+F10"
+GAME_GRACE_S = 4
 HISTORY_LEN = 48
 
 # colores en formato rgb
@@ -51,6 +57,8 @@ def sanitize_config(data, base: dict | None = None) -> dict:
         cfg["corner"] = data["corner"]
     if data.get("size") in SIZES:
         cfg["size"] = data["size"]
+    if data.get("style") in STYLES:
+        cfg["style"] = data["style"]
     try:
         cfg["opacity"] = max(30, min(100, int(data.get("opacity", cfg["opacity"]))))
     except (TypeError, ValueError):
@@ -115,27 +123,29 @@ def ping_quality(ping, jitter, loss):
     return ("Mala", C_HOT)
 
 
-def _ping_row(net: dict | None) -> dict:
-    row = {"label": "PING", "value": "--", "extra": "", "pill": None, "bar": None, "bar_color": C_ACCENT}
+def _ping_tile(net: dict | None) -> dict:
+    tile = {"kind": "ping", "label": "PING", "main": "--", "main_color": C_MUTED, "badge": None, "foot": ""}
     if net is None:
-        return row
+        return tile
     if not net.get("available"):
-        row["extra"] = "requiere admin" if net.get("error") == "requiere admin" else "no disponible"
-        return row
+        tile["foot"] = "requiere admin" if net.get("error") == "requiere admin" else "no disponible"
+        return tile
     game = net.get("game")
     if not game:
-        row["extra"] = "sin juego en línea"
-        return row
+        tile["foot"] = "sin juego en línea"
+        return tile
     if game.get("responds") is False:
-        row["extra"] = "el servidor no responde ping"
-        return row
+        tile["foot"] = "servidor sin respuesta"
+        return tile
     if game.get("ping_ms") is None:
-        row["extra"] = "midiendo…"
-        return row
-    row["value"] = f"{game['ping_ms']} ms"
-    row["extra"] = f"± {game.get('jitter_ms', 0):.0f} · pérdida {game.get('loss_pct', 0)}%"
-    row["pill"] = ping_quality(game["ping_ms"], game.get("jitter_ms"), game.get("loss_pct"))
-    return row
+        tile["foot"] = "midiendo…"
+        return tile
+    quality = ping_quality(game["ping_ms"], game.get("jitter_ms"), game.get("loss_pct"))
+    tile["main"] = f"{game['ping_ms']} ms"
+    tile["main_color"] = quality[1]
+    tile["badge"] = quality
+    tile["foot"] = f"±{game.get('jitter_ms', 0):.0f} ms · {game.get('loss_pct', 0)}% pérdida"
+    return tile
 
 
 def _app_title(app: str) -> str:
@@ -143,83 +153,86 @@ def _app_title(app: str) -> str:
     return name[:22]
 
 
+# orden fijo de las tarjetas para que la grilla quede pareja
+TILE_ORDER = ("cpu", "gpu", "ram", "ping", "fan")
+FAN_MAX_RPM = 6000
+
+
 # arma el modelo que dibuja el overlay a partir de la telemetria
 def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=(), net=None) -> dict:
-    model = {"fps": None, "rows": []}
-    for item in items:
-        if item == "fps":
-            value = fps.get("fps") if fps else None
-            model["fps"] = {
-                "value": value,
-                "color": fps_color(value),
-                "frametime": f"{fps['frametime_ms']:.1f} ms" if fps and fps.get("frametime_ms") is not None else None,
-                "low": f"1% low {fps['low1_fps']}" if fps and fps.get("low1_fps") else None,
-                "app": _app_title(fps.get("app", "")) if fps else "",
-                "note": None if value else (fps_note or "sin juego activo"),
-                "history": list(history),
-            }
-        elif item == "ping":
-            model["rows"].append(_ping_row(net))
-        elif item in ("cpu", "gpu"):
+    model = {"fps": None, "tiles": []}
+    if "fps" in items:
+        value = fps.get("fps") if fps else None
+        model["fps"] = {
+            "value": value,
+            "color": fps_color(value),
+            "frametime": f"{fps['frametime_ms']:.1f} ms" if fps and fps.get("frametime_ms") is not None else None,
+            "low": f"1% low {fps['low1_fps']}" if fps and fps.get("low1_fps") else None,
+            "app": _app_title(fps.get("app", "")) if fps else "",
+            "note": None if value else (fps_note or "sin juego activo"),
+            "history": list(history),
+        }
+    for item in TILE_ORDER:
+        if item not in items:
+            continue
+        if item in ("cpu", "gpu"):
             usage = _num(tel.get(f"{item}_usage"))
             temp = _num(tel.get(f"{item}_temp"))
-            extra = []
             if item == "cpu":
                 ghz = _num(tel.get("cpu_freq"))
-                if ghz:
-                    extra.append(f"{ghz:.1f} GHz")
+                sub = f"{ghz:.1f} GHz" if ghz else ""
             else:
                 power = _num(tel.get("gpu_power"))
                 mhz = _num(tel.get("gpu_freq_mhz"))
-                if power is not None:
-                    extra.append(f"{power:.0f} W")
-                if mhz:
-                    extra.append(f"{mhz:.0f} MHz")
-            model["rows"].append({
-                "label": item.upper(),
-                "value": f"{usage:.0f}%" if usage is not None else "--",
-                "extra": " · ".join(extra),
-                "pill": (f"{temp:.0f}°C", temp_color(temp)) if temp is not None else None,
-                "bar": max(0.0, min(1.0, usage / 100)) if usage is not None else None,
-                "bar_color": C_ACCENT,
+                sub = " · ".join(x for x in (f"{power:.0f} W" if power is not None else "",
+                                             f"{mhz:.0f} MHz" if mhz else "") if x)
+            model["tiles"].append({
+                "kind": "gauge", "label": item.upper(),
+                "main": f"{temp:.0f}°C" if temp is not None else "--",
+                "main_color": temp_color(temp) if temp is not None else C_MUTED,
+                "ring": max(0.0, min(1.0, usage / 100)) if usage is not None else None,
+                "ring_text": f"{usage:.0f}%" if usage is not None else "--",
+                "sub": sub,
             })
         elif item == "ram":
             used = _num(tel.get("ram_used"))
             total = _num(tel.get("ram_total"))
             pct = _num(tel.get("ram_pct"))
-            model["rows"].append({
-                "label": "RAM",
-                "value": f"{used:.1f}" if used is not None else "--",
-                "extra": f"/ {total:.0f} GB" if total else "",
-                "pill": (f"{pct:.0f}%", C_WARN if pct >= 90 else C_ACCENT) if pct is not None else None,
-                "bar": max(0.0, min(1.0, pct / 100)) if pct is not None else None,
-                "bar_color": C_WARN if (pct or 0) >= 90 else C_ACCENT,
+            model["tiles"].append({
+                "kind": "gauge", "label": "RAM",
+                "main": f"{used:.1f} GB" if used is not None else "--",
+                "main_color": C_TEXT if used is not None else C_MUTED,
+                "ring": max(0.0, min(1.0, pct / 100)) if pct is not None else None,
+                "ring_text": f"{pct:.0f}%" if pct is not None else "--",
+                "sub": f"de {total:.0f} GB" if total else "",
             })
+        elif item == "ping":
+            model["tiles"].append(_ping_tile(net))
         elif item == "fan":
-            rpms = [int(r) for r in (_num(tel.get("fan1_rpm")), _num(tel.get("fan2_rpm"))) if r]
-            if rpms:
-                model["rows"].append({
-                    "label": "FAN",
-                    "value": str(rpms[0]),
-                    "extra": (f"/ {rpms[1]} RPM" if len(rpms) > 1 else "RPM"),
-                    "pill": None,
-                    "bar": None,
-                    "bar_color": C_ACCENT,
-                })
+            fans = [(name, int(r)) for name, r in (("CPU", _num(tel.get("fan1_rpm"))), ("GPU", _num(tel.get("fan2_rpm")))) if r]
+            if fans:
+                model["tiles"].append({"kind": "fans", "label": "VENTILADORES", "fans": fans})
+    # si queda una tarjeta sola en la ultima fila ocupa todo el ancho
+    for i, t in enumerate(model["tiles"]):
+        t["span"] = 2 if (i == len(model["tiles"]) - 1 and len(model["tiles"]) % 2 == 1) else 1
     return model
+
+
+TILE_H = 58
+TILE_GAP = 6
+HERO_H = 82
 
 
 # calcula alto total del overlay segun el modelo y la escala
 def model_height(model: dict, s: float) -> int:
     pad = 12 * s
     h = pad * 2
+    rows = (len(model["tiles"]) + 1) // 2
     if model["fps"] is not None:
-        h += 14 * s + 38 * s + 24 * s
-        if model["rows"]:
-            h += 12 * s
-    rows = model["rows"]
-    h += sum((30 if r["bar"] is not None else 22) * s for r in rows)
-    h += max(0, len(rows) - 1) * 6 * s
+        h += HERO_H * s
+        if rows:
+            h += 10 * s
+    h += rows * TILE_H * s + max(0, rows - 1) * TILE_GAP * s
     return int(round(h))
 
 
@@ -321,6 +334,9 @@ if IS_WINDOWS:
             (_gdip, "GdipCreatePen1"): ([ctypes.c_uint32, F, ctypes.c_int, ctypes.POINTER(VP)], ctypes.c_int),
             (_gdip, "GdipDeletePen"): ([VP], ctypes.c_int),
             (_gdip, "GdipSetPenLineJoin"): ([VP, ctypes.c_int], ctypes.c_int),
+            (_gdip, "GdipSetPenStartCap"): ([VP, ctypes.c_int], ctypes.c_int),
+            (_gdip, "GdipSetPenEndCap"): ([VP, ctypes.c_int], ctypes.c_int),
+            (_gdip, "GdipDrawArc"): ([VP, VP, F, F, F, F, F, F], ctypes.c_int),
             (_gdip, "GdipCreatePath"): ([ctypes.c_int, ctypes.POINTER(VP)], ctypes.c_int),
             (_gdip, "GdipAddPathArc"): ([VP, F, F, F, F, F, F], ctypes.c_int),
             (_gdip, "GdipClosePathFigure"): ([VP], ctypes.c_int),
@@ -458,6 +474,14 @@ class _Painter:
         _gdip.GdipDeleteBrush(b)
         return w
 
+    def arc(self, x, y, w, h, start, sweep, argb, width):
+        pen = VP()
+        _gdip.GdipCreatePen1(argb, F(width), UNIT_PIXEL, ctypes.byref(pen))
+        _gdip.GdipSetPenStartCap(pen, 2)
+        _gdip.GdipSetPenEndCap(pen, 2)
+        _gdip.GdipDrawArc(self.g, pen, F(x), F(y), F(w), F(h), F(start), F(sweep))
+        _gdip.GdipDeletePen(pen)
+
     def area_chart(self, values, x, y, w, h, color):
         if len(values) < 2:
             return
@@ -482,67 +506,169 @@ class _Painter:
         _gdip.GdipDeletePen(pen)
 
 
+def _paint_gauge(p, t, x, y, w, h):
+    s = p.s
+    d = 38 * s
+    cx, cy = x + 10 * s, y + (h - d) / 2
+    stroke = 4 * s
+    p.arc(cx + stroke / 2, cy + stroke / 2, d - stroke, d - stroke, 0, 360, _argb((255, 255, 255), 28), stroke)
+    if t["ring"]:
+        p.arc(cx + stroke / 2, cy + stroke / 2, d - stroke, d - stroke, -90, max(4.0, 360 * t["ring"]),
+              _argb(C_ACCENT), stroke)
+    rf = p.font(9.5, True)
+    _, th = p.measure(t["ring_text"], rf)
+    p.text(t["ring_text"], rf, _argb(C_TEXT), cx + d / 2, cy + (d - th) / 2, "center")
+    tx = cx + d + 9 * s
+    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), tx, y + 9 * s)
+    p.text(t["main"], p.font(16, True, "Segoe UI Semibold"), _argb(t["main_color"]), tx - 1 * s, y + 19 * s)
+    if t["sub"]:
+        # quita datos secundarios del final si no caben en la tarjeta
+        sub, sf = t["sub"], p.font(9)
+        while " · " in sub and p.measure(sub, sf)[0] > x + w - tx - 6 * s:
+            sub = sub.rsplit(" · ", 1)[0]
+        p.text(sub, sf, _argb(C_MUTED), tx, y + 40 * s)
+
+
+def _paint_ping(p, t, x, y, w, h):
+    s = p.s
+    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), x + 11 * s, y + 9 * s)
+    if t["badge"]:
+        label, color = t["badge"]
+        bf = p.font(8.5, True)
+        tw, th = p.measure(label, bf)
+        bw, bh = tw + 12 * s, 15 * s
+        bx = x + w - 9 * s - bw
+        p.round_rect(bx, y + 7 * s, bw, bh, bh / 2, fill=_argb(color, 46))
+        p.text(label, bf, _argb(color), bx + bw / 2, y + 7 * s + (bh - th) / 2, "center")
+    p.text(t["main"], p.font(16, True, "Segoe UI Semibold"), _argb(t["main_color"]), x + 10 * s, y + 19 * s)
+    if t["foot"]:
+        p.text(t["foot"], p.font(9), _argb(C_MUTED), x + 11 * s, y + 40 * s)
+
+
+def _paint_fans(p, t, x, y, w, h):
+    s = p.s
+    p.text(t["label"], p.font(8.5, True), _argb(C_MUTED), x + 11 * s, y + 9 * s)
+    fans = t["fans"]
+    if t["span"] == 2:
+        cols = [(x + 11 * s + i * (w / 2), w / 2 - 20 * s) for i in range(len(fans))]
+        rows = [y + 24 * s] * len(fans)
+    else:
+        cols = [(x + 11 * s, w - 22 * s)] * len(fans)
+        rows = [y + 22 * s + i * 16 * s for i in range(len(fans))]
+    for (name, rpm), (fx, fw), fy in zip(fans, cols, rows):
+        p.text(name, p.font(9, True), _argb(C_ACCENT), fx, fy)
+        p.text(f"{rpm} rpm", p.font(10.5, True), _argb(C_TEXT), fx + fw, fy - 1 * s, "right")
+        by = fy + (17 if t["span"] == 2 else 13) * s
+        bh = 2.5 * s
+        p.round_rect(fx, by, fw, bh, bh / 2, fill=_argb((255, 255, 255), 26))
+        frac = min(1.0, rpm / FAN_MAX_RPM)
+        if fw * frac >= bh:
+            p.round_rect(fx, by, fw * frac, bh, bh / 2, fill=_argb(C_ACCENT, 220))
+
+
 def paint_model(p, model: dict, width: int, height: int, opacity: int):
     s = p.s
     pad = 12 * s
     bg_alpha = int(min(245, 2.45 * opacity))
-    p.round_rect(0.5, 0.5, width - 1, height - 1, 12 * s, fill=_argb(C_BG, bg_alpha),
-                 stroke=_argb((255, 255, 255), 34), stroke_w=1.0)
+    p.round_rect(0.5, 0.5, width - 1, height - 1, 14 * s, fill=_argb(C_BG, bg_alpha),
+                 stroke=_argb((255, 255, 255), 30), stroke_w=1.0)
     y = pad
     inner_w = width - pad * 2
     fps = model["fps"]
     if fps is not None:
         # encabezado con marca y nombre del juego
-        p.round_rect(pad, y + 3 * s, 6 * s, 6 * s, 3 * s, fill=_argb(fps["color"] if fps["value"] else C_MUTED))
-        p.text("VORTEX", p.font(9.5, True), _argb(C_MUTED), pad + 10 * s, y)
+        p.round_rect(pad, y + 3.5 * s, 6 * s, 6 * s, 3 * s, fill=_argb(fps["color"] if fps["value"] else C_MUTED))
+        p.text("VORTEX", p.font(8.5, True), _argb(C_MUTED), pad + 10 * s, y + 0.5 * s)
         if fps["app"]:
-            p.text(fps["app"], p.font(10), _argb(C_MUTED), width - pad, y, "right")
-        y += 14 * s
-        # numero grande de fps
+            p.text(fps["app"], p.font(9.5), _argb(C_MUTED), width - pad, y, "right")
+        y += 16 * s
         big = str(fps["value"]) if fps["value"] else "--"
-        bw = p.text(big, p.font(30, True, "Segoe UI Semibold"), _argb(fps["color"]), pad - 1 * s, y - 2 * s)
-        p.text("FPS", p.font(10.5, True), _argb(C_MUTED), pad + bw + 5 * s, y + 21 * s)
+        bw = p.text(big, p.font(32, True, "Segoe UI Semibold"), _argb(fps["color"]), pad - 1.5 * s, y - 4 * s)
+        p.text("FPS", p.font(9.5, True), _argb(C_MUTED), pad + bw + 4 * s, y + 21 * s)
         if fps["value"]:
-            p.text(fps["frametime"] or "", p.font(13, True), _argb(C_TEXT), width - pad, y + 4 * s, "right")
-            p.text(fps["low"] or "", p.font(10.5), _argb(C_MUTED), width - pad, y + 21 * s, "right")
+            p.text(fps["frametime"] or "", p.font(13, True), _argb(C_TEXT), width - pad, y + 3 * s, "right")
+            p.text(fps["low"] or "", p.font(9.5), _argb(C_MUTED), width - pad, y + 21 * s, "right")
         else:
-            p.text(fps["note"] or "", p.font(11), _argb(C_MUTED), width - pad, y + 14 * s, "right")
-        y += 38 * s
-        # grafico de historial de fps
-        chart_h = 20 * s
-        p.rect(pad, y + chart_h, inner_w, max(1.0, s), _argb((255, 255, 255), 22))
+            p.text(fps["note"] or "", p.font(10), _argb(C_MUTED), width - pad, y + 13 * s, "right")
+        y += 40 * s
+        chart_h = 22 * s
+        p.rect(pad, y + chart_h, inner_w, max(1.0, s), _argb((255, 255, 255), 20))
         p.area_chart(fps["history"], pad, y, inner_w, chart_h, fps["color"] if fps["value"] else C_ACCENT)
-        y += 24 * s
-        if model["rows"]:
-            p.rect(pad, y + 5 * s, inner_w, max(1.0, s), _argb((255, 255, 255), 26))
-            y += 12 * s
-    label_w = 38 * s
-    for i, row in enumerate(model["rows"]):
+        y += 26 * s
+        if model["tiles"]:
+            y += 10 * s
+    tile_w = (inner_w - TILE_GAP * s) / 2
+    tile_h = TILE_H * s
+    col = 0
+    for t in model["tiles"]:
+        w = inner_w if t["span"] == 2 else tile_w
+        x = pad + (tile_w + TILE_GAP * s) * col
+        p.round_rect(x, y, w, tile_h, 10 * s, fill=_argb((255, 255, 255), 13))
+        if t["kind"] == "gauge":
+            _paint_gauge(p, t, x, y, w, tile_h)
+        elif t["kind"] == "ping":
+            _paint_ping(p, t, x, y, w, tile_h)
+        elif t["kind"] == "fans":
+            _paint_fans(p, t, x, y, w, tile_h)
+        col += t["span"]
+        if col >= 2:
+            col = 0
+            y += tile_h + TILE_GAP * s
+
+
+COMPACT_H = 30
+
+
+# convierte el modelo en segmentos de una sola linea: [(texto, tamano, negrita, color), ...]
+def compact_segments(model: dict) -> list:
+    segs = []
+    # gdi+ ignora espacios finales, por eso el espacio va al inicio del valor
+    label = lambda t: (t, 8.5, True, C_MUTED)
+    fps = model["fps"]
+    if fps is not None:
+        segs.append([(str(fps["value"]) if fps["value"] else "--", 15, True, fps["color"]), (" FPS", 8.5, True, C_MUTED)])
+    for t in model["tiles"]:
+        if t["kind"] == "gauge" and t["label"] in ("CPU", "GPU"):
+            seg = [label(t["label"]), (" " + t["main"].replace("°C", "°"), 12.5, True, t["main_color"])]
+            if t["ring_text"] != "--":
+                seg.append(("  " + t["ring_text"], 11, False, C_TEXT))
+            segs.append(seg)
+        elif t["kind"] == "gauge":
+            segs.append([label(t["label"]), (" " + t["ring_text"], 12.5, True, C_TEXT)])
+        elif t["kind"] == "ping":
+            segs.append([label("PING"), (" " + t["main"], 12.5, True, t["main_color"])])
+        elif t["kind"] == "fans":
+            rpms = " · ".join(f"{rpm / 1000:.1f}k" for _, rpm in t["fans"])
+            segs.append([label("FAN"), (" " + rpms, 12, True, C_TEXT)])
+    return segs
+
+
+def compact_width(p, segs) -> int:
+    s = p.s
+    total = 12 * s * 2 + max(0, len(segs) - 1) * 21 * s
+    for seg in segs:
+        total += sum(p.measure(text, p.font(size, bold, "Segoe UI Semibold" if size >= 12 else "Segoe UI"))[0]
+                     for text, size, bold, _ in seg)
+    return int(round(total + 2 * s))
+
+
+def paint_compact(p, segs, width: int, height: int, opacity: int):
+    s = p.s
+    bg_alpha = int(min(245, 2.45 * opacity))
+    p.round_rect(0.5, 0.5, width - 1, height - 1, (height - 1) / 2, fill=_argb(C_BG, bg_alpha),
+                 stroke=_argb((255, 255, 255), 30), stroke_w=1.0)
+    x = 12 * s
+    for i, seg in enumerate(segs):
         if i:
-            y += 6 * s
-        p.text(row["label"], p.font(10.5, True), _argb(C_ACCENT, 220), pad, y + 3 * s)
-        vx = pad + label_w
-        vw = p.text(row["value"], p.font(14, True), _argb(C_TEXT), vx, y - 1 * s)
-        if row["extra"]:
-            p.text(row["extra"], p.font(11), _argb(C_MUTED), vx + vw + 5 * s, y + 2.5 * s)
-        if row["pill"]:
-            ptxt, pcol = row["pill"]
-            pf = p.font(11, True)
-            tw, th = p.measure(ptxt, pf)
-            pw, ph = tw + 14 * s, 18 * s
-            px = width - pad - pw
-            p.round_rect(px, y, pw, ph, ph / 2, fill=_argb(pcol, 40), stroke=_argb(pcol, 90))
-            p.text(ptxt, pf, _argb(pcol), px + pw / 2, y + (ph - th) / 2 - 0.5 * s, "center")
-        if row["bar"] is not None:
-            by = y + 22 * s
-            bh = 4 * s
-            p.round_rect(vx, by, width - pad - vx, bh, bh / 2, fill=_argb((255, 255, 255), 24))
-            fill_w = (width - pad - vx) * row["bar"]
-            if fill_w >= bh:
-                p.round_rect(vx, by, fill_w, bh, bh / 2, fill=_argb(row["bar_color"], 230))
-            y += 30 * s
-        else:
-            y += 22 * s
+            # separador vertical fino entre datos
+            p.rect(x + 10 * s, height * 0.28, max(1.0, s), height * 0.44, _argb((255, 255, 255), 34))
+            x += 21 * s
+        for text, size, bold, color in seg:
+            f = p.font(size, bold, "Segoe UI Semibold" if size >= 12 else "Segoe UI")
+            w, h = p.measure(text, f)
+            # alinea las etiquetas chicas con la linea base de los numeros grandes
+            dy = (size * 0.22 * s) if size < 12 else 0
+            x += p.text(text, f, _argb(color), x, (height - h) / 2 + dy)
 
 
 class GameOverlay:
@@ -561,6 +687,8 @@ class GameOverlay:
         self._history = deque(maxlen=HISTORY_LEN)
         self._history_app = None
         self._misses = 0
+        self._segs = []
+        self._game_seen = 0.0
         self._sync_fps()
 
     def start(self):
@@ -593,7 +721,8 @@ class GameOverlay:
     def _sync_fps(self):
         if not self.fps:
             return
-        if self.config["enabled"] and "fps" in self.config["items"]:
+        # el medidor tambien hace falta para saber si hay un juego abierto
+        if self.config["enabled"] and ("fps" in self.config["items"] or self.config["only_games"]):
             self.fps.start()
         else:
             self.fps.stop()
@@ -658,7 +787,10 @@ class GameOverlay:
         if not self.config["enabled"] or not self.config["items"]:
             return False
         if self.config["only_games"] and self.fps and self.fps.available and not self.fps.error:
-            return bool(fps)
+            # mantiene el overlay unos segundos para no parpadear en pantallas de carga
+            if is_game(fps):
+                self._game_seen = time.time()
+            return time.time() - self._game_seen < GAME_GRACE_S
         return True
 
     def _tick(self):
@@ -677,7 +809,7 @@ class GameOverlay:
                 net = None
         self.model = build_model(tel, fps if "fps" in self.config["items"] else None,
                                  self.config["items"], self._fps_note(), self._history, net)
-        if self.model["fps"] is None and not self.model["rows"]:
+        if self.model["fps"] is None and not self.model["tiles"]:
             _user32.ShowWindow(self.hwnd, SW_HIDE)
             return
         fg = _user32.GetForegroundWindow()
@@ -690,8 +822,13 @@ class GameOverlay:
         except Exception:
             dpi = 96
         s = SIZES[self.config["size"]] * dpi / 96
-        width = int(round(262 * s))
-        height = model_height(self.model, s)
+        if self.config.get("style") == "compact":
+            self._segs = compact_segments(self.model)
+            width = self._measure_compact(s)
+            height = int(round(COMPACT_H * s))
+        else:
+            width = int(round(264 * s))
+            height = model_height(self.model, s)
         self._size = (width, height)
         margin = int(16 * dpi / 96)
         r = mi.rcMonitor
@@ -701,6 +838,20 @@ class GameOverlay:
         self._render(x, y, width, height, s)
         _user32.SetWindowPos(self.hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                              SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
+
+    # mide el ancho de la franja compacta con un lienzo de 1x1
+    def _measure_compact(self, s) -> int:
+        bmp, g = VP(), VP()
+        _gdip.GdipCreateBitmapFromScan0(1, 1, 0, PIXEL_FORMAT_32BPP_PARGB, None, ctypes.byref(bmp))
+        _gdip.GdipGetImageGraphicsContext(bmp, ctypes.byref(g))
+        _gdip.GdipSetTextRenderingHint(g, 4)
+        painter = _Painter(g, s)
+        try:
+            return compact_width(painter, self._segs)
+        finally:
+            painter.close()
+            _gdip.GdipDeleteGraphics(g)
+            _gdip.GdipDisposeImage(bmp)
 
     def _render(self, x, y, width, height, s):
         screen = _user32.GetDC(None)
@@ -723,7 +874,10 @@ class GameOverlay:
             _gdip.GdipGraphicsClear(g, 0)
             painter = _Painter(g, s)
             try:
-                paint_model(painter, self.model, width, height, self.config["opacity"])
+                if self.config.get("style") == "compact":
+                    paint_compact(painter, self._segs, width, height, self.config["opacity"])
+                else:
+                    paint_model(painter, self.model, width, height, self.config["opacity"])
             finally:
                 painter.close()
             _gdip.GdipDeleteGraphics(g)

@@ -1513,7 +1513,7 @@ async function toggleAutostart() {
 }
 
 // overlay en juego
-let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: false, items: [] };
+let overlayCfg = { enabled: false, corner: "tl", size: "m", opacity: 85, only_games: true, style: "compact", items: [] };
 let overlayTelemetry = null;
 const overlayFpsDemo = [138, 142, 140, 144, 139, 131, 136, 143, 141, 144, 137, 140, 128, 135, 142, 144, 141, 139, 143, 140];
 
@@ -1545,11 +1545,28 @@ function renderOverlayPreview() {
   if (!box) return;
   const t = overlayTelemetry || {};
   const items = overlayCfg.items || [];
-  const parts = [];
+  const scale = { s: 0.85, m: 1, l: 1.22 }[overlayCfg.size] || 1;
+  box.style.setProperty("--ov-alpha", (Math.min(245, overlayCfg.opacity * 2.45) / 255).toFixed(2));
+  box.style.transform = `scale(${scale})`;
+  box.classList.toggle("ovp-compact", (overlayCfg.style || "compact") === "compact");
+  if ((overlayCfg.style || "compact") === "compact") {
+    // franja de una linea igual a la del juego
+    const seg = (label, val, color, extra) => `<span class="ovp-seg">${label ? `<em>${label}</em>` : ""}<b style="color:${color}">${val}</b>${extra ? `<i>${extra}</i>` : ""}</span>`;
+    const parts = [];
+    if (items.includes("fps")) parts.push(`<span class="ovp-seg"><b class="big" style="color:#34d399">144</b><em>FPS</em></span>`);
+    if (items.includes("cpu")) { const tc = ovNum(t.cpu_temp), u = ovNum(t.cpu_usage); parts.push(seg("CPU", tc != null ? `${Math.round(tc)}°` : "--", ovTempColor(tc), u != null ? `${Math.round(u)}%` : "")); }
+    if (items.includes("gpu")) { const tg = ovNum(t.gpu_temp), u = ovNum(t.gpu_usage); parts.push(seg("GPU", tg != null ? `${Math.round(tg)}°` : "--", ovTempColor(tg), u != null ? `${Math.round(u)}%` : "")); }
+    if (items.includes("ram")) { const pct = ovNum(t.ram_pct); parts.push(seg("RAM", pct != null ? `${Math.round(pct)}%` : "--", "#f4f6fa")); }
+    if (items.includes("ping")) parts.push(seg("PING", "34 ms", "#34d399"));
+    if (items.includes("fan")) { const r = [ovNum(t.fan1_rpm), ovNum(t.fan2_rpm)].filter(v => v); if (r.length) parts.push(seg("FAN", r.map(v => (v / 1000).toFixed(1) + "k").join(" · "), "#f4f6fa")); }
+    box.innerHTML = parts.join('<span class="ovp-div"></span>') || `<span class="ovp-seg"><em>Sin datos</em></span>`;
+    return;
+  }
+  let html = "";
   if (items.includes("fps")) {
     const max = Math.max(...overlayFpsDemo) + 4, min = Math.min(...overlayFpsDemo) - 12;
     const pts = overlayFpsDemo.map((v, i) => `${(i / (overlayFpsDemo.length - 1)) * 100},${14 - ((v - min) / (max - min)) * 14}`).join(" ");
-    parts.push(`
+    html += `
       <div class="ovp-head"><span><i class="ovp-dot"></i>VORTEX</span><span>Tu juego</span></div>
       <div class="ovp-fps">
         <div class="ovp-fps-num">144<small>FPS</small></div>
@@ -1558,41 +1575,43 @@ function renderOverlayPreview() {
       <div class="ovp-chart"><svg viewBox="0 0 100 14" preserveAspectRatio="none">
         <polygon points="0,14 ${pts} 100,14" fill="rgba(52,211,153,0.18)"/>
         <polyline points="${pts}" fill="none" stroke="#34d399" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
-      </svg></div>`);
+      </svg></div>`;
   }
-  const rows = [];
-  const row = (label, val, extra, pill, pillColor, bar) => `
-    <div class="ovp-row">
-      <span class="ovp-row-label">${label}</span>
-      <span class="ovp-row-val">${val}${extra ? `<small>${extra}</small>` : ""}</span>
-      ${pill ? `<span class="ovp-pill" style="color:${pillColor}">${pill}</span>` : "<span></span>"}
-      ${bar != null ? `<span class="ovp-bar"><i style="width:${Math.max(0, Math.min(100, bar))}%"></i></span>` : ""}
+  const tiles = [];
+  const gauge = (label, main, mainColor, pct, sub) => {
+    const frac = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+    return `<div class="ovp-tile">
+      <div class="ovp-ring" style="--p:${frac}"><span>${pct == null ? "--" : Math.round(pct) + "%"}</span></div>
+      <div class="ovp-tile-txt"><em>${label}</em><b style="color:${mainColor}">${main}</b><small>${sub || ""}</small></div>
     </div>`;
-  if (items.includes("ping")) {
-    rows.push(row("PING", "34 ms", "± 2 · pérdida 0%", "Buena", "#34d399", null));
-  }
+  };
   if (items.includes("cpu")) {
     const u = ovNum(t.cpu_usage), tc = ovNum(t.cpu_temp), g = ovNum(t.cpu_freq);
-    rows.push(row("CPU", u != null ? `${Math.round(u)}%` : "--", g ? `${g.toFixed(1)} GHz` : "", tc != null ? `${Math.round(tc)}°C` : "", ovTempColor(tc), u));
+    tiles.push(gauge("CPU", tc != null ? `${Math.round(tc)}°C` : "--", ovTempColor(tc), u, g ? `${g.toFixed(1)} GHz` : ""));
   }
   if (items.includes("gpu")) {
-    const u = ovNum(t.gpu_usage), tg = ovNum(t.gpu_temp), w = ovNum(t.gpu_power), mhz = ovNum(t.gpu_freq_mhz);
-    const extra = [w != null ? `${Math.round(w)} W` : "", mhz ? `${Math.round(mhz)} MHz` : ""].filter(Boolean).join(" · ");
-    rows.push(row("GPU", u != null ? `${Math.round(u)}%` : "--", extra, tg != null ? `${Math.round(tg)}°C` : "", ovTempColor(tg), u));
+    const u = ovNum(t.gpu_usage), tg = ovNum(t.gpu_temp), w = ovNum(t.gpu_power);
+    tiles.push(gauge("GPU", tg != null ? `${Math.round(tg)}°C` : "--", ovTempColor(tg), u, w != null ? `${Math.round(w)} W` : ""));
   }
   if (items.includes("ram")) {
     const used = ovNum(t.ram_used), total = ovNum(t.ram_total), pct = ovNum(t.ram_pct);
-    rows.push(row("RAM", used != null ? used.toFixed(1) : "--", total ? `/ ${Math.round(total)} GB` : "", pct != null ? `${Math.round(pct)}%` : "", "#00e5ff", pct));
+    tiles.push(gauge("RAM", used != null ? `${used.toFixed(1)} GB` : "--", "#f4f6fa", pct, total ? `de ${Math.round(total)} GB` : ""));
+  }
+  if (items.includes("ping")) {
+    tiles.push(`<div class="ovp-tile ovp-ping">
+      <div class="ovp-tile-txt"><em>PING <i style="color:#34d399;background:rgba(52,211,153,.18)">Buena</i></em><b style="color:#34d399">34 ms</b><small>±2 ms · 0% pérdida</small></div>
+    </div>`);
   }
   if (items.includes("fan")) {
-    const rpms = [ovNum(t.fan1_rpm), ovNum(t.fan2_rpm)].filter(v => v);
-    if (rpms.length) rows.push(row("FAN", `${Math.round(rpms[0])}`, rpms[1] ? `/ ${Math.round(rpms[1])} RPM` : "RPM", "", "", null));
+    const fans = [["CPU", ovNum(t.fan1_rpm)], ["GPU", ovNum(t.fan2_rpm)]].filter(f => f[1]);
+    if (fans.length) {
+      tiles.push(`<div class="ovp-tile ovp-fans"><em>VENTILADORES</em><div class="ovp-fan-list">${fans.map(([n, r]) => `
+        <div class="ovp-fan"><span><i>${n}</i><b>${Math.round(r)} rpm</b></span><u><s style="width:${Math.min(100, (r / 6000) * 100)}%"></s></u></div>`).join("")}</div></div>`);
+    }
   }
-  if (parts.length && rows.length) parts.push(`<div class="ovp-sep"></div>`);
-  box.innerHTML = parts.join("") + rows.join("") || `<div class="ovp-head"><span>Sin datos seleccionados</span></div>`;
-  const scale = { s: 0.85, m: 1, l: 1.22 }[overlayCfg.size] || 1;
-  box.style.transform = `scale(${scale})`;
-  box.style.setProperty("--ov-alpha", (Math.min(245, overlayCfg.opacity * 2.45) / 255).toFixed(2));
+  if (tiles.length % 2 === 1) tiles[tiles.length - 1] = tiles[tiles.length - 1].replace('class="ovp-tile', 'class="ovp-tile ovp-wide');
+  if (tiles.length) html += `<div class="ovp-grid">${tiles.join("")}</div>`;
+  box.innerHTML = html || `<div class="ovp-head"><span>Sin datos seleccionados</span></div>`;
 }
 
 function previewOverlayOpacity(val) {
@@ -1611,6 +1630,7 @@ function renderOverlayConfig() {
   const stage = document.getElementById("overlay-stage");
   stage.dataset.corner = overlayCfg.corner;
   stage.classList.toggle("is-off", !overlayCfg.enabled);
+  document.querySelectorAll("#overlay-style [data-style]").forEach(b => b.classList.toggle("active", b.dataset.style === (overlayCfg.style || "compact")));
   document.querySelectorAll("#overlay-size [data-size]").forEach(b => b.classList.toggle("active", b.dataset.size === overlayCfg.size));
   document.querySelectorAll("#overlay-items [data-item]").forEach(b => b.classList.toggle("active", (overlayCfg.items || []).includes(b.dataset.item)));
   const op = document.getElementById("overlay-opacity");

@@ -1094,6 +1094,13 @@
                     </div>
                   </div>
                   <div class="ov-field">
+                    <span class="ov-field-label">Estilo</span>
+                    <div class="ov-segment" id="overlay-style">
+                      <button data-style="compact" onclick="setOverlay({style: 'compact'})">Compacto · una línea</button>
+                      <button data-style="detailed" onclick="setOverlay({style: 'detailed'})">Detallado · tarjetas</button>
+                    </div>
+                  </div>
+                  <div class="ov-field">
                     <span class="ov-field-label">Tamaño</span>
                     <div class="ov-segment" id="overlay-size">
                       <button data-size="s" onclick="setOverlay({size: 's'})">Chico</button>
@@ -1109,7 +1116,7 @@
                   </div>
                   <label class="ov-check">
                     <input type="checkbox" id="overlay-only-games" onchange="setOverlay({only_games: this.checked})">
-                    <span>Mostrar solo cuando hay un juego abierto</span>
+                    <span>Mostrar solo mientras juegas <small class="ov-check-hint">se oculta en el escritorio, el navegador y otras apps</small></span>
                   </label>
                 </div>
               </div>

@@ -60,6 +60,13 @@ class PresentMonParsingTests(unittest.TestCase):
         self.assertEqual(fps_monitor.pick_pid(30, "game.exe", apps, seen, 100.0), 30)
         self.assertEqual(fps_monitor.pick_pid(5, "otro.exe", apps, seen, 100.0), 5)
 
+    def test_is_game(self):
+        self.assertTrue(fps_monitor.is_game({"fps": 144, "app": "RocketLeague.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 120, "app": "Brave.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 60, "app": "claude.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 8, "app": "juego.exe"}))
+        self.assertFalse(fps_monitor.is_game(None))
+
     def test_find_presentmon_missing(self):
         self.assertIsNone(fps_monitor.find_presentmon(os.path.join(ROOT, "no-existe")))
 
@@ -71,46 +78,72 @@ class OverlayRowsTests(unittest.TestCase):
 
     def test_model_full(self):
         fps = {"fps": 144, "frametime_ms": 6.9, "low1_fps": 101, "app": "Cyberpunk2077.exe"}
-        m = game_overlay.build_model(self.TEL, fps, game_overlay.ITEMS, history=[140, 144])
+        net = {"available": True, "game": {"ping_ms": 34, "jitter_ms": 2.4, "loss_pct": 0, "responds": True}}
+        m = game_overlay.build_model(self.TEL, fps, game_overlay.ITEMS, history=[140, 144], net=net)
         self.assertEqual(m["fps"]["value"], 144)
         self.assertEqual(m["fps"]["frametime"], "6.9 ms")
         self.assertEqual(m["fps"]["low"], "1% low 101")
         self.assertEqual(m["fps"]["app"], "Cyberpunk2077")
         self.assertEqual(m["fps"]["history"], [140, 144])
-        rows = {r["label"]: r for r in m["rows"]}
-        self.assertEqual((rows["CPU"]["value"], rows["CPU"]["extra"]), ("45%", "4.2 GHz"))
-        self.assertEqual(rows["CPU"]["pill"], ("82°C", game_overlay.C_WARN))
-        self.assertAlmostEqual(rows["CPU"]["bar"], 0.45)
-        self.assertEqual(rows["GPU"]["extra"], "95 W · 2550 MHz")
-        self.assertEqual(rows["GPU"]["bar_color"], game_overlay.C_ACCENT)
-        self.assertEqual((rows["RAM"]["value"], rows["RAM"]["extra"]), ("12.1", "/ 16 GB"))
-        self.assertEqual((rows["FAN"]["value"], rows["FAN"]["extra"], rows["FAN"]["bar"]), ("4100", "RPM", None))
+        # orden fijo de tarjetas y la ultima impar ocupa todo el ancho
+        self.assertEqual([t["label"] for t in m["tiles"]], ["CPU", "GPU", "RAM", "PING", "VENTILADORES"])
+        self.assertEqual([t["span"] for t in m["tiles"]], [1, 1, 1, 1, 2])
+        tiles = {t["label"]: t for t in m["tiles"]}
+        cpu = tiles["CPU"]
+        self.assertEqual((cpu["main"], cpu["main_color"], cpu["ring_text"], cpu["sub"]),
+                         ("82°C", game_overlay.C_WARN, "45%", "4.2 GHz"))
+        self.assertAlmostEqual(cpu["ring"], 0.45)
+        self.assertEqual(tiles["GPU"]["sub"], "95 W · 2550 MHz")
+        self.assertEqual((tiles["RAM"]["main"], tiles["RAM"]["sub"], tiles["RAM"]["ring_text"]), ("12.1 GB", "de 16 GB", "77%"))
+        self.assertEqual(tiles["VENTILADORES"]["fans"], [("CPU", 4100)])
+
+    def test_fans_named_cpu_and_gpu(self):
+        m = game_overlay.build_model({"fan1_rpm": 5400, "fan2_rpm": 5200}, None, ["fan"])
+        self.assertEqual(m["tiles"][0]["fans"], [("CPU", 5400), ("GPU", 5200)])
 
     def test_model_missing_data(self):
         m = game_overlay.build_model({}, None, ["fps", "cpu", "fan"], fps_note="requiere admin")
         self.assertIsNone(m["fps"]["value"])
         self.assertEqual(m["fps"]["note"], "requiere admin")
-        self.assertEqual(len(m["rows"]), 1)
-        self.assertEqual((m["rows"][0]["value"], m["rows"][0]["pill"], m["rows"][0]["bar"]), ("--", None, None))
+        self.assertEqual(len(m["tiles"]), 1)
+        t = m["tiles"][0]
+        self.assertEqual((t["main"], t["ring"], t["ring_text"], t["span"]), ("--", None, "--", 2))
         self.assertEqual(game_overlay.build_model({}, None, ["fps"])["fps"]["note"], "sin juego activo")
 
     def test_model_height(self):
         m = game_overlay.build_model(self.TEL, None, game_overlay.ITEMS)
-        self.assertEqual(game_overlay.model_height(m, 1.0), 24 + 76 + 12 + 30 * 3 + 22 * 2 + 6 * 4)
+        # fps + 3 filas de tarjetas (cpu/gpu, ram/ping, ventiladores)
+        self.assertEqual(game_overlay.model_height(m, 1.0), 24 + 82 + 10 + 58 * 3 + 6 * 2)
         only_fps = game_overlay.build_model({}, None, ["fps"])
-        self.assertEqual(game_overlay.model_height(only_fps, 1.0), 24 + 76)
+        self.assertEqual(game_overlay.model_height(only_fps, 1.0), 24 + 82)
 
-    def test_ping_row(self):
-        row = lambda net: game_overlay.build_model({}, None, ["ping"], net=net)["rows"][0]
-        self.assertEqual(row(None)["value"], "--")
-        self.assertEqual(row({"available": False, "error": "requiere admin"})["extra"], "requiere admin")
-        self.assertEqual(row({"available": True, "game": None})["extra"], "sin juego en línea")
-        self.assertEqual(row({"available": True, "game": {"responds": False}})["extra"], "el servidor no responde ping")
-        r = row({"available": True, "game": {"ping_ms": 34, "jitter_ms": 2.4, "loss_pct": 0, "responds": True}})
-        self.assertEqual((r["value"], r["extra"]), ("34 ms", "± 2 · pérdida 0%"))
-        self.assertEqual(r["pill"], ("Buena", game_overlay.C_OK))
+    def test_ping_tile(self):
+        tile = lambda net: game_overlay.build_model({}, None, ["ping"], net=net)["tiles"][0]
+        self.assertEqual(tile(None)["main"], "--")
+        self.assertEqual(tile({"available": False, "error": "requiere admin"})["foot"], "requiere admin")
+        self.assertEqual(tile({"available": True, "game": None})["foot"], "sin juego en línea")
+        self.assertEqual(tile({"available": True, "game": {"responds": False}})["foot"], "servidor sin respuesta")
+        t = tile({"available": True, "game": {"ping_ms": 34, "jitter_ms": 2.4, "loss_pct": 0, "responds": True}})
+        self.assertEqual((t["main"], t["foot"]), ("34 ms", "±2 ms · 0% pérdida"))
+        self.assertEqual(t["badge"], ("Buena", game_overlay.C_OK))
+        self.assertEqual(t["main_color"], game_overlay.C_OK)
         self.assertEqual(game_overlay.ping_quality(90, 5, 1), ("Regular", game_overlay.C_WARN))
         self.assertEqual(game_overlay.ping_quality(40, 5, 5), ("Mala", game_overlay.C_HOT))
+
+    def test_compact_segments(self):
+        fps = {"fps": 144, "frametime_ms": 6.9, "low1_fps": 101, "app": "x.exe"}
+        net = {"available": True, "game": {"ping_ms": 84, "jitter_ms": 26, "loss_pct": 5, "responds": True}}
+        tel = dict(self.TEL, fan2_rpm=5200)
+        segs = game_overlay.compact_segments(game_overlay.build_model(tel, fps, game_overlay.ITEMS, net=net))
+        text = ["".join(r[0] for r in seg) for seg in segs]
+        self.assertEqual(text, ["144 FPS", "CPU 82°  45%", "GPU 70°  97%", "RAM 77%", "PING 84 ms", "FAN 4.1k · 5.2k"])
+        self.assertEqual(segs[1][1][3], game_overlay.C_WARN)
+        self.assertEqual(segs[4][1][3], game_overlay.C_HOT)
+
+    def test_style_default_and_sanitize(self):
+        self.assertEqual(game_overlay.sanitize_config({})["style"], "compact")
+        self.assertEqual(game_overlay.sanitize_config({"style": "detailed"})["style"], "detailed")
+        self.assertEqual(game_overlay.sanitize_config({"style": "raro"})["style"], "compact")
 
     def test_sanitize_config(self):
         cfg = game_overlay.sanitize_config({"corner": "xx", "size": "l", "opacity": 5,

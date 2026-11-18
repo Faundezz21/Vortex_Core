@@ -19,6 +19,30 @@ STALE_S = 2.0
 _IGNORED_APPS = {"dwm.exe", "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
                  "startmenuexperiencehost.exe", "textinputhost.exe", "applicationframehost.exe"}
 
+# apps que dibujan frames pero no son juegos (navegadores, chat, lanzadores, herramientas)
+NON_GAME_APPS = {
+    "system", "svchost.exe", "chrome.exe", "msedge.exe", "brave.exe", "firefox.exe", "opera.exe", "opera_gx.exe",
+    "vivaldi.exe", "arc.exe", "discord.exe", "teams.exe", "ms-teams.exe", "zoom.exe", "slack.exe", "spotify.exe",
+    "steam.exe", "steamwebhelper.exe", "epicgameslauncher.exe", "epicwebhelper.exe", "battle.net.exe",
+    "riotclientservices.exe", "riotclientux.exe", "eadesktop.exe", "ubisoftconnect.exe", "upc.exe",
+    "galaxyclient.exe", "obs64.exe", "nvcontainer.exe", "nvidia share.exe", "nvidia app.exe", "whatsapp.exe",
+    "telegram.exe", "msedgewebview2.exe", "parsecd.exe", "lghub_agent.exe", "lghub.exe", "onedrive.exe",
+    "dropbox.exe", "qbittorrent.exe", "utorrent.exe", "python.exe", "pythonw.exe", "vortexcorehub.exe",
+    "claude.exe", "code.exe", "cursor.exe", "notepad.exe", "notepad++.exe", "winword.exe", "excel.exe",
+    "powerpnt.exe", "outlook.exe", "olk.exe", "acrobat.exe", "acrord32.exe", "vlc.exe", "mpc-hc64.exe",
+    "photos.exe", "windowsterminal.exe", "cmd.exe", "powershell.exe", "taskmgr.exe", "systemsettings.exe",
+    "notion.exe", "figma.exe", "obsidian.exe", "postman.exe", "phpstorm64.exe", "idea64.exe", "devenv.exe",
+    "hp.omenhub.exe", "omen gaming hub.exe", "armoury crate.exe", "msiafterburner.exe", "rtss.exe",
+}
+GAME_MIN_FPS = 15
+
+
+# un proceso cuenta como juego si dibuja de forma continua y no es una app conocida
+def is_game(stats: dict | None) -> bool:
+    if not stats or not stats.get("fps"):
+        return False
+    return (stats.get("app") or "").lower() not in NON_GAME_APPS and stats["fps"] >= GAME_MIN_FPS
+
 
 def find_presentmon(app_dir: str) -> str | None:
     for rel in (("tools", "PresentMon.exe"), ("PresentMon.exe",)):
@@ -318,6 +342,6 @@ class FpsMonitor:
                 return None
             stats["app"] = self._apps.get(pid, "")
             stats["pid"] = pid
-            if fg_exe:
+            if fg_exe and is_game(stats):
                 self.last_game = (stats["app"], now)
             return stats
