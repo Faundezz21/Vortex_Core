@@ -40,7 +40,9 @@ const tabTitles = {
   "tab-overview": { title: "Inicio", sub: "Resumen del equipo" },
   "tab-intelligence": { title: "Diagnóstico", sub: "Temperaturas, energía y memoria" },
   "tab-cooling": { title: "Modo manual", sub: "Límites de potencia, GPU y curva de ventiladores" },
-  "tab-tuning": { title: "CPU y energía", sub: "Límite del procesador, Turbo Boost y plan de energía" },
+  "tab-tuning": { title: "CPU y energía", sub: "Ajustes finos del procesador y planes de energía de Windows" },
+  "tab-game": { title: "Juego", sub: "Overlay en juego, modo juego automático y mando de PS5" },
+  "tab-settings": { title: "Ajustes", sub: "Actualizaciones e inicio con Windows" },
   "tab-booster": { title: "Memoria RAM", sub: "Liberar memoria y procesos que más consumen" },
   "tab-audio": { title: "Audio y ecualizador", sub: "Volumen por aplicación y ecualizador de 10 bandas" },
   "tab-startup": { title: "Inicio de Windows", sub: "Aplicaciones que se abren al encender el equipo" },
@@ -634,7 +636,7 @@ async function updateTelemetry() {
     if (!res.ok) return;
     const d = await res.json();
     overlayTelemetry = d;
-    if (document.getElementById("tab-tuning")?.classList.contains("active")) renderOverlayPreview();
+    if (document.getElementById("tab-game")?.classList.contains("active")) renderOverlayPreview();
 
     // 0. DETECCIÓN DINÁMICA DE HARDWARE REAL
     if (d.system_specs) {

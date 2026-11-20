@@ -84,13 +84,17 @@
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4h2v4zm0-6h-2V7h2v4z"/></svg>
           <span>Diagnóstico</span>
         </button>
-        <button class="nav-item" data-tab="tab-cooling" title="Modo manual">
+        <button class="nav-item" data-tab="tab-cooling" title="Modo manual" hidden>
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>
           <span>Manual</span>
         </button>
         <button class="nav-item" data-tab="tab-tuning" title="CPU y energía">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
           <span>CPU</span>
+        </button>
+        <button class="nav-item" data-tab="tab-game" title="Juego: overlay, modo juego y mando">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+          <span>Juego</span>
         </button>
         <button class="nav-item" data-tab="tab-booster" title="Memoria RAM">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z"/></svg>
@@ -107,6 +111,10 @@
         <button class="nav-item" data-tab="tab-debloat" title="Limpieza de Windows">
           <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Limpieza</span>
+        </button>
+        <button class="nav-item" data-tab="tab-settings" title="Ajustes">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          <span>Ajustes</span>
         </button>
       </nav>
 
@@ -448,12 +456,6 @@
                       <strong><span id="ram-used-text">--</span> / <span id="ram-free-text">--</span></strong>
                       <span id="ram-free-summary" style="display:none;"></span>
                     </div>
-                    <div class="ac-kv-row ac-purge-row">
-                      <button class="ac-mini-action-btn highlight" id="btn-purge-mini" onclick="purgeMemory()">
-                        <span id="purge-mini-icon"><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg></span>
-                        <span id="purge-mini-text">Liberar RAM</span>
-                      </button>
-                    </div>
                   </div>
                 </div>
 
@@ -778,7 +780,6 @@
                   <option value="mode2">Perfil 2 · Máximo rendimiento</option>
                   <option value="mode3">Perfil 3 · Silencioso</option>
                 </select>
-                <button class="ac-me-dots-btn" onclick="triggerFan('max')" title="Poner los ventiladores al 100% ahora"><svg class="i" aria-hidden="true"><use href="#i-fan"/></svg><span>Ventiladores al 100%</span></button>
               </div>
             </div>
 
@@ -1034,7 +1035,11 @@
         <!-- PESTAÑA 4: CPU TUNING & ENERGÍA -->
         <section class="tab-view" id="tab-tuning">
           <div class="settings-stack">
-            
+            <!-- nota: los modos de inicio ya ajustan esto -->
+            <div class="glass-card tab-note">
+              <p>Los modos de <b>Inicio</b> (Silencioso, Equilibrado, Rendimiento) ya ajustan estas opciones. Úsalas solo si quieres afinar el procesador a mano.</p>
+            </div>
+
             <!-- SLIDER THROTTLE DE CPU -->
             <div class="glass-card setting-row">
               <div class="setting-info">
@@ -1083,59 +1088,12 @@
               </div>
             </div>
 
-            <!-- AUTO-INICIO CON WINDOWS & BANDEJA DEL SISTEMA -->
-            <div class="glass-card setting-row">
-              <div class="setting-info">
-                <h3>Auto-Inicio con Windows & Bandeja del Sistema</h3>
-                <p>Inicia VortexCore Hub en segundo plano minimizado en la bandeja del sistema (junto al reloj) al encender la laptop.</p>
-              </div>
-              <div class="setting-controls">
-                <button class="toggle-pill" id="btn-autostart" onclick="toggleAutostart()">Inicio automático: no</button>
-              </div>
-            </div>
+          </div>
+        </section>
 
-            <!-- modo juego automatico -->
-            <div class="glass-card setting-row">
-              <div class="setting-info">
-                <h3>Modo juego automático</h3>
-                <p>Al detectar un juego pasa a <b>Rendimiento</b> (CPU al máximo y ventiladores al 100 %). Al cerrarlo, espera 90 segundos y vuelve al modo que tenías. Si cambias el modo a mano durante la partida o usas el modo Manual, no lo toca.</p>
-                <div class="throttle-feedback" id="gm-status">Cargando…</div>
-              </div>
-              <div class="setting-controls">
-                <button class="ov-switch" id="btn-gamemode" role="switch" aria-checked="false" onclick="toggleGameMode()">
-                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
-                  <span class="ov-switch-label" id="btn-gamemode-label">Apagado</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- bateria del dualsense -->
-            <div class="glass-card setting-row">
-              <div class="setting-info">
-                <h3>Batería del mando PS5 (DualSense) por Bluetooth</h3>
-                <p>VortexCore activa el modo completo del mando para leer su batería, sin Steam. Los juegos con soporte nativo de DualSense y Steam funcionan normal; si algún juego antiguo no reconoce el mando, apaga esta opción y reconecta el mando.</p>
-              </div>
-              <div class="setting-controls">
-                <button class="ov-switch" id="btn-ds-battery" role="switch" aria-checked="false" onclick="toggleDsBattery()">
-                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
-                  <span class="ov-switch-label" id="btn-ds-battery-label">Apagado</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- actualizaciones -->
-            <div class="glass-card setting-row">
-              <div class="setting-info">
-                <h3>Actualizaciones</h3>
-                <p>VortexCore revisa GitHub al iniciar y cada 6 horas. Cuando sale una versión nueva te avisa con una notificación de Windows y un aviso arriba en la app.</p>
-                <div class="throttle-feedback">Versión instalada: <b id="upd-current">--</b> · <span id="upd-status">Aún no se revisa</span></div>
-              </div>
-              <div class="setting-controls">
-                <button class="clean-btn primary" id="btn-upd-install" onclick="installUpdate()" hidden>Actualizar ahora</button>
-                <button class="clean-btn" id="btn-upd-check" onclick="checkUpdates()">Buscar ahora</button>
-              </div>
-            </div>
-
+        <!-- pestana juego: overlay, modo juego y mando -->
+        <section class="tab-view" id="tab-game">
+          <div class="settings-stack">
             <!-- overlay en juego -->
             <div class="glass-card ov-card">
               <div class="ov-head">
@@ -1246,6 +1204,66 @@
               </div>
             </div>
 
+
+            <!-- modo juego automatico -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Modo juego automático</h3>
+                <p>Al detectar un juego pasa a <b>Rendimiento</b> (CPU al máximo y ventiladores al 100 %). Al cerrarlo, espera 90 segundos y vuelve al modo que tenías. Si cambias el modo a mano durante la partida o usas el modo Manual, no lo toca.</p>
+                <div class="throttle-feedback" id="gm-status">Cargando…</div>
+              </div>
+              <div class="setting-controls">
+                <button class="ov-switch" id="btn-gamemode" role="switch" aria-checked="false" onclick="toggleGameMode()">
+                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
+                  <span class="ov-switch-label" id="btn-gamemode-label">Apagado</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- bateria del dualsense -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Batería del mando PS5 (DualSense) por Bluetooth</h3>
+                <p>VortexCore activa el modo completo del mando para leer su batería, sin Steam. Los juegos con soporte nativo de DualSense y Steam funcionan normal; si algún juego antiguo no reconoce el mando, apaga esta opción y reconecta el mando.</p>
+              </div>
+              <div class="setting-controls">
+                <button class="ov-switch" id="btn-ds-battery" role="switch" aria-checked="false" onclick="toggleDsBattery()">
+                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
+                  <span class="ov-switch-label" id="btn-ds-battery-label">Apagado</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- pestana ajustes: actualizaciones e inicio con windows -->
+        <section class="tab-view" id="tab-settings">
+          <div class="settings-stack">
+            <!-- actualizaciones -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Actualizaciones</h3>
+                <p>VortexCore revisa GitHub al iniciar y cada 6 horas. Cuando sale una versión nueva te avisa con una notificación de Windows y un aviso arriba en la app.</p>
+                <div class="throttle-feedback">Versión instalada: <b id="upd-current">--</b> · <span id="upd-status">Aún no se revisa</span></div>
+              </div>
+              <div class="setting-controls">
+                <button class="clean-btn primary" id="btn-upd-install" onclick="installUpdate()" hidden>Actualizar ahora</button>
+                <button class="clean-btn" id="btn-upd-check" onclick="checkUpdates()">Buscar ahora</button>
+              </div>
+            </div>
+
+            <!-- AUTO-INICIO CON WINDOWS & BANDEJA DEL SISTEMA -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Auto-Inicio con Windows & Bandeja del Sistema</h3>
+                <p>Inicia VortexCore Hub en segundo plano minimizado en la bandeja del sistema (junto al reloj) al encender la laptop.</p>
+              </div>
+              <div class="setting-controls">
+                <button class="toggle-pill" id="btn-autostart" onclick="toggleAutostart()">Inicio automático: no</button>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -1291,16 +1309,6 @@
 
 
 
-            <!-- ESPECIFICACIONES DE GPU -->
-            <div class="glass-card gpu-info-panel">
-              <h3>Especificaciones de la GPU Dedicada</h3>
-              <div class="gpu-grid">
-                <div class="gg-col"><span>Modelo:</span> <strong id="gpu-spec-model">--</strong></div>
-                <div class="gg-col"><span>VRAM:</span> <strong id="gpu-spec-vram">--</strong></div>
-                <div class="gg-col"><span>Potencia Actual:</span> <strong id="gpu-pwr-summary">--</strong></div>
-                <div class="gg-col"><span>Bus Status:</span> <strong id="gpu-spec-bus">--</strong></div>
-              </div>
-            </div>
 
           </div>
         </section>
@@ -1358,19 +1366,6 @@
               </div>
             </div>
 
-            <!-- REPRODUCTOR DE PRUEBA EN VIVO CON FILTROS REALES WEB AUDIO API -->
-            <div class="glass-card audio-live-test-card">
-              <div class="altc-info">
-                <div class="altc-titles">
-                  <h3><svg class="i" aria-hidden="true"><use href="#i-headphones"/></svg> Prueba de sonido</h3>
-                  <small class="panel-subtitle">Genera un flujo de audio sintético en vivo en tus audífonos. Al mover cualquier slider o cambiar de preset, escucharás la alteración acústica instantánea en tiempo real.</small>
-                </div>
-                <div class="altc-controls">
-                  <button class="clean-btn primary" id="btn-audio-test" onclick="toggleAudioTest()">▶️ Reproducir Prueba en Vivo</button>
-                  <span class="test-audio-status" id="test-audio-status">En pausa</span>
-                </div>
-              </div>
-            </div>
 
             <!-- PRESETS RÁPIDOS DE ECUALIZACIÓN -->
             <div class="glass-card audio-presets-panel">
