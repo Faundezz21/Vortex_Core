@@ -3608,7 +3608,7 @@ async function applyManualModeConfig() {
 // INICIALIZACIÓN
 // -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  logConsole("VortexCore Hub v7.12.1 listo. Leyendo sensores...");
+  logConsole("VortexCore Hub v7.13.0 listo. Leyendo sensores...");
   initAllManualSliders();
   initManualFanCurve();
   loadManualPreset("mode1");

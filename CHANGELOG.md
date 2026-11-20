@@ -1,5 +1,17 @@
 # Changelog
 
+## 7.13.0
+
+### Modo juego automático
+- **Rendimiento al jugar:** al detectar un juego en primer plano, VortexCore pasa al modo Rendimiento (CPU al máximo y ventiladores al 100 %). Al cerrarlo espera 90 segundos y vuelve al modo anterior. Si el usuario cambia el modo a mano durante la partida o usa el modo Manual, no lo toca. Se activa desde la pestaña CPU.
+
+### Mando de PS5
+- **Batería del DualSense por Bluetooth sin Steam:** VortexCore activa el modo completo del mando para leer su batería y si está cargando, como hacen Steam y DS4Windows. Es una opción en la pestaña CPU, encendida por defecto; si un juego antiguo (DirectInput) no reconoce el mando, se apaga y se reconecta el mando.
+- Ya no se muestra una batería falsa cuando el mando envía solo los datos básicos.
+
+### Atajo del HUD
+- **Grabador más fácil:** muestra en vivo las teclas que se presionan, no se cancela con una tecla equivocada (avisa y sigue escuchando) y acepta teclas solas como F8, Insert, Inicio, Pausa o las del teclado numérico.
+
 ## 7.12.1
 
 ### Correcciones

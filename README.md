@@ -1,7 +1,7 @@
 # VortexCore Hub
 
 [![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
-[![Release](https://img.shields.io/badge/Release-v7.12.1-00a8b5?style=flat-square)](https://github.com/Faundezz21/Vortex_Core/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v7.13.0-00a8b5?style=flat-square)](https://github.com/Faundezz21/Vortex_Core/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-2ea043?style=flat-square)](LICENSE)
 
 Centro de control y telemetría de hardware para Windows 10/11, pensado como alternativa ligera a suites pesadas de fabricantes (*OMEN Gaming Hub*, *Armoury Crate*, *Lenovo Vantage*).
@@ -29,6 +29,7 @@ VortexCore Hub sigue dos reglas simples:
 
 - **Hub gaming (overlay dentro del juego):** HUD integrado al juego con FPS reales (PresentMon), 1% low, temperaturas, uso y consumo de CPU y GPU, VRAM, RAM, ventiladores, ping y batería. Aparece solo mientras juegas, cambia de tema según el juego (PUBG, Rocket League, CS2, Minecraft, Valorant y más), solo se colorea cuando algo está mal y se muestra u oculta con un atajo configurable.
 - **Red por app y ping al juego:** qué programas usan internet y a qué velocidad (ETW del kernel de Windows), y ping, variación y pérdida al servidor del juego, con medición aproximada cuando el servidor bloquea el ping.
+- **Modo juego automático y mando de PS5:** pasa a Rendimiento al jugar y vuelve al modo anterior al cerrar el juego; lee la batería del DualSense por Bluetooth sin Steam.
 - **Actualizaciones con un clic:** revisa los releases de GitHub, avisa en la bandeja y dentro de la app, y con **Actualizar ahora** descarga, verifica el SHA-256 e instala la versión nueva sola.
 - **Diagnóstico de ventiladores:** registro de lo que responde la BIOS e informe para guardar en el Escritorio o reportar en GitHub cuando un modelo no se lee.
 - **Inicio y telemetría en tiempo real:** frecuencia efectiva de CPU, uso por núcleo e hilo lógico, GPU NVIDIA (`nvidia-smi`), RAM física instalada y velocidad en MT/s, almacenamiento y radar de periféricos (batería Bluetooth y mandos XInput).
@@ -65,7 +66,7 @@ VortexCore Hub sigue dos reglas simples:
 Desde la página de **[Releases](https://github.com/Faundezz21/Vortex_Core/releases/latest)**:
 
 - **`Vortex-core-hub-Setup.exe`**: instalador oficial para Windows con accesos directos y desinstalador.
-- **`VortexCoreHub-v7.12.1-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
+- **`VortexCoreHub-v7.13.0-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
 
 > **SmartScreen:** al no contar con un certificado comercial de firma de código, Windows Defender SmartScreen puede mostrar un aviso la primera vez (*Más información → Ejecutar de todas formas*). Todo el código fuente y los hashes SHA-256 de cada release son públicos en este repositorio.
 
