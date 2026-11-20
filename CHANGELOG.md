@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.13.2
+
+### Actualizaciones
+- **Actualizar ahora ya no se queda pegado:** cuando VortexCore arrancaba con Windows, al cerrarse para actualizarse Windows también cerraba el instalador antes de empezar, y el aviso se quedaba en "Instalando la versión nueva…". Ahora el instalador se lanza aparte y sigue aunque la app se cierre; al terminar, VortexCore se vuelve a abrir sola.
+- Si tienes la 7.13.1 o anterior y el botón se queda pegado: cierra VortexCore desde la bandeja, ábrelo desde el menú Inicio y presiona Actualizar ahora.
+
 ## 7.13.1
 
 ### Interfaz
