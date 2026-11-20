@@ -291,6 +291,12 @@ def get_system_specs() -> dict:
             except Exception: pass
     except Exception:
         pass
+    reg_mfg, reg_model = str(mfg).strip(), str(model).strip()
+    # el firmware manda: el registro puede estar modificado para imitar otra marca
+    smb = hw_sensors.read_smbios_system()
+    if smb.get("manufacturer") and smb.get("product"):
+        mfg, model = smb["manufacturer"], smb["product"]
+        board = smb.get("board") or board
 
     mfg = str(mfg).strip()
     model = str(model).strip()
@@ -415,7 +421,10 @@ def get_system_specs() -> dict:
         "is_dell": is_dell,
         "is_acer": is_acer,
         "is_msi": is_msi,
-        "fans_supported": is_hp or is_acer or is_lenovo or is_asus or is_dell
+        "fans_supported": is_hp or is_acer or is_lenovo or is_asus or is_dell,
+        "registry_brand": f"{reg_mfg} {reg_model}".strip(),
+        # el registro de windows dice otra marca que el firmware (truco para usar apps de otra marca)
+        "brand_spoofed": bool(smb.get("product")) and reg_model.lower() not in ("", smb.get("product", "").lower()),
     }
 
 
@@ -1345,6 +1354,8 @@ class VortexCoreManager:
             "ventiladores_soportados": bool(specs.get("fans_supported")),
             "rpm_actuales": {"cpu": self.telemetry.get("fan1_rpm"), "gpu": self.telemetry.get("fan2_rpm")},
             "es_admin": is_admin(),
+            "registro_windows": specs.get("registry_brand"),
+            "marca_modificada_en_registro": bool(specs.get("brand_spoofed")),
         }
         script = None
         if specs.get("is_acer"):

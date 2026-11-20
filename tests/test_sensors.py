@@ -331,5 +331,46 @@ class FanLogTests(unittest.TestCase):
         self.assertLessEqual(len(url), 7500)
 
 
+def _smbios(structs):
+    table = b"".join(structs) + bytes([127, 4, 0, 0, 0, 0])
+    return bytes([0, 3, 2, 0]) + len(table).to_bytes(4, "little") + table
+
+
+def _struct(stype, fields, strings):
+    body = bytes([stype, 4 + len(fields), 0, 0]) + bytes(fields)
+    return body + b"".join(s.encode() + b"\x00" for s in strings) + b"\x00"
+
+
+class SmbiosTests(unittest.TestCase):
+    def test_reads_firmware_brand_not_registry(self):
+        raw = _smbios([
+            _struct(0, [1, 2], ["Insyde Corp.", "V2.09"]),
+            _struct(1, [1, 2, 0], ["Acer", "Nitro AN515-55"]),
+            _struct(2, [1, 2], ["CML", "Stonic_CMS"]),
+        ])
+        self.assertEqual(hw_sensors.parse_smbios_system(raw),
+                         {"manufacturer": "Acer", "product": "Nitro AN515-55", "board": "Stonic_CMS"})
+
+    def test_bad_or_empty_tables(self):
+        self.assertEqual(hw_sensors.parse_smbios_system(b""), {})
+        self.assertEqual(hw_sensors.parse_smbios_system(_smbios([])), {})
+
+
+class SpoofedBrandTests(unittest.TestCase):
+    def test_firmware_wins_over_spoofed_registry(self):
+        # registro modificado para parecer un samsung, como en el acer nitro reportado
+        orig = hw_sensors.read_smbios_system
+        hw_sensors.read_smbios_system = lambda: {"manufacturer": "Acer", "product": "Nitro AN515-55", "board": "Stonic_CMS"}
+        try:
+            specs = ve.get_system_specs()
+        finally:
+            hw_sensors.read_smbios_system = orig
+        self.assertEqual(specs["model"], "Nitro AN515-55")
+        self.assertTrue(specs["is_acer"])
+        self.assertTrue(specs["fans_supported"])
+        if specs["registry_brand"] and "nitro an515-55" not in specs["registry_brand"].lower():
+            self.assertTrue(specs["brand_spoofed"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

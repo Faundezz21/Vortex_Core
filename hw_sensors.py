@@ -623,6 +623,61 @@ def compute_battery_health(design_mwh, full_mwh, cycle_count=None, voltage_mv=No
     }
 
 
+# marca y modelo leidos de la tabla smbios del firmware: el registro se puede modificar
+# (por ejemplo para hacer pasar el equipo por un samsung y usar sus apps), el firmware no
+def parse_smbios_system(raw: bytes) -> dict:
+    out = {}
+    if len(raw) < 8:
+        return out
+    length = struct.unpack_from("<I", raw, 4)[0]
+    table = raw[8:8 + length]
+    pos = 0
+    while pos + 4 <= len(table):
+        stype, slen = table[pos], table[pos + 1]
+        if slen < 4 or pos + slen > len(table):
+            break
+        end = table.find(b"\x00\x00", pos + slen)
+        if end < 0:
+            break
+        strings = table[pos + slen:end].split(b"\x00")
+
+        def text(offset):
+            if offset >= slen:
+                return ""
+            idx = table[pos + offset]
+            if idx == 0 or idx > len(strings):
+                return ""
+            return strings[idx - 1].decode("latin-1", errors="replace").strip()
+
+        if stype == 1 and "manufacturer" not in out:
+            out["manufacturer"], out["product"] = text(4), text(5)
+        elif stype == 2 and "board" not in out:
+            out["board"] = text(5)
+        elif stype == 127:
+            break
+        pos = end + 2
+    return out
+
+
+def read_smbios_system() -> dict:
+    if not IS_WINDOWS:
+        return {}
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.GetSystemFirmwareTable.argtypes = [wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        k32.GetSystemFirmwareTable.restype = wintypes.UINT
+        sig = 0x52534D42  # 'rsmb'
+        size = k32.GetSystemFirmwareTable(sig, 0, None, 0)
+        if not size:
+            return {}
+        buf = ctypes.create_string_buffer(size)
+        if k32.GetSystemFirmwareTable(sig, 0, buf, size) != size:
+            return {}
+        return parse_smbios_system(buf.raw)
+    except Exception:
+        return {}
+
+
 def read_battery_health():
     """Lee capacidad de diseño, carga máxima actual y ciclos desde WMI (root\\wmi) y/o powercfg."""
     if not IS_WINDOWS:
