@@ -678,6 +678,146 @@ def read_smbios_system() -> dict:
         return {}
 
 
+# bateria del mando dualsense leyendo sus reportes hid sin enviarle nada:
+# por bluetooth solo trae bateria en el modo completo (reporte 0x31), que activan steam o los juegos
+DUALSENSE_PIDS = ("0ce6", "0df2")
+_ds_cache = {"at": 0.0, "value": None}
+
+
+def parse_dualsense_report(data: bytes, bluetooth: bool = False):
+    if not data:
+        return None
+    rid = data[0]
+    if rid == 0x31 and len(data) >= 55:
+        status = data[54]
+    elif rid == 0x01 and not bluetooth and len(data) == 64:
+        # por usb el reporte 0x01 es el completo; por bluetooth es el simple rellenado con ceros
+        status = data[53]
+    elif rid == 0x01:
+        return {"mode": "simple"}
+    else:
+        return None
+    level, state = status & 0x0F, status >> 4
+    if level > 10 or state not in (0, 1, 2):
+        return None
+    return {"mode": "full", "percent": 100 if state == 2 else min(100, level * 10 + 5),
+            "charging": state == 1, "full": state == 2}
+
+
+def _hid_interface_paths() -> list:
+    cfg = ctypes.WinDLL("cfgmgr32")
+    guid = (ctypes.c_ubyte * 16)(*bytes.fromhex("b2551e4d6ff1cf1188cb001111000030"))
+    size = wintypes.ULONG(0)
+    if cfg.CM_Get_Device_Interface_List_SizeW(ctypes.byref(size), guid, None, 0) != 0 or not size.value:
+        return []
+    buf = ctypes.create_unicode_buffer(size.value)
+    if cfg.CM_Get_Device_Interface_ListW(guid, None, buf, size.value, 0) != 0:
+        return []
+    return [p for p in ctypes.wstring_at(ctypes.addressof(buf), size.value).split("\x00") if p]
+
+
+def _read_hid_reports(path: str, count: int = 4, timeout_ms: int = 250) -> list:
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateFileW.restype = wintypes.HANDLE
+    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    k32.CreateEventW.restype = wintypes.HANDLE
+    k32.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p]
+    k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    k32.GetOverlappedResult.argtypes = [wintypes.HANDLE, ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), wintypes.BOOL]
+    k32.CancelIo.argtypes = [wintypes.HANDLE]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    class OVERLAPPED(ctypes.Structure):
+        _fields_ = [("Internal", ctypes.c_void_p), ("InternalHigh", ctypes.c_void_p),
+                    ("Offset", wintypes.DWORD), ("OffsetHigh", wintypes.DWORD), ("hEvent", wintypes.HANDLE)]
+
+    # solo lectura y compartido: no se le envia nada al mando ni se le quita a los juegos
+    h = k32.CreateFileW(path, 0x80000000, 0x3, None, 3, 0x40000000, None)
+    if not h or h == wintypes.HANDLE(-1).value:
+        return []
+    reports = []
+    try:
+        for _ in range(count):
+            ev = k32.CreateEventW(None, True, False, None)
+            ov = OVERLAPPED()
+            ov.hEvent = ev
+            buf = ctypes.create_string_buffer(128)
+            got = wintypes.DWORD(0)
+            try:
+                if not k32.ReadFile(h, buf, 128, None, ctypes.byref(ov)) and ctypes.get_last_error() != 997:
+                    break
+                if k32.WaitForSingleObject(ev, timeout_ms) != 0:
+                    k32.CancelIo(h)
+                    break
+                if k32.GetOverlappedResult(h, ctypes.byref(ov), ctypes.byref(got), False) and got.value:
+                    reports.append(buf.raw[:got.value])
+            finally:
+                k32.CloseHandle(ev)
+    finally:
+        k32.CloseHandle(h)
+    return reports
+
+
+# pide el reporte de calibracion (0x05): asi el dualsense pasa por bluetooth al modo completo con bateria,
+# igual que hacen steam y ds4windows; dura hasta que el mando se apaga o se reconecta
+def dualsense_request_full_mode(path: str) -> bool:
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateFileW.restype = wintypes.HANDLE
+        k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                    wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        hid = ctypes.WinDLL("hid")
+        hid.HidD_GetFeature.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.ULONG]
+        hid.HidD_GetFeature.restype = wintypes.BOOLEAN
+        h = k32.CreateFileW(path, 0xC0000000, 0x3, None, 3, 0, None)
+        if not h or h == wintypes.HANDLE(-1).value:
+            return False
+        try:
+            buf = ctypes.create_string_buffer(64)
+            buf[0] = b"\x05"
+            return bool(hid.HidD_GetFeature(h, buf, 64))
+        finally:
+            k32.CloseHandle(h)
+    except Exception:
+        return False
+
+
+def read_dualsense_battery(max_age: float = 20.0, force_full: bool = False):
+    """devuelve la bateria del primer dualsense conectado, {"mode": "simple"} si no la informa, o none."""
+    if not IS_WINDOWS:
+        return None
+    import time as _t
+    if _t.time() - _ds_cache["at"] < max_age:
+        return _ds_cache["value"]
+    result = None
+    try:
+        for path in _hid_interface_paths():
+            low = path.lower()
+            if "054c" not in low or not any(pid in low for pid in DUALSENSE_PIDS):
+                continue
+            bt = "{00001124" in low
+            reports = _read_hid_reports(path)
+            simple = reports and all((parse_dualsense_report(r, bluetooth=bt) or {}).get("mode") == "simple" for r in reports)
+            if bt and simple and force_full and dualsense_request_full_mode(path):
+                reports = _read_hid_reports(path)
+            for rep in reports:
+                parsed = parse_dualsense_report(rep, bluetooth=bt)
+                if parsed and parsed["mode"] == "full":
+                    parsed["bluetooth"] = "{00001124" in low
+                    result = parsed
+                    break
+                if parsed:
+                    result = result or dict(parsed, bluetooth="{00001124" in low)
+            if result and result.get("mode") == "full":
+                break
+    except Exception:
+        result = None
+    _ds_cache.update(at=_t.time(), value=result)
+    return result
+
+
 def read_battery_health():
     """Lee capacidad de diseño, carga máxima actual y ciclos desde WMI (root\\wmi) y/o powercfg."""
     if not IS_WINDOWS:

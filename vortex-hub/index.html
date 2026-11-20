@@ -1094,6 +1094,35 @@
               </div>
             </div>
 
+            <!-- modo juego automatico -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Modo juego automático</h3>
+                <p>Al detectar un juego pasa a <b>Rendimiento</b> (CPU al máximo y ventiladores al 100 %). Al cerrarlo, espera 90 segundos y vuelve al modo que tenías. Si cambias el modo a mano durante la partida o usas el modo Manual, no lo toca.</p>
+                <div class="throttle-feedback" id="gm-status">Cargando…</div>
+              </div>
+              <div class="setting-controls">
+                <button class="ov-switch" id="btn-gamemode" role="switch" aria-checked="false" onclick="toggleGameMode()">
+                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
+                  <span class="ov-switch-label" id="btn-gamemode-label">Apagado</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- bateria del dualsense -->
+            <div class="glass-card setting-row">
+              <div class="setting-info">
+                <h3>Batería del mando PS5 (DualSense) por Bluetooth</h3>
+                <p>VortexCore activa el modo completo del mando para leer su batería, sin Steam. Los juegos con soporte nativo de DualSense y Steam funcionan normal; si algún juego antiguo no reconoce el mando, apaga esta opción y reconecta el mando.</p>
+              </div>
+              <div class="setting-controls">
+                <button class="ov-switch" id="btn-ds-battery" role="switch" aria-checked="false" onclick="toggleDsBattery()">
+                  <span class="ov-switch-track"><span class="ov-switch-thumb"></span></span>
+                  <span class="ov-switch-label" id="btn-ds-battery-label">Apagado</span>
+                </button>
+              </div>
+            </div>
+
             <!-- actualizaciones -->
             <div class="glass-card setting-row">
               <div class="setting-info">
@@ -1166,7 +1195,7 @@
                         <span class="ov-hk-keys" id="overlay-hk-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F10</kbd></span>
                         <button class="clean-btn" id="btn-hk-record" onclick="recordHotkey()">Cambiar</button>
                       </div>
-                      <small class="ov-hk-hint" id="overlay-hk-hint">Usa Ctrl, Alt o Shift con otra tecla, o una tecla F sola</small>
+                      <small class="ov-hk-hint" id="overlay-hk-hint">Usa Ctrl, Alt o Shift con otra tecla, o una tecla sola como F8, Insert o Inicio</small>
                     </div>
                   </div>
                   <div class="ov-field">

@@ -25,6 +25,7 @@ import fps_monitor
 import game_overlay
 import net_monitor
 import updater
+import game_mode
 from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
 
 # Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
@@ -1057,6 +1058,35 @@ def fan_issue_url(report: dict) -> str:
     return url
 
 
+# opciones de perifericos guardadas junto al resto de la configuracion
+def peripherals_config_path() -> str:
+    return os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub", "perifericos.json")
+
+
+def load_peripherals_config() -> dict:
+    cfg = {"dualsense_battery": True}
+    try:
+        with open(peripherals_config_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "dualsense_battery" in data:
+            cfg["dualsense_battery"] = bool(data["dualsense_battery"])
+    except (OSError, ValueError):
+        pass
+    return cfg
+
+
+def save_peripherals_config(cfg: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(peripherals_config_path()), exist_ok=True)
+        with open(peripherals_config_path(), "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+    except OSError:
+        pass
+
+
+peripherals_cfg = load_peripherals_config()
+
+
 class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
@@ -1271,8 +1301,17 @@ class VortexCoreManager:
                 else:
                     dtype = "bluetooth"
                 pct = bt["battery"]
-                bt_battery[nl] = pct
                 status = f"{pct}% Batería • Bluetooth" if pct is not None else "Conectado (Bluetooth)"
+                # el dualsense no informa su bateria a windows: se lee de sus propios reportes
+                if pct is None and dtype == "gamepad" and ("dualsense" in nl or "wireless controller" in nl):
+                    ds = hw_sensors.read_dualsense_battery(force_full=peripherals_cfg["dualsense_battery"])
+                    if ds and ds.get("mode") == "full":
+                        pct = ds["percent"]
+                        status = f"{pct}% • " + ("Cargando" if ds["charging"] else "Carga completa" if ds["full"] else "Bluetooth")
+                    elif ds:
+                        status = ("Conectado (Bluetooth)" if peripherals_cfg["dualsense_battery"]
+                                  else "Conectado (Bluetooth) • activa la lectura de batería en CPU")
+                bt_battery[nl] = pct
                 add(name, dtype, pct, False, status)
         except Exception:
             pass
@@ -1922,6 +1961,14 @@ update_checker = updater.UpdateChecker(APP_VERSION)
 fps_mon = fps_monitor.FpsMonitor(fps_monitor.find_presentmon(get_app_dir()))
 # consumo de red por app y ping al servidor del juego (se enciende solo cuando se consulta)
 net_mon = net_monitor.NetMonitor(ping_func=hw_sensors.measure_ping_ms, prefer_game=fps_mon.recent_game)
+# modo juego: rendimiento automatico mientras hay un juego en primer plano
+gamemode = None if manager is None else game_mode.GameMode(
+    get_profile=lambda: manager.current_profile,
+    set_profile=manager.set_profile,
+    get_snapshot=fps_mon.snapshot,
+    is_manual=lambda: manager.current_profile == "MANUAL",
+    fps_start=lambda: fps_mon.start("gamemode"),
+    fps_stop=lambda: fps_mon.stop("gamemode"))
 overlay = None if manager is None else game_overlay.GameOverlay(
     lambda: manager.telemetry, fps_mon, get_net=net_mon.snapshot)
 
@@ -2074,6 +2121,10 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(overlay.get_config())
         elif path == "/api/update":
             self._send_json(update_checker.get_state())
+        elif path == "/api/gamemode":
+            self._send_json(gamemode.state())
+        elif path == "/api/peripherals":
+            self._send_json(peripherals_cfg)
         elif path == "/api/audio_mixer":
             self._send_json(get_audio_mixer_data())
         elif path == "/api/apo_status":
@@ -2283,6 +2334,13 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(run_disk_cleanup(targets))
         elif self.path == "/api/overlay":
             self._send_json(overlay.update_config(data))
+        elif self.path == "/api/gamemode":
+            self._send_json(gamemode.set_enabled(bool(data.get("enabled"))))
+        elif self.path == "/api/peripherals":
+            if "dualsense_battery" in data:
+                peripherals_cfg["dualsense_battery"] = bool(data["dualsense_battery"])
+                save_peripherals_config(peripherals_cfg)
+            self._send_json(peripherals_cfg)
         elif self.path == "/api/fans/report":
             action = str(data.get("action", "")).lower()
             report = manager.diagnose_fans()
@@ -2747,6 +2805,7 @@ if __name__ == "__main__":
     overlay.start()
     update_checker.notify = tray.notify
     update_checker.start()
+    gamemode.start()
 
     # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
     is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])

@@ -1724,38 +1724,64 @@ function recordHotkey() {
   const btn = document.getElementById("btn-hk-record");
   const keys = document.getElementById("overlay-hk-keys");
   const hint = document.getElementById("overlay-hk-hint");
+  const defaultHint = "Usa Ctrl, Alt o Shift con otra tecla, o una tecla sola como F8, Insert o Inicio";
   btn.textContent = "Cancelar";
   btn.onclick = () => finish(null);
-  keys.innerHTML = `<span class="ov-hk-listen">Presiona la combinación…</span>`;
   keys.classList.add("listening");
+  hint.textContent = "Mantén Ctrl, Alt o Shift y presiona otra tecla. Esc para cancelar.";
+  hint.classList.remove("warn");
   const modOnly = ["Control", "Shift", "Alt", "Meta", "AltGraph"];
-  function finish(hotkey, msg) {
+  // teclas que sirven solas (iguales a las que acepta el motor)
+  const soloKeys = new Set([0x13, 0x21, 0x22, 0x23, 0x24, 0x2D, 0x91, ...Array.from({ length: 16 }, (_, i) => 0x60 + i)]);
+  // vista en vivo de lo que se esta presionando
+  function preview(e) {
+    const parts = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Win");
+    keys.innerHTML = parts.length
+      ? parts.map(k => `<kbd>${k}</kbd>`).join("+") + `+<span class="ov-hk-listen">…</span>`
+      : `<span class="ov-hk-listen">Presiona la combinación…</span>`;
+  }
+  preview({});
+  function finish(hotkey) {
     document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("keyup", onKeyUp, true);
     hotkeyRecording = false;
     keys.classList.remove("listening");
     btn.textContent = "Cambiar";
     btn.onclick = recordHotkey;
-    if (msg) { hint.textContent = msg; hint.classList.add("warn"); }
-    else { hint.textContent = "Usa Ctrl, Alt o Shift con otra tecla, o una tecla F sola"; hint.classList.remove("warn"); }
+    hint.textContent = defaultHint;
+    hint.classList.remove("warn");
     if (hotkey) setOverlay({ hotkey }).then(() => {
       if (overlayCfg.hotkey_ok === false) { hint.textContent = "Otro programa ya usa ese atajo; prueba con otra combinación"; hint.classList.add("warn"); }
       else logConsole(`Atajo del overlay cambiado a ${overlayCfg.hotkey}.`);
     });
     else renderOverlayConfig();
   }
+  function warn(msg) {
+    // avisa sin cancelar: sigue escuchando hasta una combinacion valida
+    hint.textContent = msg;
+    hint.classList.add("warn");
+  }
+  function onKeyUp(e) {
+    if (modOnly.includes(e.key)) preview(e);
+  }
   function onKey(e) {
     e.preventDefault();
     e.stopPropagation();
     if (e.key === "Escape") return finish(null);
-    if (modOnly.includes(e.key)) return;
+    if (modOnly.includes(e.key)) return preview(e);
     const mods = (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.shiftKey ? 4 : 0) | (e.metaKey ? 8 : 0);
     const vk = e.keyCode;
     const isF = vk >= 0x70 && vk <= 0x87;
-    if (vk === 0x7B) return finish(null, "F12 la reserva Windows; elige otra tecla");
-    if (!mods && !isF) return finish(null, "Agrega Ctrl, Alt o Shift para no interferir con el juego");
+    if (vk === 0x7B) return warn("F12 la reserva Windows; elige otra tecla");
+    if (!mods && !isF && !soloKeys.has(vk)) return warn(`"${e.key.length === 1 ? e.key.toUpperCase() : e.key}" sola interfiere con el juego: mantén Ctrl, Alt o Shift y presiónala de nuevo`);
     finish({ mods, vk });
   }
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("keyup", onKeyUp, true);
 }
 
 function toggleOverlayItem(item) {
@@ -1810,6 +1836,75 @@ async function copyFanDiagnose() {
   } catch (e) {
     showToast({ icon: "alert", title: "No se pudo copiar", message: "Selecciona el texto y cópialo a mano.", type: "error" });
   }
+}
+
+// lectura de bateria del dualsense
+let peripheralsCfg = { dualsense_battery: true };
+
+function renderPeripheralsCfg(cfg) {
+  if (!cfg) return;
+  peripheralsCfg = cfg;
+  const btn = document.getElementById("btn-ds-battery");
+  if (!btn) return;
+  btn.classList.toggle("active", !!cfg.dualsense_battery);
+  btn.setAttribute("aria-checked", cfg.dualsense_battery ? "true" : "false");
+  document.getElementById("btn-ds-battery-label").textContent = cfg.dualsense_battery ? "Encendido" : "Apagado";
+}
+
+async function loadPeripheralsCfg() {
+  try {
+    const res = await fetch(`${API_BASE}/api/peripherals`);
+    if (res.ok) renderPeripheralsCfg(await res.json());
+  } catch (e) {}
+}
+
+async function toggleDsBattery() {
+  try {
+    const res = await fetch(`${API_BASE}/api/peripherals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dualsense_battery: !peripheralsCfg.dualsense_battery })
+    });
+    if (res.ok) renderPeripheralsCfg(await res.json());
+  } catch (e) {}
+}
+
+// modo juego automatico
+let gameModeState = { enabled: false, active: false };
+
+function renderGameMode(st) {
+  if (!st) return;
+  gameModeState = st;
+  const btn = document.getElementById("btn-gamemode");
+  if (!btn) return;
+  btn.classList.toggle("active", !!st.enabled);
+  btn.setAttribute("aria-checked", st.enabled ? "true" : "false");
+  document.getElementById("btn-gamemode-label").textContent = st.enabled ? "Encendido" : "Apagado";
+  const status = document.getElementById("gm-status");
+  if (!st.enabled) status.textContent = "Desactivado: el modo de energía no cambia al jugar.";
+  else if (st.active) status.innerHTML = `Activo con <b>${updEscape(st.game || "un juego")}</b> · al cerrarlo vuelve a tu modo anterior`;
+  else status.textContent = "Esperando un juego…";
+}
+
+async function loadGameMode() {
+  try {
+    const res = await fetch(`${API_BASE}/api/gamemode`);
+    if (res.ok) renderGameMode(await res.json());
+  } catch (e) {}
+}
+
+async function toggleGameMode() {
+  try {
+    const res = await fetch(`${API_BASE}/api/gamemode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: !gameModeState.enabled })
+    });
+    if (res.ok) {
+      renderGameMode(await res.json());
+      logConsole(gameModeState.enabled ? "Modo juego automático activado." : "Modo juego automático desactivado.");
+    }
+  } catch (e) {}
 }
 
 // aviso de nuevas versiones
@@ -3525,6 +3620,9 @@ window.addEventListener("DOMContentLoaded", () => {
   loadOverlayConfig();
   loadUpdateState();
   setInterval(loadUpdateState, 60000);
+  loadGameMode();
+  setInterval(loadGameMode, 5000);
+  loadPeripheralsCfg();
   setInterval(loadOverlayConfig, 5000);
   refreshTopProcesses();
   refreshAudioMixer();

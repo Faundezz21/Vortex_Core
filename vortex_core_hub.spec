@@ -69,6 +69,7 @@ a = Analysis(
         'game_overlay',
         'net_monitor',
         'updater',
+        'game_mode',
         'psutil',
         'pycaw',
         'pycaw.pycaw',

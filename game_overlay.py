@@ -69,10 +69,13 @@ def sanitize_hotkey(data):
         return None
     if vk in (0x10, 0x11, 0x12, 0x5B, 0x5C, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x1B, 0x7B):
         return None
-    is_f = 0x70 <= vk <= 0x87
-    if not mods and not is_f:
+    if not mods and not (0x70 <= vk <= 0x87 or vk in SOLO_KEYS):
         return None
     return {"mods": mods, "vk": vk}
+
+
+# teclas que sirven solas como atajo porque los juegos casi no las usan
+SOLO_KEYS = {0x13, 0x21, 0x22, 0x23, 0x24, 0x2D, 0x91} | set(range(0x60, 0x70))
 
 GAME_GRACE_S = 4
 HISTORY_LEN = 48

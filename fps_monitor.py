@@ -216,6 +216,7 @@ class FpsMonitor:
         self._last_seen = {}   # pid -> reloj local del ultimo frame
         self._proc = None
         self._wanted = False
+        self._owners = set()  # quienes lo usan: el hud y el modo juego
         self._last_start = 0.0
         self.error = None
         self.last_game = None  # (exe, instante) del ultimo juego con foco
@@ -228,11 +229,16 @@ class FpsMonitor:
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def start(self):
+    def start(self, owner: str = "overlay"):
+        self._owners.add(owner)
         self._wanted = True
         self._ensure_running()
 
-    def stop(self):
+    # solo se detiene cuando ya nadie lo necesita
+    def stop(self, owner: str = "overlay"):
+        self._owners.discard(owner)
+        if self._owners:
+            return
         self._wanted = False
         proc, self._proc = self._proc, None
         if proc is not None and proc.poll() is None:
