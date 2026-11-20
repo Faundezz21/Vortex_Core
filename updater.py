@@ -13,6 +13,7 @@ REPO = "Faundezz21/Vortex_Core"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 CHECK_EVERY_S = 6 * 3600
+RETRY_S = 30 * 60  # si falla se reintenta antes, por ejemplo cuando la ip compartida agoto el limite de la api
 FIRST_DELAY_S = 20
 USER_AGENT = "VortexCoreHub-Updater"
 
@@ -69,6 +70,53 @@ def parse_release(data: dict, current: str) -> dict:
     }
 
 
+DOWNLOAD_PREFIX = f"https://github.com/{REPO}/releases/download/"
+
+
+def _http_get(url: str, timeout: int = 8) -> tuple:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.geturl(), r.read().decode("utf-8", errors="replace")
+
+
+def changelog_section(text: str, version: str) -> str:
+    m = re.search(rf"^## {re.escape(version)}\s*$(.*?)(?=^## |\Z)", text or "", re.M | re.S)
+    return m.group(1).strip() if m else ""
+
+
+# arma los datos del release sin la api: la pagina publica no tiene el limite de 60 consultas por hora por ip
+def fallback_release(get=_http_get):
+    try:
+        final_url, _ = get(RELEASES_URL)
+    except urllib.error.HTTPError as e:
+        return ("none" if e.code == 404 else "error"), None
+    except Exception:
+        return "error", None
+    m = re.search(r"/releases/tag/([^/?#]+)", final_url or "")
+    if not m:
+        # sin releases github deja la url en la lista de releases
+        return "none", None
+    tag = m.group(1)
+    body = ""
+    try:
+        _, text = get(f"https://raw.githubusercontent.com/{REPO}/{tag}/CHANGELOG.md")
+        section = changelog_section(text, tag.lstrip("vV"))
+        if section:
+            body = "## Novedades\n" + section
+    except Exception:
+        pass
+    base = f"{DOWNLOAD_PREFIX}{tag}/"
+    return "ok", {
+        "tag_name": tag,
+        "html_url": final_url,
+        "body": body,
+        "assets": [
+            {"name": "Vortex-core-hub-Setup.exe", "browser_download_url": base + "Vortex-core-hub-Setup.exe"},
+            {"name": "checksums-sha256.txt", "browser_download_url": base + "checksums-sha256.txt"},
+        ],
+    }
+
+
 def fetch_latest(timeout: int = 8) -> tuple:
     req = urllib.request.Request(API_URL, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "application/vnd.github+json"})
@@ -76,12 +124,14 @@ def fetch_latest(timeout: int = 8) -> tuple:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return "ok", json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        return ("none" if e.code == 404 else "error"), None
+        if e.code == 404:
+            return "none", None
     except Exception:
-        return "error", None
+        pass
+    # limite de la api agotado, proxy o red que bloquea la api: se usa la pagina publica
+    return fallback_release()
 
 
-DOWNLOAD_PREFIX = f"https://github.com/{REPO}/releases/download/"
 SETUP_NAME = "Vortex-core-hub-Setup.exe"
 
 
@@ -159,8 +209,8 @@ class UpdateChecker:
     def _loop(self):
         time.sleep(FIRST_DELAY_S)
         while True:
-            self.check()
-            time.sleep(CHECK_EVERY_S)
+            st = self.check()
+            time.sleep(RETRY_S if st.get("status") == "error" else CHECK_EVERY_S)
 
     def check(self) -> dict:
         status, data = self.fetch()

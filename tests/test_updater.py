@@ -163,5 +163,35 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(c.start_install(lambda p: None)["install"]["phase"], "error")
 
 
+class FallbackTests(unittest.TestCase):
+    CHANGELOG = NL.join(["# Changelog", "", "## 7.14.0", "", "### Juego", "- **Modo juego** nuevo", "- Ping estable", "",
+                         "## 7.13.0", "- viejo"])
+
+    def fake_get(self, url):
+        if url == updater.RELEASES_URL:
+            return "https://github.com/Faundezz21/Vortex_Core/releases/tag/v7.14.0", "<html>"
+        if url.endswith("/v7.14.0/CHANGELOG.md"):
+            return url, self.CHANGELOG
+        raise AssertionError(url)
+
+    def test_builds_release_from_public_page(self):
+        st, data = updater.fallback_release(self.fake_get)
+        self.assertEqual(st, "ok")
+        rel = updater.parse_release(data, "7.13.0")
+        self.assertTrue(rel["update_available"])
+        self.assertEqual(rel["latest"], "7.14.0")
+        self.assertTrue(rel["setup_url"].startswith(updater.DOWNLOAD_PREFIX + "v7.14.0/"))
+        self.assertTrue(rel["checksums_url"].endswith("/v7.14.0/checksums-sha256.txt"))
+        self.assertEqual(rel["notes"], ["Modo juego nuevo", "Ping estable"])
+
+    def test_no_releases_and_network_errors(self):
+        none = lambda url: ("https://github.com/Faundezz21/Vortex_Core/releases", "")
+        self.assertEqual(updater.fallback_release(none), ("none", None))
+
+        def boom(url):
+            raise OSError("sin red")
+        self.assertEqual(updater.fallback_release(boom), ("error", None))
+
+
 if __name__ == "__main__":
     unittest.main()
