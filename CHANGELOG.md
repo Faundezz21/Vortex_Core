@@ -1,5 +1,15 @@
 # Changelog
 
+## 7.13.1
+
+### Interfaz
+- **Pestañas nuevas Juego y Ajustes:** Juego reúne el overlay, el modo juego automático y la batería del DualSense; Ajustes reúne las actualizaciones y el inicio con Windows. La pestaña CPU queda solo con los ajustes finos del procesador.
+- El modo Manual sale del menú lateral y se abre desde Inicio (botón Abrir modo manual o la tarjeta Manual).
+- Se quitaron botones repetidos: Liberar RAM de la tarjeta Memoria, un botón extra de ventiladores en el modo Manual, las especificaciones de GPU de la pestaña RAM y la prueba de sonido sintética.
+
+### Actualizaciones
+- **Detección más confiable:** si la API de GitHub está limitada (pasa en redes donde muchos comparten la misma IP, como datos móviles o universidades), la app consulta la página pública del release y lee las novedades del CHANGELOG. Si todo falla, reintenta en 30 minutos en vez de 6 horas.
+
 ## 7.13.0
 
 ### Modo juego automático

@@ -1,7 +1,7 @@
 # VortexCore Hub
 
 [![Platform](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=flat-square&logo=windows)](https://www.microsoft.com/windows)
-[![Release](https://img.shields.io/badge/Release-v7.13.0-00a8b5?style=flat-square)](https://github.com/Faundezz21/Vortex_Core/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v7.13.1-00a8b5?style=flat-square)](https://github.com/Faundezz21/Vortex_Core/releases/latest)
 [![License](https://img.shields.io/badge/License-MIT-2ea043?style=flat-square)](LICENSE)
 
 Centro de control y telemetría de hardware para Windows 10/11, pensado como alternativa ligera a suites pesadas de fabricantes (*OMEN Gaming Hub*, *Armoury Crate*, *Lenovo Vantage*).
@@ -66,7 +66,7 @@ VortexCore Hub sigue dos reglas simples:
 Desde la página de **[Releases](https://github.com/Faundezz21/Vortex_Core/releases/latest)**:
 
 - **`Vortex-core-hub-Setup.exe`**: instalador oficial para Windows con accesos directos y desinstalador.
-- **`VortexCoreHub-v7.13.0-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
+- **`VortexCoreHub-v7.13.1-Portable.zip`**: versión portátil lista para descomprimir y ejecutar `VortexCoreHub.exe`.
 
 > **SmartScreen:** al no contar con un certificado comercial de firma de código, Windows Defender SmartScreen puede mostrar un aviso la primera vez (*Más información → Ejecutar de todas formas*). Todo el código fuente y los hashes SHA-256 de cada release son públicos en este repositorio.
 
