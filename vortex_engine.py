@@ -2707,9 +2707,17 @@ def launch_update_installer(setup_path: str):
         f"Start-Process -FilePath '{q(setup_path)}' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Verb RunAs -Wait; "
         f"Start-Process -FilePath '{q(app_exe)}' -WorkingDirectory '{q(os.path.dirname(app_exe))}'"
     )
+    cmd = ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps]
     flags = 0x00000008 | 0x00000200 | CREATE_NO_WINDOW  # detached, nuevo grupo y sin ventana
-    subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
-                     creationflags=flags, close_fds=True)
+    try:
+        # sale del job de la tarea programada para no morir cuando la app se cierre
+        subprocess.Popen(cmd, creationflags=flags | 0x01000000, close_fds=True)
+    except OSError:
+        # si el job no permite salir, wmi crea el proceso fuera de el
+        line = subprocess.list2cmdline(cmd).replace("'", "''")
+        subprocess.run(["powershell", "-NoProfile", "-Command",
+                        f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine='{line}'}} | % {{ if ($_.ReturnValue) {{ exit 1 }} }}"],
+                       creationflags=CREATE_NO_WINDOW, capture_output=True, timeout=30, check=True)
     threading.Timer(1.5, lambda: os._exit(0)).start()
 
 
