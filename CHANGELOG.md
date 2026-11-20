@@ -1,5 +1,19 @@
 # Changelog
 
+## 7.12.0
+
+### Actualizaciones
+- **Botón Actualizar ahora:** cuando hay una versión nueva, la app descarga el instalador desde los releases de GitHub, verifica su SHA-256 contra `checksums-sha256.txt` y lo instala en silencio. Después VortexCore se vuelve a abrir sola, conservando la configuración. Si el archivo no coincide con el publicado, no instala nada.
+- Desde esta versión, las siguientes se pueden instalar con ese botón. Si vienes de la 7.11.0 o anterior, esta se instala a mano una sola vez.
+
+### Ventiladores
+- **Acer Nitro y Predator:** la lectura de RPM y temperatura prueba los dos formatos de consulta que usan las BIOS de Acer, para cubrir modelos como el Nitro 5 AN515-55 que no respondían.
+- **Registro de ventiladores:** la app anota lo que responde la BIOS de los ventiladores mientras se usa, solo cuando cambia o falla.
+- **Informe de diagnóstico:** en la pestaña Diagnóstico, si los ventiladores no se leen, se puede generar un informe con el modelo, la BIOS, las clases WMI disponibles y el registro, y guardarlo en el Escritorio o reportarlo en GitHub con un clic. No incluye datos personales y nada se envía sin que el usuario lo publique.
+
+### Otros
+- El workflow de releases usa acciones con Node.js 24.
+
 ## 7.11.0
 
 ### Hub gaming: overlay dentro del juego
