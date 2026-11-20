@@ -1249,6 +1249,32 @@ class VortexCoreManager:
 
         return devs
 
+    # informe de ventiladores para ajustar el soporte de modelos que no se leen
+    def diagnose_fans(self) -> dict:
+        specs = self.system_specs or {}
+        report = {
+            "version": APP_VERSION,
+            "modelo": specs.get("model"),
+            "marca_detectada": specs.get("manufacturer"),
+            "ventiladores_soportados": bool(specs.get("fans_supported")),
+            "rpm_actuales": {"cpu": self.telemetry.get("fan1_rpm"), "gpu": self.telemetry.get("fan2_rpm")},
+            "es_admin": is_admin(),
+        }
+        script = None
+        if specs.get("is_acer"):
+            script = self.acer_fan_script
+            report["acer_wmi_activo"] = self._acer_wmi_ok
+        elif specs.get("is_hp"):
+            script = self.fan_script
+        if script:
+            mode = "diag" if script == self.acer_fan_script else "query"
+            ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Mode", mode])
+            try:
+                report["bios"] = json.loads(out)
+            except ValueError:
+                report["bios"] = out[-2000:]
+        return report
+
     def _run_cmd(self, args: list[str]) -> tuple[bool, str]:
         try:
             res = subprocess.run(
@@ -1932,6 +1958,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(manager.system_specs)
         elif path == "/api/hardware_diagnose":
             self._send_json(diagnose_hardware_health(manager))
+        elif path == "/api/fans/diagnose":
+            self._send_json(manager.diagnose_fans())
         elif path == "/api/startup/apps":
             self._send_json({"apps": get_startup_apps()})
         elif path == "/api/debloat/apps":
@@ -2157,6 +2185,11 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 self._send_json(update_checker.check())
             elif action == "dismiss":
                 self._send_json(update_checker.dismiss())
+            elif action == "install":
+                if not getattr(sys, "frozen", False):
+                    self._send_json({"status": "error", "message": "La actualización automática solo funciona en la versión instalada."}, code=400)
+                else:
+                    self._send_json(update_checker.start_install(launch_update_installer))
             elif action == "open":
                 # solo abre paginas del repositorio oficial en el navegador
                 st = update_checker.get_state()
@@ -2480,6 +2513,21 @@ def launch_native_window():
                 break
 
     threading.Thread(target=_apply_icon_when_ready, daemon=True).start()
+
+
+# ejecuta el instalador verificado en un proceso aparte y cierra la app para que pueda reemplazarse
+def launch_update_installer(setup_path: str):
+    q = lambda v: str(v).replace("'", "''")
+    app_exe = sys.executable
+    ps = (
+        f"Wait-Process -Id {os.getpid()} -Timeout 30 -ErrorAction SilentlyContinue; "
+        f"Start-Process -FilePath '{q(setup_path)}' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Verb RunAs -Wait; "
+        f"Start-Process -FilePath '{q(app_exe)}' -WorkingDirectory '{q(os.path.dirname(app_exe))}'"
+    )
+    flags = 0x00000008 | 0x00000200 | CREATE_NO_WINDOW  # detached, nuevo grupo y sin ventana
+    subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                     creationflags=flags, close_fds=True)
+    threading.Timer(1.5, lambda: os._exit(0)).start()
 
 
 def launch_or_focus_window():

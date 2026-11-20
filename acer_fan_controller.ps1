@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("max", "auto", "cool", "manual", "query")]
+    [ValidateSet("max", "auto", "cool", "manual", "query", "diag")]
     [string]$Mode = "max",
     [int]$CpuPct = 100,
     [int]$GpuPct = 100
@@ -50,6 +50,55 @@ function Invoke-AcerWmiMethod {
     }
 }
 
+# lee un sensor probando el formato nuevo (0x02, nitro y predator recientes) y el antiguo (0x01)
+function Read-AcerSensor {
+    param([hashtable]$Target, [int]$SensorId, [int]$Max)
+    foreach ($cmd in 0x02, 0x01) {
+        try {
+            $raw = Invoke-AcerWmiMethod -Target $Target -MethodName "GetGamingSysInfo" -ArgValue ([uint32](($SensorId -shl 8) -bor $cmd))
+            if (($raw -band 0xFF) -eq 0) {
+                $val = [int](($raw -shr 8) -band 0xFFFF)
+                if ($val -gt 0 -and $val -le $Max) { return $val }
+            }
+        } catch {}
+    }
+    return 0
+}
+
+if ($Mode.ToLower() -eq "diag") {
+    # informe para ajustar el soporte de modelos que no responden
+    $info = [ordered]@{}
+    try {
+        $cs = Get-CimInstance Win32_ComputerSystem
+        $info["modelo"] = "$($cs.Manufacturer) $($cs.Model)"
+        $info["bios"] = (Get-CimInstance Win32_BIOS).SMBIOSBIOSVersion
+    } catch {}
+    try {
+        $info["clases_wmi"] = @(Get-CimClass -Namespace "root\wmi" -ErrorAction Stop | Where-Object { $_.CimClassName -match '^Acer|Gaming|Predator|Nitro' } | ForEach-Object { $_.CimClassName })
+    } catch { $info["clases_wmi"] = "error: $($_.Exception.Message)" }
+    $t = Get-AcerGamingInstance
+    $info["acer_gaming_function"] = [bool]$t.Instance
+    if ($t.Instance) {
+        try { $info["metodos"] = @((Get-CimClass -Namespace "root\wmi" -ClassName "AcerGamingFunction").CimClassMethods | ForEach-Object { $_.Name }) } catch {}
+        $raw = [ordered]@{}
+        foreach ($inp in 0x0101, 0x0102, 0x0201, 0x0202, 0x0601, 0x0602, 0x0A01, 0x0A02) {
+            $key = "0x{0:X4}" -f $inp
+            try { $raw[$key] = "0x{0:X}" -f (Invoke-AcerWmiMethod -Target $t -MethodName "GetGamingSysInfo" -ArgValue ([uint32]$inp)) }
+            catch { $raw[$key] = "error: $($_.Exception.Message)" }
+        }
+        $info["GetGamingSysInfo"] = $raw
+        foreach ($m in "GetGamingFanBehavior", "GetGamingFanSpeed") {
+            foreach ($inp in 0x01, 0x04) {
+                $key = "{0}(0x{1:X2})" -f $m, $inp
+                try { $info[$key] = "0x{0:X}" -f (Invoke-AcerWmiMethod -Target $t -MethodName $m -ArgValue ([uint32]$inp)) }
+                catch { $info[$key] = "error: $($_.Exception.Message)" }
+            }
+        }
+    }
+    $info | ConvertTo-Json -Depth 4
+    exit 0
+}
+
 try {
     $target = Get-AcerGamingInstance
     if (-not $target.Instance) {
@@ -86,30 +135,10 @@ try {
             Write-Output "OK: ACER_FAN_MANUAL CPU=$c GPU=$g"
         }
         "query" {
-            $cpuTemp = 0
-            $rpm1 = 0
-            $rpm2 = 0
-            try {
-                $tRaw = Invoke-AcerWmiMethod -Target $target -MethodName "GetGamingSysInfo" -ArgValue ([uint32]0x0101)
-                if (($tRaw -band 0xFF) -eq 0) {
-                    $tVal = [int](($tRaw -shr 8) -band 0xFFFF)
-                    if ($tVal -gt 0 -and $tVal -le 115) { $cpuTemp = $tVal }
-                }
-            } catch {}
-            try {
-                $f1Raw = Invoke-AcerWmiMethod -Target $target -MethodName "GetGamingSysInfo" -ArgValue ([uint32]0x0201)
-                if (($f1Raw -band 0xFF) -eq 0) {
-                    $f1Val = [int](($f1Raw -shr 8) -band 0xFFFF)
-                    if ($f1Val -ge 0 -and $f1Val -le 12000) { $rpm1 = $f1Val }
-                }
-            } catch {}
-            try {
-                $f2Raw = Invoke-AcerWmiMethod -Target $target -MethodName "GetGamingSysInfo" -ArgValue ([uint32]0x0601)
-                if (($f2Raw -band 0xFF) -eq 0) {
-                    $f2Val = [int](($f2Raw -shr 8) -band 0xFFFF)
-                    if ($f2Val -ge 0 -and $f2Val -le 12000) { $rpm2 = $f2Val }
-                }
-            } catch {}
+            # sensores 0x01 temperatura cpu, 0x02 ventilador cpu, 0x06 ventilador gpu
+            $cpuTemp = Read-AcerSensor -Target $target -SensorId 0x01 -Max 115
+            $rpm1 = Read-AcerSensor -Target $target -SensorId 0x02 -Max 12000
+            $rpm2 = Read-AcerSensor -Target $target -SensorId 0x06 -Max 12000
             Write-Output "CPU_TEMP=$cpuTemp|FAN1_RPM=$rpm1|FAN2_RPM=$rpm2"
         }
     }

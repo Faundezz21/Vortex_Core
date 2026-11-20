@@ -1764,6 +1764,37 @@ function toggleOverlayItem(item) {
   setOverlay({ items: ["fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "sys"].filter(i => items.has(i)) });
 }
 
+// informe de ventiladores para equipos sin soporte
+async function runFanDiagnose() {
+  const btn = document.getElementById("btn-fan-diag");
+  const out = document.getElementById("fan-diag-out");
+  btn.disabled = true;
+  btn.textContent = "Generando…";
+  try {
+    const res = await fetch(`${API_BASE}/api/fans/diagnose`);
+    const data = await res.json();
+    out.textContent = JSON.stringify(data, null, 2);
+    out.hidden = false;
+    document.getElementById("btn-fan-diag-copy").disabled = false;
+  } catch (e) {
+    out.textContent = `No se pudo generar el informe: ${e.message}`;
+    out.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generar informe";
+  }
+}
+
+async function copyFanDiagnose() {
+  const text = document.getElementById("fan-diag-out").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast({ icon: "check-circle", title: "Informe copiado", message: "Pégalo en un mensaje o en un issue de GitHub.", type: "success" });
+  } catch (e) {
+    showToast({ icon: "alert", title: "No se pudo copiar", message: "Selecciona el texto y cópialo a mano.", type: "error" });
+  }
+}
+
 // aviso de nuevas versiones
 let updateState = null;
 
@@ -1793,13 +1824,24 @@ function renderUpdateState(st) {
   }[st.status] || "";
   const status = document.getElementById("upd-status");
   if (status) status.textContent = [msg, updAgo(st.checked_at)].filter(Boolean).join(" · ");
+  const inst = st.install || { phase: "idle" };
+  const busy = ["downloading", "verifying", "installing"].includes(inst.phase);
+  const instBtn = document.getElementById("btn-upd-install");
+  if (instBtn) { instBtn.hidden = st.status !== "update"; instBtn.disabled = busy; }
   const banner = document.getElementById("update-banner");
   if (!banner) return;
-  const show = st.status === "update" && !st.dismissed;
+  // durante la instalacion el aviso se muestra aunque la version estuviera omitida
+  const show = (st.status === "update" && !st.dismissed) || busy || inst.phase === "error";
+  const prog = document.getElementById("ub-progress");
+  prog.hidden = inst.phase === "idle";
+  banner.classList.toggle("is-error", inst.phase === "error");
+  document.getElementById("ub-bar-fill").style.width = `${inst.phase === "error" ? 0 : (inst.progress || 0)}%`;
+  document.getElementById("ub-progress-text").textContent = inst.message || "";
+  document.getElementById("ub-actions").hidden = busy;
   banner.hidden = !show;
   if (show) {
     document.getElementById("ub-title").textContent = `Nueva versión ${st.latest} disponible`;
-    document.getElementById("ub-sub").textContent = `Tienes la ${st.current}. Descarga el instalador desde GitHub y ejecútalo; tu configuración se mantiene.`;
+    document.getElementById("ub-sub").textContent = `Tienes la ${st.current}. Se descarga desde GitHub, se verifica y se instala sola; tu configuración se mantiene.`;
     document.getElementById("ub-notes").innerHTML = (st.notes || []).slice(0, 4).map(n => `<li>${updEscape(n)}</li>`).join("");
   }
 }
@@ -1837,6 +1879,41 @@ async function checkUpdates() {
   } catch (e) {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Buscar ahora"; }
+  }
+}
+
+let updatePoll = null;
+
+// descarga, verifica e instala la version nueva desde la app
+async function installUpdate() {
+  try {
+    const res = await fetch(`${API_BASE}/api/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "install" })
+    });
+    const st = await res.json();
+    if (!res.ok) {
+      showToast({ icon: "alert", title: "Actualización", message: st.message || "No se pudo iniciar la actualización.", type: "error" });
+      return;
+    }
+    renderUpdateState(st);
+    clearInterval(updatePoll);
+    updatePoll = setInterval(async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/update`);
+        const s = await r.json();
+        renderUpdateState(s);
+        if (!["downloading", "verifying", "installing"].includes((s.install || {}).phase)) clearInterval(updatePoll);
+      } catch (e) {
+        // la app se cerro para instalar: se reabrira sola con la version nueva
+        clearInterval(updatePoll);
+        document.getElementById("ub-progress-text").textContent = "Instalando la versión nueva… VortexCore se abrirá sola en unos segundos.";
+        document.getElementById("ub-bar-fill").style.width = "100%";
+      }
+    }, 1000);
+  } catch (e) {
+    showToast({ icon: "alert", title: "Actualización", message: "No se pudo iniciar la actualización.", type: "error" });
   }
 }
 

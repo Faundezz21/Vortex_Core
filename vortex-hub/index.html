@@ -159,10 +159,15 @@
           <b id="ub-title">Nueva versión disponible</b>
           <span id="ub-sub">Tienes la versión actual</span>
           <ul class="ub-notes" id="ub-notes"></ul>
+          <div class="ub-progress" id="ub-progress" hidden>
+            <div class="ub-bar"><i id="ub-bar-fill"></i></div>
+            <span id="ub-progress-text">Descargando…</span>
+          </div>
         </div>
-        <div class="ub-actions">
-          <button class="clean-btn primary" onclick="openUpdate()">Ver y descargar</button>
-          <button class="clean-btn" onclick="dismissUpdate()">Omitir esta versión</button>
+        <div class="ub-actions" id="ub-actions">
+          <button class="clean-btn primary" id="btn-update-now" onclick="installUpdate()">Actualizar ahora</button>
+          <button class="clean-btn" onclick="openUpdate()">Ver novedades</button>
+          <button class="clean-btn" onclick="dismissUpdate()">Omitir</button>
         </div>
       </div>
 
@@ -728,6 +733,21 @@
               </div>
             </div>
 
+            <!-- diagnostico de ventiladores para equipos que no se leen -->
+            <div class="glass-card fan-diag-card">
+              <div class="fan-diag-head">
+                <div>
+                  <h3>¿Los ventiladores no se leen?</h3>
+                  <p>Genera un informe con lo que responde la BIOS de tu equipo y envíalo al desarrollador para agregar soporte a tu modelo. No incluye datos personales.</p>
+                </div>
+                <div class="fan-diag-actions">
+                  <button class="clean-btn primary" id="btn-fan-diag" onclick="runFanDiagnose()">Generar informe</button>
+                  <button class="clean-btn" id="btn-fan-diag-copy" onclick="copyFanDiagnose()" disabled>Copiar</button>
+                </div>
+              </div>
+              <pre class="fan-diag-out" id="fan-diag-out" hidden></pre>
+            </div>
+
             <!-- RECOMENDACIONES (solo tras analizar, con datos reales) -->
             <div class="glass-card advice-box">
               <h3>Recomendaciones</h3>
@@ -1080,6 +1100,7 @@
                 <div class="throttle-feedback">Versión instalada: <b id="upd-current">--</b> · <span id="upd-status">Aún no se revisa</span></div>
               </div>
               <div class="setting-controls">
+                <button class="clean-btn primary" id="btn-upd-install" onclick="installUpdate()" hidden>Actualizar ahora</button>
                 <button class="clean-btn" id="btn-upd-check" onclick="checkUpdates()">Buscar ahora</button>
               </div>
             </div>

@@ -86,5 +86,82 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(self.notes, [])
 
 
+NL = chr(10)
+
+
+class InstallTests(unittest.TestCase):
+    BASE = "https://github.com/Faundezz21/Vortex_Core/releases/download/v7.12.0/"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._orig = (updater.state_path, updater._download)
+        updater.state_path = lambda: os.path.join(self.tmp.name, "updates.json")
+        self.payload = b"instalador de prueba"
+        self.sums = updater.hashlib.sha256(self.payload).hexdigest().upper() + "  Vortex-core-hub-Setup.exe" + NL
+
+        def fake_download(url, dest, progress=None, timeout=30):
+            data = self.payload if url.endswith(".exe") else self.sums.encode()
+            with open(dest, "wb") as f:
+                f.write(data)
+            if progress:
+                progress(len(data), len(data))
+        updater._download = fake_download
+
+    def tearDown(self):
+        updater.state_path, updater._download = self._orig
+        self.tmp.cleanup()
+
+    def checker(self, setup=None, sums=None):
+        rel = dict(RELEASE, tag_name="v7.12.0", assets=[
+            {"name": "Vortex-core-hub-Setup.exe", "browser_download_url": setup or self.BASE + "Vortex-core-hub-Setup.exe"},
+            {"name": "checksums-sha256.txt", "browser_download_url": sums or self.BASE + "checksums-sha256.txt"},
+        ])
+        c = updater.UpdateChecker("7.11.0", fetch=lambda: ("ok", rel))
+        c.check()
+        return c
+
+    def run_install(self, c):
+        ready = []
+        c.start_install(ready.append)
+        for _ in range(200):
+            if not c._installing:
+                break
+            updater.time.sleep(0.01)
+        return ready
+
+    def test_parse_checksums(self):
+        text = "ABC  otro.zip" + NL + "A" * 64 + "  Vortex-core-hub-Setup.exe" + NL
+        self.assertEqual(updater.parse_checksums(text, "Vortex-core-hub-Setup.exe"), "A" * 64)
+        self.assertIsNone(updater.parse_checksums("hola", "Vortex-core-hub-Setup.exe"))
+
+    def test_installs_when_hash_matches(self):
+        c = self.checker()
+        ready = self.run_install(c)
+        self.assertEqual(len(ready), 1)
+        self.assertTrue(os.path.isfile(ready[0]))
+        self.assertEqual(c.get_state()["install"]["phase"], "installing")
+
+    def test_rejects_tampered_installer(self):
+        c = self.checker()
+        self.payload = b"alterado"
+        self.sums = "0" * 64 + "  Vortex-core-hub-Setup.exe" + NL
+        ready = self.run_install(c)
+        self.assertEqual(ready, [])
+        self.assertEqual(c.get_state()["install"]["phase"], "error")
+        self.assertEqual(os.listdir(updater.updates_dir()), [])
+
+    def test_rejects_foreign_urls(self):
+        c = self.checker(setup="https://evil.example/Vortex-core-hub-Setup.exe")
+        ready = []
+        st = c.start_install(ready.append)
+        self.assertEqual(st["install"]["phase"], "error")
+        self.assertEqual(ready, [])
+
+    def test_no_install_without_update(self):
+        c = updater.UpdateChecker("7.12.0", fetch=lambda: ("ok", dict(RELEASE, tag_name="v7.12.0")))
+        c.check()
+        self.assertEqual(c.start_install(lambda p: None)["install"]["phase"], "error")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1718,6 +1718,93 @@ body {
   .ub-actions { width: 100%; }
 }
 
+/* diagnostico de ventiladores */
+.fan-diag-card {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fan-diag-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.fan-diag-head h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.fan-diag-head p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 620px;
+  line-height: 1.45;
+}
+
+.fan-diag-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fan-diag-out {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ub-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.ub-progress[hidden],
+.ub-actions[hidden] {
+  display: none;
+}
+
+.ub-bar {
+  flex: 1;
+  max-width: 320px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.ub-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--accent-cyan);
+  transition: width 0.4s ease;
+}
+
+.ub-progress span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.update-banner.is-error .ub-progress span {
+  color: #fbbf24;
+}
+
 /* tarjeta de red */
 .net-summary {
   display: grid;
