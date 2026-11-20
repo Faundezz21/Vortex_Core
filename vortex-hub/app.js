@@ -1785,6 +1785,23 @@ async function runFanDiagnose() {
   }
 }
 
+async function sendFanReport(action) {
+  try {
+    const res = await fetch(`${API_BASE}/api/fans/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.message || "error");
+    showToast(action === "save"
+      ? { icon: "check-circle", title: "Informe guardado", message: `Quedó en tu Escritorio: ${d.path.split(/[\\/]/).pop()}`, type: "success", duration: 6000 }
+      : { icon: "check-circle", title: "Reporte abierto", message: "Revisa el texto en GitHub y presiona Submit para enviarlo.", type: "success", duration: 6000 });
+  } catch (e) {
+    showToast({ icon: "alert", title: "Informe", message: `No se pudo completar: ${e.message}`, type: "error" });
+  }
+}
+
 async function copyFanDiagnose() {
   const text = document.getElementById("fan-diag-out").textContent;
   try {

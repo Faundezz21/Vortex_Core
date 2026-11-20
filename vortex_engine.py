@@ -962,6 +962,92 @@ def select_primary_net_iface(stats: dict, addrs: dict, per_nic_io: dict) -> dict
     return best
 
 
+# registro de lo que responde la bios de los ventiladores, para diagnosticar modelos sin soporte
+class FanLog:
+    MAX_BYTES = 256 * 1024
+
+    def __init__(self, path: str | None = None):
+        base = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub", "logs")
+        self.path = path or os.path.join(base, "ventiladores.log")
+        self._last = {}
+        self._lock = threading.Lock()
+
+    # solo anota cuando la respuesta cambia o falla, para no llenar el disco con consultas repetidas
+    def add(self, source: str, mode: str, ok: bool, out: str):
+        text = " ".join(str(out or "").split())[:400]
+        key = (source, mode)
+        with self._lock:
+            if self._last.get(key) == (ok, text):
+                return
+            self._last[key] = (ok, text)
+            line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {source} {mode} | {'ok' if ok else 'fallo'} | {text}\n"
+            try:
+                os.makedirs(os.path.dirname(self.path), exist_ok=True)
+                with open(self.path, "a", encoding="utf-8") as f:
+                    f.write(line)
+                if os.path.getsize(self.path) > self.MAX_BYTES:
+                    with open(self.path, encoding="utf-8", errors="replace") as f:
+                        keep = f.readlines()[-400:]
+                    with open(self.path, "w", encoding="utf-8") as f:
+                        f.writelines(keep)
+            except OSError:
+                pass
+
+    def tail(self, n: int = 60) -> list:
+        try:
+            with open(self.path, encoding="utf-8", errors="replace") as f:
+                return [l.rstrip("\n") for l in f.readlines()[-n:]]
+        except OSError:
+            return []
+
+
+fan_log = FanLog()
+
+
+def _fan_script_info(args: list):
+    names = {"hp_fan_controller.ps1": "hp", "acer_fan_controller.ps1": "acer", "oem_fan_controller.ps1": "oem"}
+    for a in args:
+        src = names.get(os.path.basename(str(a)).lower())
+        if src:
+            mode = args[args.index("-Mode") + 1] if "-Mode" in args and args.index("-Mode") + 1 < len(args) else "?"
+            if "-Brand" in args:
+                src += "/" + str(args[args.index("-Brand") + 1])
+            return src, str(mode)
+    return None
+
+
+def desktop_dir() -> str:
+    buf = ctypes.create_unicode_buffer(260)
+    try:
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 0x10, None, 0, buf) == 0 and buf.value:
+            return buf.value
+    except Exception:
+        pass
+    return os.path.join(os.path.expanduser("~"), "Desktop")
+
+
+ISSUES_URL = "https://github.com/Faundezz21/Vortex_Core/issues/new"
+
+
+def fan_report_text(report: dict) -> str:
+    return "VortexCore Hub - informe de ventiladores\n\n" + json.dumps(report, indent=2, ensure_ascii=False)
+
+
+# arma el enlace a un issue nuevo con el informe; recorta el registro si la url queda muy larga
+def fan_issue_url(report: dict) -> str:
+    from urllib.parse import quote
+    rep = dict(report)
+    model = rep.get("modelo") or "equipo"
+    for keep in (60, 30, 10, 0):
+        rep["registro"] = (report.get("registro") or [])[-keep:] if keep else []
+        body = ("Los ventiladores no se leen en mi equipo. Informe generado por VortexCore Hub:\n\n"
+                "```json\n" + json.dumps(rep, indent=2, ensure_ascii=False) + "\n```")
+        url = f"{ISSUES_URL}?title={quote('Ventiladores no se leen en ' + str(model))}&body={quote(body)}"
+        if len(url) <= 7500:
+            return url
+    return url
+
+
 class VortexCoreManager:
     def __init__(self):
         self.fan_script = os.path.join(get_app_dir(), "hp_fan_controller.ps1")
@@ -1273,6 +1359,7 @@ class VortexCoreManager:
                 report["bios"] = json.loads(out)
             except ValueError:
                 report["bios"] = out[-2000:]
+        report["registro"] = fan_log.tail(60)
         return report
 
     def _run_cmd(self, args: list[str]) -> tuple[bool, str]:
@@ -1282,8 +1369,14 @@ class VortexCoreManager:
                 stderr=subprocess.PIPE, text=True, creationflags=CREATE_NO_WINDOW, timeout=8
             )
             out = res.stdout.strip() or res.stderr.strip()
+            info = _fan_script_info(args)
+            if info:
+                fan_log.add(info[0], info[1], res.returncode == 0, out)
             return (res.returncode == 0, out)
         except Exception as e:
+            info = _fan_script_info(args)
+            if info:
+                fan_log.add(info[0], info[1], False, str(e))
             return (False, str(e))
 
     def _monitor_loop(self):
@@ -2179,6 +2272,27 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(run_disk_cleanup(targets))
         elif self.path == "/api/overlay":
             self._send_json(overlay.update_config(data))
+        elif self.path == "/api/fans/report":
+            action = str(data.get("action", "")).lower()
+            report = manager.diagnose_fans()
+            if action == "save":
+                name = f"VortexCore-informe-ventiladores-{time.strftime('%Y%m%d-%H%M')}.txt"
+                dest = os.path.join(desktop_dir(), name)
+                try:
+                    with open(dest, "w", encoding="utf-8") as f:
+                        f.write(fan_report_text(report))
+                    subprocess.Popen(["explorer", "/select,", dest], creationflags=CREATE_NO_WINDOW)
+                    self._send_json({"status": "ok", "path": dest})
+                except OSError as e:
+                    self._send_json({"status": "error", "message": str(e)}, code=500)
+            elif action == "github":
+                try:
+                    os.startfile(fan_issue_url(report))
+                    self._send_json({"status": "ok"})
+                except Exception as e:
+                    self._send_json({"status": "error", "message": str(e)}, code=500)
+            else:
+                self._reject(400, "Acción de informe desconocida")
         elif self.path == "/api/update":
             action = str(data.get("action", "")).lower()
             if action == "check":

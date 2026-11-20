@@ -738,11 +738,13 @@
               <div class="fan-diag-head">
                 <div>
                   <h3>¿Los ventiladores no se leen?</h3>
-                  <p>Genera un informe con lo que responde la BIOS de tu equipo y envíalo al desarrollador para agregar soporte a tu modelo. No incluye datos personales.</p>
+                  <p>VortexCore anota lo que responde la BIOS de los ventiladores mientras la usas. Usa la app un rato y después guarda el informe o repórtalo en GitHub para que agreguen soporte a tu modelo. No incluye datos personales y nada se envía sin que tú lo publiques.</p>
                 </div>
                 <div class="fan-diag-actions">
                   <button class="clean-btn primary" id="btn-fan-diag" onclick="runFanDiagnose()">Generar informe</button>
                   <button class="clean-btn" id="btn-fan-diag-copy" onclick="copyFanDiagnose()" disabled>Copiar</button>
+                  <button class="clean-btn" onclick="sendFanReport('save')">Guardar en el Escritorio</button>
+                  <button class="clean-btn" onclick="sendFanReport('github')">Reportar en GitHub</button>
                 </div>
               </div>
               <pre class="fan-diag-out" id="fan-diag-out" hidden></pre>

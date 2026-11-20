@@ -312,5 +312,24 @@ class PowerShellQuotingTests(unittest.TestCase):
         self.assertEqual(hw_sensors.ps_quote("Wi-Fi" + chr(10) + "x"), "Wi-Fi x")
 
 
+class FanLogTests(unittest.TestCase):
+    def test_logs_only_changes_and_reports_source(self):
+        import tempfile
+        log = ve.FanLog(os.path.join(tempfile.mkdtemp(), "v.log"))
+        for out in ["FAN1_RPM=0"] * 3 + ["FAN1_RPM=3100"] + ["ERROR: x"] * 2:
+            log.add("acer", "query", not out.startswith("ERROR"), out)
+        lines = log.tail()
+        self.assertEqual(len(lines), 3)
+        self.assertIn("| acer query | fallo | ERROR: x", lines[-1])
+        self.assertEqual(ve._fan_script_info(["-File", "C:/apps/acer_fan_controller.ps1", "-Mode", "diag"]), ("acer", "diag"))
+        self.assertIsNone(ve._fan_script_info(["ping", "1.1.1.1"]))
+
+    def test_issue_url_stays_short(self):
+        rep = {"modelo": "Acer Nitro AN515-55", "registro": ["x" * 300] * 60}
+        url = ve.fan_issue_url(rep)
+        self.assertTrue(url.startswith(ve.ISSUES_URL))
+        self.assertLessEqual(len(url), 7500)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
