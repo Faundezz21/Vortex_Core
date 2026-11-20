@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.12.1
+
+### Correcciones
+- **Marca y modelo leídos desde el firmware:** VortexCore ahora toma la marca y el modelo de la tabla SMBIOS del firmware en vez del registro de Windows. Algunos equipos tienen el registro modificado para hacerse pasar por otra marca (por ejemplo, un Acer configurado como Samsung Galaxy Book para usar Samsung Notes o Quick Share), y por eso no se usaba el método correcto para leer los ventiladores.
+- El informe de ventiladores indica qué dice el registro de Windows y si fue modificado.
+
 ## 7.12.0
 
 ### Actualizaciones
