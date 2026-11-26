@@ -26,14 +26,16 @@ import game_overlay
 import net_monitor
 import updater
 import game_mode
-from tray_manager import SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart
+import display_manager
+import audio_devices
+import dualsense_bridge
+from tray_manager import (
+    SystemTrayApp, is_autostart_enabled, set_autostart, migrate_legacy_autostart,
+    load_tray_config, save_tray_config,
+)
 
-# Modo línea de comandos para el instalador: "--set-autostart on|off" configura y sale
-# (se procesa antes de crear el gestor de hardware, que arranca hilos de monitoreo).
-if __name__ == "__main__" and "--set-autostart" in sys.argv:
-    _idx = sys.argv.index("--set-autostart")
-    _val = sys.argv[_idx + 1].lower() if len(sys.argv) > _idx + 1 else "on"
-    sys.exit(0 if set_autostart(_val in ("on", "1", "true", "yes")) else 1)
+# Modo línea de comandos para el instalador: "--set-autostart on|off", "--setup-apo" o "--setup-vigem"
+_CLI_MODE = __name__ == "__main__" and ("--set-autostart" in sys.argv or "--setup-apo" in sys.argv or "--setup-vigem" in sys.argv)
 
 try:
     import psutil
@@ -49,83 +51,164 @@ except Exception:
     HAS_PYCAW = False
 
 
+def _parse_audio_session_list(session_enum) -> list[dict]:
+    apps = []
+    if not session_enum:
+        return apps
+    from pycaw.pycaw import AudioSession, IAudioSessionControl2
+    for j in range(session_enum.GetCount()):
+        try:
+            ctl = session_enum.GetSession(j)
+            if not ctl:
+                continue
+            s = AudioSession(ctl.QueryInterface(IAudioSessionControl2))
+            v = s.SimpleAudioVolume
+            vol_pct = int(round(v.GetMasterVolume() * 100))
+            muted = bool(v.GetMute())
+            if s.Process:
+                raw_name = s.Process.name()
+                pid = s.ProcessId
+            else:
+                raw_name = "Sonidos del Sistema"
+                pid = 0
+
+            if any(x["pid"] == pid and x["name"] == raw_name for x in apps):
+                continue
+
+            nl = raw_name.lower()
+            if "spotify" in nl:
+                disp, icon = "Spotify", "🎵"
+            elif "discord" in nl:
+                disp, icon = "Discord", "💬"
+            elif "chrome" in nl:
+                disp, icon = "Google Chrome", "🌐"
+            elif "brave" in nl:
+                disp, icon = "Brave Browser", "🦁"
+            elif "edge" in nl:
+                disp, icon = "Microsoft Edge", "🌊"
+            elif "steam" in nl:
+                disp, icon = "Steam", "🎮"
+            elif any(g in nl for g in ["cs2", "valorant", "cyberpunk", "cod", "fortnite", "apex", "game"]):
+                disp, icon = raw_name.replace(".exe", ""), "🎯"
+            elif "system" in nl or "sonidos" in nl:
+                disp, icon = "Sonidos del Sistema", "🔔"
+            else:
+                disp, icon = raw_name.replace(".exe", ""), "🔊"
+
+            apps.append({
+                "pid": pid,
+                "name": raw_name,
+                "display_name": disp,
+                "volume": vol_pct,
+                "muted": muted,
+                "icon": icon,
+            })
+        except Exception:
+            pass
+    return apps
+
+
 def get_audio_mixer_data() -> dict:
-    """Obtiene el volumen maestro y todas las aplicaciones con audio activo (estilo EarTrumpet)."""
+    """Obtiene volumen maestro, apps por salida activa y estado del micrófono (estilo EarTrumpet)."""
     res = {
         "master": {"volume": None, "muted": None, "device_name": None},
-        "apps": []
+        "apps": [],
+        "devices": [],
+        "mic": None,
+        "mics": [],
     }
     if not HAS_PYCAW:
         return res
 
     try:
         comtypes.CoInitialize()
-        spk = AudioUtilities.GetSpeakers()
-        if spk:
-            vol = spk.EndpointVolume
-            res["master"]["volume"] = int(round(vol.GetMasterVolumeLevelScalar() * 100))
-            res["master"]["muted"] = bool(vol.GetMute())
-            res["master"]["device_name"] = getattr(spk, "FriendlyName", "Altavoces")
-    except Exception:
-        pass
+        from pycaw.pycaw import EDataFlow, ERole
+        enum = AudioUtilities.GetDeviceEnumerator()
+        try:
+            default_id = enum.GetDefaultAudioEndpoint(
+                EDataFlow.eRender.value, ERole.eConsole.value
+            ).GetId()
+        except Exception:
+            default_id = None
 
-    try:
-        sessions = AudioUtilities.GetAllSessions()
-        for s in sessions:
+        col = enum.EnumAudioEndpoints(EDataFlow.eRender.value, 1)  # DEVICE_STATE_ACTIVE
+        for i in range(col.GetCount()):
             try:
-                v = s.SimpleAudioVolume
-                vol_pct = int(round(v.GetMasterVolume() * 100))
-                muted = bool(v.GetMute())
-                if s.Process:
-                    raw_name = s.Process.name()
-                    pid = s.ProcessId
-                else:
-                    raw_name = "Sonidos del Sistema"
-                    pid = 0
-
-                # Evitar entradas vacías o duplicados exactos de PID
-                if any(x["pid"] == pid and x["name"] == raw_name for x in res["apps"]):
-                    continue
-
-                nl = raw_name.lower()
-                if "spotify" in nl:
-                    disp = "Spotify"
-                    icon = "🎵"
-                elif "discord" in nl:
-                    disp = "Discord"
-                    icon = "💬"
-                elif "chrome" in nl:
-                    disp = "Google Chrome"
-                    icon = "🌐"
-                elif "brave" in nl:
-                    disp = "Brave Browser"
-                    icon = "🦁"
-                elif "edge" in nl:
-                    disp = "Microsoft Edge"
-                    icon = "🌊"
-                elif "steam" in nl:
-                    disp = "Steam"
-                    icon = "🎮"
-                elif any(g in nl for g in ["cs2", "valorant", "cyberpunk", "cod", "fortnite", "apex", "game"]):
-                    disp = raw_name.replace(".exe", "")
-                    icon = "🎯"
-                elif "system" in nl or "sonidos" in nl:
-                    disp = "Sonidos del Sistema"
-                    icon = "🔔"
-                else:
-                    disp = raw_name.replace(".exe", "")
-                    icon = "🔊"
-
-                res["apps"].append({
-                    "pid": pid,
-                    "name": raw_name,
-                    "display_name": disp,
+                imm_dev = col.Item(i)
+                did = imm_dev.GetId()
+                ad = AudioUtilities.CreateDevice(imm_dev)
+                ev = ad.EndpointVolume
+                vol_pct = int(round(ev.GetMasterVolumeLevelScalar() * 100))
+                muted = bool(ev.GetMute())
+                name = getattr(ad, "FriendlyName", None) or "Dispositivo de audio"
+                try:
+                    se = ad.AudioSessionManager.GetSessionEnumerator()
+                    apps = _parse_audio_session_list(se)
+                except Exception:
+                    apps = []
+                is_def = did == default_id
+                dev_entry = {
+                    "id": did,
+                    "name": str(name),
+                    "is_default": is_def,
                     "volume": vol_pct,
                     "muted": muted,
-                    "icon": icon
-                })
+                    "apps": apps,
+                }
+                res["devices"].append(dev_entry)
+                if is_def:
+                    res["master"] = {"volume": vol_pct, "muted": muted, "device_name": str(name)}
+                    res["apps"] = apps
             except Exception:
-                pass
+                continue
+
+        res["devices"].sort(key=lambda d: (not d["is_default"], d["name"].lower()))
+        if res["master"]["volume"] is None and res["devices"]:
+            first = res["devices"][0]
+            res["master"] = {"volume": first["volume"], "muted": first["muted"], "device_name": first["name"]}
+            res["apps"] = first["apps"]
+
+        # Dispositivos de entrada (micrófonos)
+        try:
+            default_mic_id = enum.GetDefaultAudioEndpoint(
+                EDataFlow.eCapture.value, ERole.eConsole.value
+            ).GetId()
+        except Exception:
+            default_mic_id = None
+
+        try:
+            mic_col = enum.EnumAudioEndpoints(EDataFlow.eCapture.value, 1)
+            for i in range(mic_col.GetCount()):
+                try:
+                    imm_mic = mic_col.Item(i)
+                    mid = imm_mic.GetId()
+                    ad = AudioUtilities.CreateDevice(imm_mic)
+                    ev = ad.EndpointVolume
+                    m_vol = int(round(ev.GetMasterVolumeLevelScalar() * 100))
+                    m_muted = bool(ev.GetMute())
+                    m_name = getattr(ad, "FriendlyName", None) or "Micrófono"
+                    is_def_mic = mid == default_mic_id
+                    if is_def_mic and m_vol >= 100:
+                        boost_db = _load_mic_boost_db()
+                        if boost_db > 0:
+                            m_vol = min(200, 100 + int(round(boost_db / 0.15)))
+                    mic_entry = {
+                        "id": mid,
+                        "name": str(m_name),
+                        "is_default": is_def_mic,
+                        "volume": m_vol,
+                        "muted": m_muted,
+                    }
+                    res["mics"].append(mic_entry)
+                    if is_def_mic:
+                        res["mic"] = mic_entry
+                except Exception:
+                    continue
+            res["mics"].sort(key=lambda m: (not m["is_default"], m["name"].lower()))
+            if res["mic"] is None and res["mics"]:
+                res["mic"] = res["mics"][0]
+        except Exception:
+            pass
     except Exception:
         pass
     finally:
@@ -137,14 +220,21 @@ def get_audio_mixer_data() -> dict:
     return res
 
 
-def set_app_volume_state(pid: int = None, name: str = None, volume: float = None, muted: bool = None) -> bool:
-    """Ajusta el volumen o silencio de una app específica (como Spotify) en Windows."""
+def set_app_volume_state(pid: int = None, name: str = None, volume: float = None, muted: bool = None, device_id: str = None) -> bool:
+    """Ajusta el volumen o silencio de una app específica en el dispositivo indicado (o el predeterminado)."""
     if not HAS_PYCAW:
         return False
     found = False
     try:
         comtypes.CoInitialize()
-        sessions = AudioUtilities.GetAllSessions()
+        if device_id:
+            from pycaw.pycaw import AudioSession, IAudioSessionControl2
+            enum = AudioUtilities.GetDeviceEnumerator()
+            ad = AudioUtilities.CreateDevice(enum.GetDevice(str(device_id)))
+            se = ad.AudioSessionManager.GetSessionEnumerator()
+            sessions = [AudioSession(se.GetSession(j).QueryInterface(IAudioSessionControl2)) for j in range(se.GetCount()) if se.GetSession(j)]
+        else:
+            sessions = AudioUtilities.GetAllSessions()
         for s in sessions:
             match = False
             if pid is not None and pid != 0 and s.ProcessId == pid:
@@ -172,14 +262,18 @@ def set_app_volume_state(pid: int = None, name: str = None, volume: float = None
     return found
 
 
-def set_master_volume_state(volume: float = None, muted: bool = None) -> bool:
-    """Ajusta el volumen general del dispositivo de salida de Windows."""
+def set_master_volume_state(volume: float = None, muted: bool = None, device_id: str = None) -> bool:
+    """Ajusta el volumen general del dispositivo de salida indicado (o el predeterminado)."""
     if not HAS_PYCAW:
         return False
     ok = False
     try:
         comtypes.CoInitialize()
-        spk = AudioUtilities.GetSpeakers()
+        if device_id:
+            enum = AudioUtilities.GetDeviceEnumerator()
+            spk = AudioUtilities.CreateDevice(enum.GetDevice(str(device_id)))
+        else:
+            spk = AudioUtilities.GetSpeakers()
         if spk:
             vol = spk.EndpointVolume
             if volume is not None:
@@ -196,6 +290,180 @@ def set_master_volume_state(volume: float = None, muted: bool = None) -> bool:
         except Exception:
             pass
     return ok
+
+
+def _vortex_cfg_dir() -> str:
+    d = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _load_mic_boost_db() -> float:
+    try:
+        with open(os.path.join(_vortex_cfg_dir(), "audio_mic.json"), encoding="utf-8") as f:
+            val = float(json.load(f).get("boost_db", 0.0))
+            return max(0.0, min(15.0, val))
+    except Exception:
+        return 0.0
+
+
+def _save_mic_boost_db(boost_db: float):
+    try:
+        with open(os.path.join(_vortex_cfg_dir(), "audio_mic.json"), "w", encoding="utf-8") as f:
+            json.dump({"boost_db": round(max(0.0, min(15.0, float(boost_db))), 2)}, f)
+    except Exception:
+        pass
+
+
+def _write_apo_config(eq_saved: dict = None, mic_boost_db: float = None) -> bool:
+    """Escribe config.txt de Equalizer APO separando reproducción (EQ) y captura (boost de micrófono)."""
+    apo_dir = r"C:\Program Files\EqualizerAPO\config"
+    if not os.path.isdir(apo_dir):
+        return False
+
+    if eq_saved is None:
+        try:
+            with open(os.path.join(_vortex_cfg_dir(), "audio_eq.json"), encoding="utf-8") as f:
+                eq_saved = json.load(f)
+        except Exception:
+            eq_saved = {}
+
+    if mic_boost_db is None:
+        mic_boost_db = _load_mic_boost_db()
+
+    freqs = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+    enabled = bool((eq_saved or {}).get("enabled", False))
+    bands = (eq_saved or {}).get("bands")
+    preset = str((eq_saved or {}).get("preset", "custom"))
+
+    lines = ["# VortexCore Hub - Configuración global de audio\n"]
+    if isinstance(bands, list) and len(bands) == 10 and enabled:
+        lines.append("Stage: playback\n")
+        lines.append(f"# EQ Activo ({preset})\n")
+        lines.append("GraphicEQ: " + "; ".join(f"{freqs[i]} {bands[i]}" for i in range(10)) + "\n")
+    else:
+        lines.append("# GraphicEQ desactivado por VortexCore Hub (Modo Normal / Bypass)\n")
+
+    if mic_boost_db and mic_boost_db > 0.05:
+        lines.append("Stage: capture\n")
+        lines.append(f"Preamp: {round(float(mic_boost_db), 2)} dB\n")
+
+    try:
+        with open(os.path.join(apo_dir, "config.txt"), "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        return True
+    except Exception:
+        return False
+
+
+def set_mic_volume_state(volume: float = None, muted: bool = None, device_id: str = None) -> bool:
+    """Ajusta el nivel (0-200%: hardware 0-100% + preamp APO hasta +15 dB) o silencio del micrófono."""
+    if not HAS_PYCAW:
+        return False
+    ok = False
+    try:
+        comtypes.CoInitialize()
+        from pycaw.pycaw import EDataFlow, ERole
+        enum = AudioUtilities.GetDeviceEnumerator()
+        if device_id:
+            imm = enum.GetDevice(str(device_id))
+        else:
+            imm = enum.GetDefaultAudioEndpoint(EDataFlow.eCapture.value, ERole.eConsole.value)
+        mic = AudioUtilities.CreateDevice(imm)
+        if mic:
+            vol = mic.EndpointVolume
+            if volume is not None:
+                pct = max(0.0, min(200.0, float(volume)))
+                hw_scalar = min(1.0, pct / 100.0)
+                vol.SetMasterVolumeLevelScalar(hw_scalar, None)
+                boost_db = round((pct - 100.0) * 0.15, 2) if pct > 100.0 else 0.0
+                _save_mic_boost_db(boost_db)
+                _write_apo_config(mic_boost_db=boost_db)
+            if muted is not None:
+                vol.SetMute(bool(muted), None)
+                if manager is not None:
+                    manager.telemetry["mic_muted"] = bool(muted)
+            ok = True
+    except Exception:
+        pass
+    finally:
+        try:
+            comtypes.CoUninitialize()
+        except Exception:
+            pass
+    return ok
+
+
+def is_default_mic_muted() -> bool:
+    if not HAS_PYCAW:
+        return False
+    muted = False
+    try:
+        comtypes.CoInitialize()
+        from pycaw.pycaw import EDataFlow, ERole
+        enum = AudioUtilities.GetDeviceEnumerator()
+        imm = enum.GetDefaultAudioEndpoint(EDataFlow.eCapture.value, ERole.eConsole.value)
+        mic = AudioUtilities.CreateDevice(imm)
+        if mic:
+            muted = bool(mic.EndpointVolume.GetMute())
+    except Exception:
+        pass
+    finally:
+        try:
+            comtypes.CoUninitialize()
+        except Exception:
+            pass
+    return muted
+
+
+EQ_PRESETS_MAP = {
+    "fps": [2, -1, -2, 0, 1, 2, 5, 6, 4, 2],
+    "bass": [8, 7, 5, 2, 0, 0, 1, 2, 2, 1],
+    "music": [4, 3, 1, 0, -1, 0, 2, 3, 4, 3],
+    "movie": [3, 2, 1, 2, 3, 4, 3, 2, 1, 1],
+    "flat": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+}
+
+
+def get_current_eq_state() -> dict:
+    try:
+        with open(os.path.join(_vortex_cfg_dir(), "audio_eq.json"), encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            return {"enabled": bool(d.get("enabled", True)), "preset": str(d.get("preset", "fps"))}
+    except Exception:
+        pass
+    return {"enabled": True, "preset": "fps"}
+
+
+def apply_eq_preset_name(preset: str) -> dict:
+    p = str(preset or "flat").lower()
+    if p not in EQ_PRESETS_MAP:
+        p = "flat"
+    enabled = p != "flat"
+    bands = EQ_PRESETS_MAP[p]
+    payload = {"enabled": enabled, "bands": bands, "preset": p}
+    try:
+        with open(os.path.join(_vortex_cfg_dir(), "audio_eq.json"), "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
+    _write_apo_config(eq_saved=payload)
+    return payload
+
+
+def get_flyout_data() -> dict:
+    data = get_audio_mixer_data()
+    if manager is not None:
+        devs = manager.telemetry.get("battery_devices") or []
+        data["peripherals"] = [
+            {"name": d.get("name"), "type": d.get("type"), "percent": d.get("percent"), "plugged": bool(d.get("plugged"))}
+            for d in devs if d.get("percent") is not None
+        ]
+    else:
+        data["peripherals"] = []
+    data["eq"] = get_current_eq_state()
+    return data
 
 CREATE_NO_WINDOW = 0x08000000
 PORT = 8765
@@ -1064,15 +1332,7 @@ def peripherals_config_path() -> str:
 
 
 def load_peripherals_config() -> dict:
-    cfg = {"dualsense_battery": True}
-    try:
-        with open(peripherals_config_path(), encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, dict) and "dualsense_battery" in data:
-            cfg["dualsense_battery"] = bool(data["dualsense_battery"])
-    except (OSError, ValueError):
-        pass
-    return cfg
+    return {"dualsense_battery": dualsense_bridge.is_vigembus_installed()}
 
 
 def save_peripherals_config(cfg: dict) -> None:
@@ -1095,9 +1355,10 @@ class VortexCoreManager:
         self._acer_wmi_ok = True
         self._oem_wmi_ok = True
         self._acer_last_manual = None
-        self.current_profile = "STANDARD"
+        self.current_profile = "SILENT"
         self.fan_mode = "AUTO"
         self.system_specs = get_system_specs()
+        self._low_battery_alerted = set()
 
         # Lectores de sensores reales (sin valores inventados: None = "N/D" en la interfaz)
         self._counters = hw_sensors.SystemCounters()
@@ -1158,7 +1419,8 @@ class VortexCoreManager:
             "current_profile": self.current_profile,
             "fan_mode": self.fan_mode,
             "system_specs": self.system_specs,
-            "battery_devices": []
+            "battery_devices": [],
+            "mic_muted": False
         }
 
         self.manual_config = None
@@ -1167,6 +1429,10 @@ class VortexCoreManager:
         self._ping_ms = None
         self._ping_busy = False
         self._core_temp_busy = False
+        self._nvidia_busy = False
+        self._oem_fan_busy = False
+        self._native_cpu_ts = 0.0
+        self._native_gpu_ts = 0.0
         if HAS_PSUTIL:
             try:
                 psutil.cpu_percent(interval=None, percpu=True)
@@ -1174,6 +1440,8 @@ class VortexCoreManager:
                 pass
         self.running = True
         threading.Thread(target=self._monitor_loop, daemon=True).start()
+        if os.environ.get("VORTEXCORE_TEST_MODE") != "1":
+            threading.Thread(target=self.set_profile, args=("SILENT",), daemon=True).start()
 
     def _refresh_ping(self):
         try:
@@ -1209,6 +1477,127 @@ class VortexCoreManager:
         finally:
             self._core_temp_busy = False
 
+    def _refresh_nvidia_smi(self):
+        try:
+            gpu_proc = subprocess.run(
+                ["nvidia-smi", "--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,clocks.mem,memory.total,pcie.link.gen.current,pcie.link.width.current,power.limit,pstate", "--format=csv,noheader,nounits"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                creationflags=CREATE_NO_WINDOW, timeout=2
+            )
+            if gpu_proc.returncode == 0 and gpu_proc.stdout:
+                parts = [p.strip() for p in gpu_proc.stdout.strip().split(",")]
+                native_fresh = (time.monotonic() - self._native_gpu_ts) < 2.5
+                if len(parts) >= 3:
+                    try:
+                        if not native_fresh:
+                            self.telemetry["gpu_temp"] = int(float(parts[0]))
+                            self.telemetry["gpu_usage"] = int(float(parts[1]))
+                            self.telemetry["gpu_power"] = f"{float(parts[2]):.1f}"
+                    except Exception:
+                        pass
+                if len(parts) >= 5 and not native_fresh:
+                    try:
+                        g_clk = int(float(parts[3]))
+                        m_clk = int(float(parts[4]))
+                        self.telemetry["gpu_freq_mhz"] = g_clk
+                        self.telemetry["gpu_mem_freq_mhz"] = m_clk if m_clk > 0 else None
+                    except Exception:
+                        pass
+                if len(parts) >= 10:
+                    def _num(x):
+                        try:
+                            return float(x)
+                        except ValueError:
+                            return None
+                    vram = _num(parts[5])
+                    gen, width = _num(parts[6]), _num(parts[7])
+                    plim = _num(parts[8])
+                    self.telemetry["gpu_vram_mb"] = int(vram) if vram else None
+                    self.telemetry["gpu_pcie"] = f"PCIe Gen{int(gen)} x{int(width)}" if gen and width else None
+                    self.telemetry["gpu_power_limit"] = f"{plim:.0f}" if plim else None
+                    self.telemetry["gpu_pstate"] = parts[9] if parts[9].startswith("P") else None
+        except FileNotFoundError:
+            self._has_nvidia_smi = False
+        except Exception:
+            pass
+        finally:
+            self._nvidia_busy = False
+
+    def _refresh_oem_fans(self):
+        try:
+            native_fresh = (time.monotonic() - self._native_cpu_ts) < 2.5
+            if self.system_specs.get("is_hp", False):
+                ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", "query"])
+                if ok and "CPU_TEMP=" in out:
+                    for item in out.strip().splitlines()[-1].split("|"):
+                        try:
+                            k, v = item.strip().split("=", 1)
+                            v = int(v)
+                        except ValueError:
+                            continue
+                        if k == "CPU_TEMP" and 0 < v <= 115 and not native_fresh:
+                            self.telemetry["cpu_temp"] = v
+                        elif k == "FAN1_RPM" and v > 0:
+                            self.telemetry["fan1_rpm"] = v
+                        elif k == "FAN2_RPM" and v > 0:
+                            self.telemetry["fan2_rpm"] = v
+            elif self.system_specs.get("is_acer", False) and self._acer_wmi_ok:
+                ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.acer_fan_script, "-Mode", "query"])
+                if "NO_WMI:" in out:
+                    self._acer_wmi_ok = False
+                elif ok and "CPU_TEMP=" in out:
+                    for item in out.strip().splitlines()[-1].split("|"):
+                        try:
+                            k, v = item.strip().split("=", 1)
+                            v = int(v)
+                        except ValueError:
+                            continue
+                        if k == "CPU_TEMP" and 0 < v <= 115 and not native_fresh:
+                            self.telemetry["cpu_temp"] = v
+                        elif k == "FAN1_RPM" and v > 0:
+                            self.telemetry["fan1_rpm"] = v
+                        elif k == "FAN2_RPM" and v > 0:
+                            self.telemetry["fan2_rpm"] = v
+            elif self._oem_wmi_ok and any(
+                self.system_specs.get(k, False) for k in ("is_lenovo", "is_asus", "is_dell")
+            ):
+                oem_brand = (
+                    "lenovo" if self.system_specs.get("is_lenovo")
+                    else "asus" if self.system_specs.get("is_asus")
+                    else "dell"
+                )
+                ok, out = self._run_cmd([
+                    "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-File", self.oem_fan_script, "-Brand", oem_brand, "-Mode", "query",
+                ])
+                if "NO_WMI:" in out:
+                    self._oem_wmi_ok = False
+                    self.telemetry["fans_readable"] = False
+                elif ok and "FAN1_RPM=" in out:
+                    for item in out.strip().splitlines()[-1].split("|"):
+                        try:
+                            k, v = item.strip().split("=", 1)
+                            v = int(v)
+                        except ValueError:
+                            continue
+                        if k == "CPU_TEMP" and 0 < v <= 115 and not native_fresh:
+                            self.telemetry["cpu_temp"] = v
+                        elif k == "FAN1_RPM" and v > 0:
+                            self.telemetry["fan1_rpm"] = v
+                        elif k == "FAN2_RPM" and v > 0:
+                            self.telemetry["fan2_rpm"] = v
+            elif not native_fresh:
+                ok, out = self._run_cmd(["powershell", "-NoProfile", "-Command",
+                    "$t=Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1; if($t){[int](($t.CurrentTemperature-2732)/10)}"])
+                if ok and out.strip().lstrip("-").isdigit():
+                    v = int(out.strip())
+                    if 0 < v <= 115:
+                        self.telemetry["cpu_temp"] = v
+        except Exception:
+            pass
+        finally:
+            self._oem_fan_busy = False
+
     def _load_ram_modules(self):
         info = hw_sensors.read_ram_modules()
         if info:
@@ -1217,6 +1606,28 @@ class VortexCoreManager:
             self.telemetry["ram_speed_mts"] = info["speed_mts"]
             self.system_specs["ram_gb"] = info["installed_gb"]
             self.system_specs["ram"] = f"{info['installed_gb']} GB" + (f" @ {info['speed_mts']} MT/s" if info["speed_mts"] else "")
+
+    def _check_low_battery_alerts(self, devs: list[dict]) -> None:
+        """Envía una notificación de Windows una sola vez cuando un periférico inalámbrico baja de 15%."""
+        for dev in devs or []:
+            dtype = dev.get("type")
+            if dtype in ("battery", "laptop") or dev.get("plugged"):
+                continue
+            name = str(dev.get("name") or "").strip()
+            if not name or "portátil" in name.lower():
+                continue
+            key = name.lower()
+            pct = dev.get("percent")
+            level = str(dev.get("level") or "")
+            is_low = (isinstance(pct, (int, float)) and pct <= 15) or level in ("Baja", "Vacía")
+            is_recovered = (isinstance(pct, (int, float)) and pct >= 30) or level in ("Media", "Llena")
+            if is_recovered:
+                self._low_battery_alerted.discard(key)
+            elif is_low and key not in self._low_battery_alerted:
+                self._low_battery_alerted.add(key)
+                if _tray_ref is not None:
+                    detail = f"Le queda {int(pct)}% de batería." if isinstance(pct, (int, float)) else f"Nivel de batería: {level}."
+                    _tray_ref.notify(f"Batería baja: {name}", f"{detail} Conéctalo para cargarlo.")
 
     def _get_battery_devices(self) -> list[dict]:
         """
@@ -1304,13 +1715,12 @@ class VortexCoreManager:
                 status = f"{pct}% Batería • Bluetooth" if pct is not None else "Conectado (Bluetooth)"
                 # el dualsense no informa su bateria a windows: se lee de sus propios reportes
                 if pct is None and dtype == "gamepad" and ("dualsense" in nl or "wireless controller" in nl):
-                    ds = hw_sensors.read_dualsense_battery(force_full=peripherals_cfg["dualsense_battery"])
+                    ds = hw_sensors.read_dualsense_battery(force_full=dualsense_bridge.is_vigembus_installed())
                     if ds and ds.get("mode") == "full":
                         pct = ds["percent"]
                         status = f"{pct}% • " + ("Cargando" if ds["charging"] else "Carga completa" if ds["full"] else "Bluetooth")
                     elif ds:
-                        status = ("Conectado (Bluetooth)" if peripherals_cfg["dualsense_battery"]
-                                  else "Conectado (Bluetooth) • activa la lectura de batería en CPU")
+                        status = "Conectado (Bluetooth)"
                 bt_battery[nl] = pct
                 add(name, dtype, pct, False, status)
         except Exception:
@@ -1350,7 +1760,12 @@ class VortexCoreManager:
                 if usb["type"] == "gamepad" and any(d["type"] == "gamepad" for d in devs):
                     continue
                 conn = "Inalámbrico 2.4 GHz (receptor USB)" if usb["wireless"] else "Conectado por USB"
-                add(usb["name"], usb["type"], None, not usb["wireless"], conn)
+                pct = None
+                if usb["wireless"] and "barracuda" in usb["name"].lower():
+                    pct = hw_sensors.read_razer_headset_battery()
+                    if pct is not None:
+                        conn = f"{pct}% Batería • 2.4 GHz"
+                add(usb["name"], usb["type"], pct, not usb["wireless"], conn)
         except Exception:
             pass
 
@@ -1524,48 +1939,52 @@ class VortexCoreManager:
                         except Exception:
                             pass
 
-                # 2c. Lectura nativa PawnIO (CPU, GPU AMD/Intel, ventiladores EC) / SHM cada 1s, ping cada 6s y WMI/ACPI cada 5s
-                if tick % 2 == 0:
-                    try:
-                        native = hw_sensors.read_native_cpu_sensors()
-                        if native:
-                            if native.get("cores"):
-                                self.telemetry["cpu_core_temps"] = native["cores"]
-                                self.telemetry["cpu_temp_source"] = native["source"]
-                            if self.telemetry.get("cpu_temp") is None and native.get("package_c") is not None:
-                                self.telemetry["cpu_temp"] = int(round(native["package_c"]))
-                            if native.get("vcore_mv") is not None:
-                                self.telemetry["cpu_volt_mv"] = native["vcore_mv"]
-                            self.telemetry["cpu_power_w"] = native.get("cpu_power_w")
-                            ngpu = native.get("gpu") or {}
-                            self.telemetry["gpu_hotspot"] = ngpu.get("hotspot")
-                            self.telemetry["gpu_vram_used_mb"] = ngpu.get("vram_used_mb")
-                            self.telemetry["gpu_vram_total_mb"] = ngpu.get("vram_total_mb")
-                            if ngpu and (not self._has_nvidia_smi or self.telemetry.get("gpu_temp") is None):
-                                if ngpu.get("temp") is not None:
-                                    self.telemetry["gpu_temp"] = ngpu["temp"]
-                                if ngpu.get("usage") is not None:
-                                    self.telemetry["gpu_usage"] = ngpu["usage"]
-                                if ngpu.get("freq_mhz") is not None:
-                                    self.telemetry["gpu_freq_mhz"] = ngpu["freq_mhz"]
-                                if ngpu.get("mem_freq_mhz") is not None:
-                                    self.telemetry["gpu_mem_freq_mhz"] = ngpu["mem_freq_mhz"]
-                                if ngpu.get("power_w") is not None:
-                                    self.telemetry["gpu_power"] = ngpu["power_w"]
-                            nfans = native.get("fans") or []
-                            if nfans:
-                                if self.telemetry.get("fan1_rpm") is None and len(nfans) >= 1:
-                                    self.telemetry["fan1_rpm"] = nfans[0]
-                                if self.telemetry.get("fan2_rpm") is None and len(nfans) >= 2:
-                                    self.telemetry["fan2_rpm"] = nfans[1]
-                                self.telemetry["fans_readable"] = True
-                        if not (native and native.get("cores")):
-                            shm_cores, shm_src = hw_sensors.read_shm_core_temps()
-                            if shm_cores:
-                                self.telemetry["cpu_core_temps"] = shm_cores
-                                self.telemetry["cpu_temp_source"] = shm_src
-                    except Exception:
-                        pass
+                # 2c. Lectura nativa PawnIO / LibreHardwareMonitor en tiempo real cada 500ms (estilo HWMonitor)
+                try:
+                    native = hw_sensors.read_native_cpu_sensors()
+                    if native:
+                        if native.get("cores"):
+                            self.telemetry["cpu_core_temps"] = native["cores"]
+                            self.telemetry["cpu_temp_source"] = native["source"]
+                        pkg = native.get("package_c")
+                        if pkg is None and native.get("cores"):
+                            pkg = max(c["temp_c"] for c in native["cores"])
+                        if pkg is not None and 0 < pkg <= 125:
+                            self.telemetry["cpu_temp"] = int(round(pkg))
+                            self._native_cpu_ts = time.monotonic()
+                        if native.get("vcore_mv") is not None:
+                            self.telemetry["cpu_volt_mv"] = native["vcore_mv"]
+                        self.telemetry["cpu_power_w"] = native.get("cpu_power_w")
+                        ngpu = native.get("gpu") or {}
+                        self.telemetry["gpu_hotspot"] = ngpu.get("hotspot")
+                        self.telemetry["gpu_vram_used_mb"] = ngpu.get("vram_used_mb")
+                        self.telemetry["gpu_vram_total_mb"] = ngpu.get("vram_total_mb")
+                        if ngpu:
+                            if ngpu.get("temp") is not None:
+                                self.telemetry["gpu_temp"] = ngpu["temp"]
+                                self._native_gpu_ts = time.monotonic()
+                            if ngpu.get("usage") is not None:
+                                self.telemetry["gpu_usage"] = ngpu["usage"]
+                            if ngpu.get("freq_mhz") is not None:
+                                self.telemetry["gpu_freq_mhz"] = ngpu["freq_mhz"]
+                            if ngpu.get("mem_freq_mhz") is not None:
+                                self.telemetry["gpu_mem_freq_mhz"] = ngpu["mem_freq_mhz"]
+                            if ngpu.get("power_w") is not None:
+                                self.telemetry["gpu_power"] = ngpu["power_w"]
+                        nfans = native.get("fans") or []
+                        if nfans:
+                            if self.telemetry.get("fan1_rpm") is None and len(nfans) >= 1:
+                                self.telemetry["fan1_rpm"] = nfans[0]
+                            if self.telemetry.get("fan2_rpm") is None and len(nfans) >= 2:
+                                self.telemetry["fan2_rpm"] = nfans[1]
+                            self.telemetry["fans_readable"] = True
+                    if not (native and native.get("cores")) and tick % 2 == 0:
+                        shm_cores, shm_src = hw_sensors.read_shm_core_temps()
+                        if shm_cores:
+                            self.telemetry["cpu_core_temps"] = shm_cores
+                            self.telemetry["cpu_temp_source"] = shm_src
+                except Exception:
+                    pass
                 if tick % 10 == 0:
                     self.telemetry["cpu_msr_status"] = {
                         "pawnio_installed": hw_sensors.is_pawnio_installed(),
@@ -1577,6 +1996,8 @@ class VortexCoreManager:
                 if tick % 10 == 0 and not self._core_temp_busy:
                     self._core_temp_busy = True
                     threading.Thread(target=self._refresh_core_temps, daemon=True).start()
+                if tick % 4 == 0 and auto_hz is not None:
+                    auto_hz.tick()
                 # Contadores de Windows: frecuencia efectiva de CPU (incluye Turbo) y memoria en caché
                 counters = self._counters.read()
                 if counters["cached_bytes"] is not None:
@@ -1594,127 +2015,21 @@ class VortexCoreManager:
                     if counters.get("gpu_vram_mb") is not None and self.telemetry.get("gpu_vram_mb") is None:
                         self.telemetry["gpu_vram_mb"] = counters["gpu_vram_mb"]
 
-                # 3. GPU NVIDIA cada 1s (Temp, Uso, Power, Clock MHz, Mem MHz)
-                # (Aislado en su propio try: en equipos sin NVIDIA, nvidia-smi no existe y antes
-                #  congelaba toda la telemetría porque la excepción saltaba el resto del ciclo.)
-                gpu_proc = None
-                if tick % 2 == 0 and self._has_nvidia_smi:
-                    try:
-                        gpu_proc = subprocess.run(
-                            ["nvidia-smi", "--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,clocks.mem,memory.total,pcie.link.gen.current,pcie.link.width.current,power.limit,pstate", "--format=csv,noheader,nounits"],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                            creationflags=CREATE_NO_WINDOW, timeout=2
-                        )
-                    except FileNotFoundError:
-                        self._has_nvidia_smi = False
-                    except Exception:
-                        gpu_proc = None
-                if gpu_proc is not None:
-                    if gpu_proc.returncode == 0 and gpu_proc.stdout:
-                        parts = [p.strip() for p in gpu_proc.stdout.strip().split(",")]
-                        if len(parts) >= 3:
-                            try:
-                                self.telemetry["gpu_temp"] = int(float(parts[0]))
-                                self.telemetry["gpu_usage"] = int(float(parts[1]))
-                                self.telemetry["gpu_power"] = f"{float(parts[2]):.1f}"
-                            except Exception:
-                                pass
-                        if len(parts) >= 5:
-                            try:
-                                g_clk = int(float(parts[3]))
-                                m_clk = int(float(parts[4]))
-                                self.telemetry["gpu_freq_mhz"] = g_clk
-                                self.telemetry["gpu_mem_freq_mhz"] = m_clk if m_clk > 0 else None
-                            except Exception:
-                                pass
-                        if len(parts) >= 10:
-                            def _num(x):
-                                try:
-                                    return float(x)
-                                except ValueError:
-                                    return None  # "[N/A]" u otros: el driver no lo informa
-                            vram = _num(parts[5])
-                            gen, width = _num(parts[6]), _num(parts[7])
-                            plim = _num(parts[8])
-                            self.telemetry["gpu_vram_mb"] = int(vram) if vram else None
-                            self.telemetry["gpu_pcie"] = f"PCIe Gen{int(gen)} x{int(width)}" if gen and width else None
-                            self.telemetry["gpu_power_limit"] = f"{plim:.0f}" if plim else None
-                            self.telemetry["gpu_pstate"] = parts[9] if parts[9].startswith("P") else None
+                # 3. GPU NVIDIA en segundo plano (10s si LHM ya lee la GPU, 2s si es respaldo)
+                gpu_interval = 20 if (time.monotonic() - self._native_gpu_ts) < 12.0 else 4
+                if tick % gpu_interval == 0 and self._has_nvidia_smi and not self._nvidia_busy:
+                    self._nvidia_busy = True
+                    threading.Thread(target=self._refresh_nvidia_smi, daemon=True).start()
 
-                # Voltaje real del núcleo GPU (si el driver NVIDIA lo expone) cada 4s
-                if tick % 8 == 0 and self._has_nvidia_smi:
+                # Voltaje real del núcleo GPU (si el driver NVIDIA lo expone) cada 8s
+                if tick % 16 == 0 and self._has_nvidia_smi:
                     self.telemetry["gpu_volt_mv"] = hw_sensors.read_nvidia_voltage_mv()
 
-                # 4. Telemetría BIOS HP / Acer Nitro WMI (RPM & Temp) cada 1.5s
-                if tick % 3 == 0 and self.system_specs.get("is_hp", False):
-                    ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.fan_script, "-Mode", "query"])
-                    if ok and "CPU_TEMP=" in out:
-                        for item in out.strip().splitlines()[-1].split("|"):
-                            try:
-                                k, v = item.strip().split("=", 1)
-                                v = int(v)
-                            except ValueError:
-                                continue
-                            if k == "CPU_TEMP" and 0 < v <= 115:
-                                self.telemetry["cpu_temp"] = v
-                            elif k == "FAN1_RPM" and v > 0:
-                                self.telemetry["fan1_rpm"] = v
-                            elif k == "FAN2_RPM" and v > 0:
-                                self.telemetry["fan2_rpm"] = v
-                elif tick % 3 == 0 and self.system_specs.get("is_acer", False) and self._acer_wmi_ok:
-                    ok, out = self._run_cmd(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.acer_fan_script, "-Mode", "query"])
-                    if "NO_WMI:" in out:
-                        self._acer_wmi_ok = False
-                    elif ok and "CPU_TEMP=" in out:
-                        for item in out.strip().splitlines()[-1].split("|"):
-                            try:
-                                k, v = item.strip().split("=", 1)
-                                v = int(v)
-                            except ValueError:
-                                continue
-                            if k == "CPU_TEMP" and 0 < v <= 115:
-                                self.telemetry["cpu_temp"] = v
-                            elif k == "FAN1_RPM" and v > 0:
-                                self.telemetry["fan1_rpm"] = v
-                            elif k == "FAN2_RPM" and v > 0:
-                                self.telemetry["fan2_rpm"] = v
-                elif tick % 3 == 0 and self._oem_wmi_ok and any(
-                    self.system_specs.get(k, False) for k in ("is_lenovo", "is_asus", "is_dell")
-                ):
-                    oem_brand = (
-                        "lenovo" if self.system_specs.get("is_lenovo")
-                        else "asus" if self.system_specs.get("is_asus")
-                        else "dell"
-                    )
-                    ok, out = self._run_cmd([
-                        "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                        "-File", self.oem_fan_script, "-Brand", oem_brand, "-Mode", "query",
-                    ])
-                    if "NO_WMI:" in out:
-                        self._oem_wmi_ok = False
-                        self.telemetry["fans_readable"] = False
-                    elif ok and "FAN1_RPM=" in out:
-                        for item in out.strip().splitlines()[-1].split("|"):
-                            try:
-                                k, v = item.strip().split("=", 1)
-                                v = int(v)
-                            except ValueError:
-                                continue
-                            if k == "CPU_TEMP" and 0 < v <= 115:
-                                self.telemetry["cpu_temp"] = v
-                            elif k == "FAN1_RPM" and v > 0:
-                                self.telemetry["fan1_rpm"] = v
-                            elif k == "FAN2_RPM" and v > 0:
-                                self.telemetry["fan2_rpm"] = v
-
-                elif tick % 6 == 0:
-                    # Equipos no-HP: temperatura de la zona térmica ACPI (si el firmware la expone)
-                    ok, out = self._run_cmd(["powershell", "-NoProfile", "-Command",
-                        "$t=Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1; if($t){[int](($t.CurrentTemperature-2732)/10)}"])
-                    if ok and out.strip().lstrip("-").isdigit():
-                        v = int(out.strip())
-                        if 0 < v <= 115:
-                            self.telemetry["cpu_temp"] = v
+                # 4. Telemetría BIOS HP / Acer / OEM WMI (RPM & respaldo temp) cada 5s (3s en Manual)
+                fan_interval = 6 if self.current_profile == "MANUAL" else 10
+                if tick % fan_interval == 0 and not self._oem_fan_busy:
+                    self._oem_fan_busy = True
+                    threading.Thread(target=self._refresh_oem_fans, daemon=True).start()
 
 
                 # 5. Cálculo de Diagnóstico e Inteligencia de Hardware (Health Score)
@@ -1736,9 +2051,12 @@ class VortexCoreManager:
                 self.telemetry["health_score"] = max(45, health)
                 self.telemetry["health_status"] = "ÓPTIMO" if health >= 85 else "MODERADO" if health >= 70 else "ELEVADO"
 
-                # 6. Detección instantánea de Dispositivos y Mandos (2.4GHz y Bluetooth) cada 2s
-                if tick % 4 == 0:
-                    self.telemetry["battery_devices"] = self._get_battery_devices()
+                # 6. Detección de Dispositivos y Mandos (2.4GHz y Bluetooth) cada 5s
+                if tick % 10 == 0:
+                    devs = self._get_battery_devices()
+                    self.telemetry["battery_devices"] = devs
+                    self._check_low_battery_alerts(devs)
+                    self.telemetry["mic_muted"] = is_default_mic_muted()
 
                 # Si está activo el Laboratorio de Tuning Manual, interpolar la curva de 8 puntos en vivo
                 manual_cfg = getattr(self, "manual_config", None)
@@ -1953,8 +2271,8 @@ class VortexCoreManager:
         self._run_cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
 
 
-# En modo prueba (tests automáticos) no se inicia el gestor de hardware real
-manager = None if os.environ.get("VORTEXCORE_TEST_MODE") == "1" else VortexCoreManager()
+# En modo prueba (tests automáticos) o CLI no se inicia el gestor de hardware real
+manager = None if (os.environ.get("VORTEXCORE_TEST_MODE") == "1" or _CLI_MODE) else VortexCoreManager()
 # overlay en juego con fps de presentmon
 # aviso de nuevas versiones publicadas en github
 update_checker = updater.UpdateChecker(APP_VERSION)
@@ -1971,6 +2289,9 @@ gamemode = None if manager is None else game_mode.GameMode(
     fps_stop=lambda: fps_mon.stop("gamemode"))
 overlay = None if manager is None else game_overlay.GameOverlay(
     lambda: manager.telemetry, fps_mon, get_net=net_mon.snapshot)
+auto_hz = None if manager is None else display_manager.AutoHzWatcher()
+ds_bridge = None if manager is None else dualsense_bridge.DualSenseBridge(enabled=True)
+_tray_ref = None
 
 
 def _clamp_int(value, lo: int, hi: int, default: int) -> int:
@@ -2006,25 +2327,86 @@ MAX_BODY_BYTES = 64 * 1024
 
 APO_BASE_DIR = r"C:\Program Files\EqualizerAPO"
 APO_DOWNLOAD_URL = "https://sourceforge.net/projects/equalizerapo/"
+APO_LATEST_INSTALLER_URL = "https://sourceforge.net/projects/equalizerapo/files/latest/download"
 SENSOR_APP_URLS = {
     "lhm": "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest",
     "coretemp": "https://www.alcpu.com/CoreTemp/",
 }
 
 
+def _apo_has_configured_device() -> bool:
+    if sys.platform != "win32":
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\EqualizerAPO\Child APOs", 0, winreg.KEY_READ) as k:
+            subkeys, _, _ = winreg.QueryInfoKey(k)
+            return subkeys > 0
+    except OSError:
+        return False
+
+
+def _find_apo_selector_exe() -> str | None:
+    for exe_name in ("DeviceSelector.exe", "Configurator.exe"):
+        path = os.path.join(APO_BASE_DIR, exe_name)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
 def get_apo_status() -> dict:
-    """Comprueba si Equalizer APO y su configurador están instalados en Windows."""
+    """Comprueba si Equalizer APO, su selector de dispositivos y al menos un dispositivo están listos."""
     config_dir = os.path.join(APO_BASE_DIR, "config")
     config_txt = os.path.join(config_dir, "config.txt")
-    configurator = os.path.join(APO_BASE_DIR, "Configurator.exe")
-    installed = os.path.isdir(config_dir) or os.path.isfile(configurator)
+    selector = _find_apo_selector_exe()
+    installed = os.path.isdir(config_dir) or selector is not None
     return {
         "installed": installed,
+        "configured": installed and _apo_has_configured_device(),
         "config_dir": config_dir,
         "config_exists": os.path.isfile(config_txt),
-        "configurator_exists": os.path.isfile(configurator),
+        "configurator_exists": selector is not None,
         "download_url": APO_DOWNLOAD_URL,
     }
+
+
+def install_equalizer_apo() -> dict:
+    """Descarga e instala Equalizer APO de forma silenciosa en 1 clic."""
+    if sys.platform != "win32":
+        return {"status": "error", "message": "Solo compatible con Windows."}
+    if not is_admin():
+        return {"status": "error", "needs_admin": True, "message": "Ejecuta VortexCore como Administrador para instalar Equalizer APO."}
+    import tempfile
+    import urllib.request
+    installer_path = os.path.join(tempfile.gettempdir(), "EqualizerAPO-Setup.exe")
+    try:
+        req = urllib.request.Request(
+            APO_LATEST_INSTALLER_URL,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp, open(installer_path, "wb") as out:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                out.write(chunk)
+        with open(installer_path, "rb") as chk:
+            if chk.read(2) != b"MZ":
+                return {"status": "error", "message": "La descarga desde SourceForge no devolvió un instalador válido."}
+        r = subprocess.run([installer_path, "/S"], timeout=90, creationflags=CREATE_NO_WINDOW)
+        if r.returncode != 0:
+            return {"status": "error", "message": f"El instalador falló con código {r.returncode}."}
+        st = get_apo_status()
+        if not st["installed"]:
+            return {"status": "error", "message": "La instalación terminó pero Equalizer APO no aparece en Archivos de programa."}
+        return {"status": "ok", **st}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        try:
+            if os.path.isfile(installer_path):
+                os.remove(installer_path)
+        except OSError:
+            pass
 
 
 def get_top_memory_processes(limit: int = 8) -> list[dict]:
@@ -2052,6 +2434,7 @@ def get_top_memory_processes(limit: int = 8) -> list[dict]:
 
 
 class VortexHttpHandler(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     # El servidor corre como Administrador: solo la interfaz propia puede usar la API.
     # Cualquier página web abierta en el navegador podría, si no, mandar peticiones a
     # 127.0.0.1:8765 (cambiar límites de GPU, desinstalar apps, tocar el registro...).
@@ -2084,8 +2467,10 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
-        # Revalidar siempre: tras actualizar la app, la ventana no debe mostrar CSS/JS antiguos
-        self.send_header("Cache-Control", "no-cache")
+        # No guardar en caché: tras actualizar la app, la ventana nunca debe mostrar CSS/JS antiguos
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         super().end_headers()
 
     def do_GET(self):
@@ -2099,6 +2484,26 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         else:
             if (self.headers.get("Host") or "").strip().lower() not in ALLOWED_HOSTS:
                 return self._reject()
+            clean_path = self.path.split("?", 1)[0]
+            if clean_path in ("/", "/index.html"):
+                try:
+                    web_dir = os.path.join(get_app_dir(), "vortex-hub")
+                    idx_path = os.path.join(web_dir, "index.html")
+                    with open(idx_path, "r", encoding="utf-8") as f:
+                        html = f.read()
+                    css_m = int(os.path.getmtime(os.path.join(web_dir, "style.css")))
+                    js_m = int(os.path.getmtime(os.path.join(web_dir, "app.js")))
+                    html = html.replace(f"style.css?v={APP_VERSION}", f"style.css?v={APP_VERSION}&b={css_m}")
+                    html = html.replace(f"app.js?v={APP_VERSION}", f"app.js?v={APP_VERSION}&b={js_m}")
+                    body = html.encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                except Exception:
+                    pass
             super().do_GET()
 
     def _handle_get(self):
@@ -2124,13 +2529,19 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/gamemode":
             self._send_json(gamemode.state())
         elif path == "/api/peripherals":
-            self._send_json(peripherals_cfg)
+            st = ds_bridge.status() if ds_bridge is not None else {"vigem_installed": dualsense_bridge.is_vigembus_installed(), "bridge_active": False}
+            self._send_json({**peripherals_cfg, **st})
+        elif path == "/api/gamepad/live":
+            st = ds_bridge.get_live_state() if ds_bridge is not None else {"bridge_active": False, "live": None}
+            self._send_json(st)
         elif path == "/api/audio_mixer":
             self._send_json(get_audio_mixer_data())
         elif path == "/api/apo_status":
             self._send_json(get_apo_status())
         elif path == "/api/battery_health":
             self._send_json(hw_sensors.read_battery_health())
+        elif path == "/api/storage_health":
+            self._send_json(hw_sensors.read_storage_health())
         elif path == "/api/cleanup/scan":
             self._send_json(scan_disk_cleanup())
         elif path == "/api/top_processes":
@@ -2145,6 +2556,12 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 "dns": hw_sensors.benchmark_dns_servers(),
                 "quality": hw_sensors.measure_network_quality(),
             })
+        elif path == "/api/display":
+            self._send_json(display_manager.get_full_state(include_brightness=True))
+        elif path == "/api/tray/config":
+            self._send_json(load_tray_config())
+        elif path == "/api/audio_devices":
+            self._send_json({"devices": audio_devices.list_output_devices()})
         else:
             self._send_json({"status": "error", "message": "Not found"}, code=404)
 
@@ -2262,7 +2679,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             vol = None if vol is None else _clamp_float(vol, 0.0, 100.0, 50.0)
             muted = data.get("muted")
             muted = None if muted is None else bool(muted)
-            ok = set_master_volume_state(vol, muted)
+            dev_id = data.get("device_id")
+            ok = set_master_volume_state(vol, muted, device_id=dev_id)
             self._send_json({"status": "ok" if ok else "error"})
         elif self.path == "/api/set_app_volume":
             pid = data.get("pid")
@@ -2273,7 +2691,16 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             vol = None if vol is None else _clamp_float(vol, 0.0, 100.0, 50.0)
             muted = data.get("muted")
             muted = None if muted is None else bool(muted)
-            ok = set_app_volume_state(pid, name, vol, muted)
+            dev_id = data.get("device_id")
+            ok = set_app_volume_state(pid, name, vol, muted, device_id=dev_id)
+            self._send_json({"status": "ok" if ok else "error"})
+        elif self.path == "/api/set_mic_volume":
+            vol = data.get("volume")
+            vol = None if vol is None else _clamp_float(vol, 0.0, 200.0, 80.0)
+            muted = data.get("muted")
+            muted = None if muted is None else bool(muted)
+            dev_id = data.get("device_id")
+            ok = set_mic_volume_state(vol, muted, device_id=dev_id)
             self._send_json({"status": "ok" if ok else "error"})
         elif self.path == "/api/set_cpu_limit":
             max_pct = _clamp_int(data.get("max_pct"), 50, 100, 100)
@@ -2340,7 +2767,46 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             if "dualsense_battery" in data:
                 peripherals_cfg["dualsense_battery"] = bool(data["dualsense_battery"])
                 save_peripherals_config(peripherals_cfg)
-            self._send_json(peripherals_cfg)
+                if ds_bridge is not None:
+                    ds_bridge.set_enabled(peripherals_cfg["dualsense_battery"])
+            if ds_bridge is not None and any(k in data for k in ("mode", "deadzone", "led_color", "led_brightness", "rainbow_speed", "player_leds", "curve", "hair_triggers", "invert_y", "touchpad_mouse", "mic_mute", "idle_timeout", "power_save", "rumble_enabled", "rumble_intensity")):
+                ds_bridge.set_config(
+                    mode=data.get("mode"),
+                    deadzone=data.get("deadzone"),
+                    led_color=data.get("led_color"),
+                    led_brightness=data.get("led_brightness"),
+                    rainbow_speed=data.get("rainbow_speed"),
+                    player_leds=data.get("player_leds"),
+                    curve=data.get("curve"),
+                    hair_triggers=data.get("hair_triggers"),
+                    invert_y=data.get("invert_y"),
+                    touchpad_mouse=data.get("touchpad_mouse"),
+                    mic_mute=data.get("mic_mute"),
+                    idle_timeout=data.get("idle_timeout"),
+                    power_save=data.get("power_save"),
+                    rumble_enabled=data.get("rumble_enabled"),
+                    rumble_intensity=data.get("rumble_intensity"),
+                )
+            if "mic_mute" in data:
+                set_mic_volume_state(muted=bool(data["mic_mute"]))
+            st = ds_bridge.status() if ds_bridge is not None else {"vigem_installed": dualsense_bridge.is_vigembus_installed(), "bridge_active": False}
+            self._send_json({**peripherals_cfg, **st})
+        elif self.path == "/api/gamepad/rumble":
+            ok = False
+            if ds_bridge is not None:
+                threading.Thread(target=ds_bridge.test_rumble, daemon=True).start()
+                ok = True
+            self._send_json({"status": "ok" if ok else "error"})
+        elif self.path == "/api/install_vigem":
+            res = dualsense_bridge.install_vigembus()
+            if res.get("status") == "ok" and res.get("installed"):
+                peripherals_cfg["dualsense_battery"] = True
+                save_peripherals_config(peripherals_cfg)
+                if ds_bridge is not None:
+                    ds_bridge.set_enabled(True)
+            code = 200 if res.get("status") == "ok" else (403 if res.get("needs_admin") else 500)
+            st = ds_bridge.status() if ds_bridge is not None else {"vigem_installed": dualsense_bridge.is_vigembus_installed(), "bridge_active": False}
+            self._send_json({**res, **peripherals_cfg, **st}, code=code)
         elif self.path == "/api/fans/report":
             action = str(data.get("action", "")).lower()
             report = manager.diagnose_fans()
@@ -2408,31 +2874,12 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             bands += [0.0] * (10 - len(bands))
             # El preset se escribe en config.txt de Equalizer APO: solo caracteres seguros (sin saltos de línea)
             preset = "".join(c for c in str(data.get("preset", "custom")) if c.isalnum() or c in " -_")[:40] or "custom"
-            freqs = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
-
-            apo_dir = r"C:\Program Files\EqualizerAPO\config"
-            apo_config = os.path.join(apo_dir, "config.txt")
-            if enabled:
-                eq_line = "GraphicEQ: " + "; ".join(f"{freqs[i]} {bands[i]}" for i in range(min(len(bands), len(freqs)))) + "\n"
-            else:
-                eq_line = "# GraphicEQ desactivado por VortexCore Hub (Modo Normal / Bypass)\n"
-
-            written = False
-            if os.path.isdir(apo_dir):
-                try:
-                    with open(apo_config, "w", encoding="utf-8") as f:
-                        f.write(f"# VortexCore Hub - Estado EQ: {'ACTIVO (' + preset + ')' if enabled else 'DESACTIVADO (NORMAL)'}\n")
-                        f.write(eq_line)
-                    written = True
-                except Exception:
-                    pass
-
-            vortex_cfg_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub")
-            os.makedirs(vortex_cfg_dir, exist_ok=True)
-            vortex_cfg = os.path.join(vortex_cfg_dir, "audio_eq.json")
+            eq_payload = {"enabled": enabled, "bands": bands, "preset": preset}
+            written = _write_apo_config(eq_saved=eq_payload)
+            vortex_cfg = os.path.join(_vortex_cfg_dir(), "audio_eq.json")
             try:
                 with open(vortex_cfg, "w", encoding="utf-8") as f:
-                    json.dump({"enabled": enabled, "bands": bands, "preset": preset}, f)
+                    json.dump(eq_payload, f)
             except Exception:
                 pass
 
@@ -2446,8 +2893,8 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     self._send_json({"status": "error", "message": str(e)}, code=500)
             elif action == "configurator":
-                cfg_exe = os.path.join(APO_BASE_DIR, "Configurator.exe")
-                if os.path.isfile(cfg_exe):
+                cfg_exe = _find_apo_selector_exe()
+                if cfg_exe:
                     try:
                         subprocess.Popen([cfg_exe], cwd=APO_BASE_DIR)
                         self._send_json({"status": "ok", "action": "configurator"})
@@ -2457,6 +2904,10 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                     self._send_json({"status": "error", "message": "Equalizer APO no está instalado en este equipo."}, code=404)
             else:
                 self._reject(400, "Acción de Equalizer APO desconocida")
+        elif self.path == "/api/install_apo":
+            res = install_equalizer_apo()
+            code = 200 if res.get("status") == "ok" else (403 if res.get("needs_admin") else 500)
+            self._send_json(res, code=code)
         elif self.path == "/api/open_sensor_app":
             target = str(data.get("app", "")).lower()
             url = SENSOR_APP_URLS.get(target)
@@ -2500,6 +2951,73 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
             res = hw_sensors.apply_network_boost(enable=enable, dns_preset=dns_preset, iface_name=iface)
             code = 200 if res.get("status") in ("ok", "partial") else (403 if res.get("needs_admin") else 500)
             self._send_json(res, code=code)
+        elif self.path == "/api/display/hz":
+            res = display_manager.set_refresh_rate(data.get("hz"), device_name=data.get("device_name"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/resolution":
+            res = display_manager.set_resolution(data.get("width"), data.get("height"), device_name=data.get("device_name"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/disconnect":
+            res = display_manager.disconnect_display(data.get("device_name"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/connect":
+            res = display_manager.connect_display(data.get("device_name"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/primary":
+            res = display_manager.set_primary_display(data.get("device_name"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/projection":
+            res = display_manager.set_projection_mode(data.get("mode"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/layout":
+            res = display_manager.set_display_layout(data.get("positions") or [])
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/identify":
+            res = display_manager.identify_displays()
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/accent":
+            acc = str(data.get("accent") or "cyan").strip().lower()
+            if acc not in ("cyan", "omen", "violet", "emerald", "minimal"):
+                acc = "cyan"
+            try:
+                cfg_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub")
+                os.makedirs(cfg_dir, exist_ok=True)
+                with open(os.path.join(cfg_dir, "accent.json"), "w", encoding="utf-8") as f:
+                    json.dump({"accent": acc}, f)
+            except Exception:
+                pass
+            self._send_json({"status": "ok", "accent": acc})
+        elif self.path == "/api/display/brightness":
+            res = display_manager.set_brightness(data.get("brightness"))
+            self._send_json(res, code=200 if res.get("status") == "ok" else 400)
+        elif self.path == "/api/display/config":
+            if auto_hz is not None:
+                cfg = auto_hz.reload(data)
+            else:
+                cfg = {
+                    "auto_hz": bool(data.get("auto_hz", False)),
+                    "ac_hz": data.get("ac_hz"),
+                    "battery_hz": data.get("battery_hz"),
+                }
+                display_manager.save_config(cfg)
+            self._send_json({"status": "ok", "config": cfg})
+        elif self.path == "/api/display/settings":
+            try:
+                os.startfile("ms-settings:display")
+                self._send_json({"status": "ok"})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, code=500)
+        elif self.path == "/api/tray/config":
+            enabled = bool(data.get("temp_icon", True))
+            if _tray_ref is not None:
+                _tray_ref.set_temp_icon(enabled)
+            else:
+                save_tray_config({"temp_icon": enabled})
+            self._send_json({"status": "ok", "temp_icon": enabled})
+        elif self.path == "/api/audio_devices/default":
+            dev_id = str(data.get("id", "")).strip()
+            ok = audio_devices.set_default_output_device(dev_id)
+            self._send_json({"status": "ok" if ok else "error", "id": dev_id}, code=200 if ok else 400)
         elif self.path == "/api/focus_window":
             launch_or_focus_window()
             self._send_json({"status": "ok", "action": "focused"})
@@ -2630,7 +3148,9 @@ def focus_existing_window() -> bool:
 
         if found_hwnd:
             apply_window_icon(found_hwnd)
-            # Si estaba minimizada, restaurar
+            # Si estaba oculta o minimizada, mostrar y restaurar
+            if not user32.IsWindowVisible(found_hwnd):
+                user32.ShowWindow(found_hwnd, 5)  # SW_SHOW
             if user32.IsIconic(found_hwnd):
                 user32.ShowWindow(found_hwnd, 9)  # SW_RESTORE
             else:
@@ -2667,9 +3187,12 @@ def launch_native_window():
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     ]
     edge_exe = next((p for p in edge_paths if os.path.isfile(p)), "msedge.exe")
-    # La versión en la URL obliga a Edge a pedir la interfaz nueva tras cada actualización
-    # (la caché del perfil de la ventana guarda páginas de versiones anteriores)
-    url = f"http://127.0.0.1:{PORT}/?v={APP_VERSION}"
+    # La versión + mtime en la URL obligan a Edge a pedir siempre la interfaz nueva
+    try:
+        _build_tag = int(os.path.getmtime(os.path.join(get_app_dir(), "vortex-hub", "app.js")))
+    except Exception:
+        _build_tag = int(time.time())
+    url = f"http://127.0.0.1:{PORT}/?v={APP_VERSION}&b={_build_tag}"
     user_data = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VortexCoreHub", "Profile")
     os.makedirs(user_data, exist_ok=True)
     _refresh_edge_icon_cache(user_data)
@@ -2678,6 +3201,7 @@ def launch_native_window():
         edge_exe,
         f"--app={url}",
         f"--user-data-dir={user_data}",
+        "--disk-cache-size=1",
         "--new-window",
         "--no-first-run",
         "--no-default-browser-check",
@@ -2763,7 +3287,25 @@ def check_and_focus_existing_instance():
         pass
 
 
+def sync_saved_audio_eq_to_apo() -> None:
+    """Si Equalizer APO está instalado, sincroniza al arrancar la última curva EQ y el boost del micrófono."""
+    _write_apo_config()
+
+
 if __name__ == "__main__":
+    if "--set-autostart" in sys.argv:
+        _idx = sys.argv.index("--set-autostart")
+        _val = sys.argv[_idx + 1].lower() if len(sys.argv) > _idx + 1 else "on"
+        sys.exit(0 if set_autostart(_val in ("on", "1", "true", "yes")) else 1)
+    if "--setup-apo" in sys.argv:
+        if not get_apo_status()["installed"]:
+            install_equalizer_apo()
+        sys.exit(0)
+    if "--setup-vigem" in sys.argv:
+        if not dualsense_bridge.is_vigembus_installed():
+            dualsense_bridge.install_vigembus()
+        sys.exit(0)
+
     # 1. Guardia de Instancia Única (evita abrir ventanas duplicadas)
     check_and_focus_existing_instance()
 
@@ -2778,6 +3320,7 @@ if __name__ == "__main__":
 
     # Servidor multihilo: una petición lenta (debloat, apps de inicio) ya no congela la telemetría
     ThreadingHTTPServer.daemon_threads = True
+    ThreadingHTTPServer.request_queue_size = 64
     ThreadingHTTPServer.allow_reuse_address = False  # en Windows permitiría dos instancias en el mismo puerto
     try:
         server = ThreadingHTTPServer(("127.0.0.1", PORT), VortexHttpHandler)
@@ -2803,17 +3346,67 @@ if __name__ == "__main__":
     print(f"  Local Host: http://127.0.0.1:{PORT}")
     print("=====================================================")
 
+    # Flyout estilo EarTrumpet al hacer un clic izquierdo en el icono de la bandeja
+    from audio_flyout import AudioFlyout
+    audio_flyout = AudioFlyout(
+        get_data_cb=get_flyout_data,
+        set_master_cb=set_master_volume_state,
+        set_app_cb=set_app_volume_state,
+        set_default_cb=audio_devices.set_default_output_device,
+        on_open_hub_cb=launch_or_focus_window,
+        set_mic_cb=set_mic_volume_state,
+        set_eq_cb=apply_eq_preset_name,
+    )
+    audio_flyout.start()
+
+    def _open_hub_from_tray():
+        audio_flyout.hide()
+        launch_or_focus_window()
+
+    def _quit_completely():
+        try:
+            hwnd = _find_suite_window_hwnd()
+            if hwnd:
+                ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+        except Exception:
+            pass
+        try:
+            if ds_bridge is not None:
+                ds_bridge.stop()
+        except Exception:
+            pass
+        os._exit(0)
+
+    def _watch_minimize_to_tray():
+        u32 = ctypes.windll.user32
+        while True:
+            time.sleep(0.25)
+            try:
+                hwnd = _find_suite_window_hwnd()
+                if hwnd and u32.IsWindowVisible(hwnd) and u32.IsIconic(hwnd):
+                    u32.ShowWindow(hwnd, 0)  # SW_HIDE -> ocultar de la barra de tareas
+            except Exception:
+                pass
+
     # Iniciar icono en la bandeja del sistema (System Tray junto al reloj)
+    manager._overlay_ref = overlay
+    manager._gamemode_ref = gamemode
     tray = SystemTrayApp(
         manager,
-        on_open_callback=launch_or_focus_window,
-        on_exit_callback=lambda: os._exit(0)
+        on_open_callback=_open_hub_from_tray,
+        on_exit_callback=_quit_completely,
+        on_flyout_callback=audio_flyout.toggle,
     )
+    _tray_ref = tray
     threading.Thread(target=tray.run, daemon=True).start()
+    threading.Thread(target=_watch_minimize_to_tray, daemon=True).start()
+    threading.Thread(target=sync_saved_audio_eq_to_apo, daemon=True).start()
+    threading.Thread(target=dualsense_bridge.ensure_vigembus_in_background, daemon=True).start()
     overlay.start()
     update_checker.notify = tray.notify
     update_checker.start()
     gamemode.start()
+    ds_bridge.start()
 
     # Si se inicia automáticamente con Windows (--minimized o --tray), no abre la ventana
     is_minimized = any(arg in sys.argv for arg in ["--minimized", "--tray", "-m"])
