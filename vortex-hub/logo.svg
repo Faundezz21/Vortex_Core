@@ -12,7 +12,7 @@
     </linearGradient>
   </defs>
   <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#a-tile)"/>
-  <rect x="18" y="18" width="476" height="476" rx="114" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="4"/>
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="none" stroke="#24385b" stroke-opacity="0.7" stroke-width="4"/>
   <!-- brazo izquierdo (azul) -->
   <path d="M120 132 H214 C226 132 236 139 240 150 L292 300 L256 392 Z" fill="url(#a-l)"/>
   <!-- brazo derecho (cian), curvado como un aspa -->
