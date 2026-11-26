@@ -1842,7 +1842,7 @@ function _applyAppFocusRing() {
 }
 
 function _cycleAppMainTab(dir) {
-  const tabs = Array.from(document.querySelectorAll(".nav-menu .nav-btn"));
+  const tabs = Array.from(document.querySelectorAll(".nav-menu .nav-item:not([hidden]), .nav-menu .nav-btn:not([hidden])"));
   if (!tabs.length) return;
   const curIdx = Math.max(0, tabs.findIndex(b => b.classList.contains("active")));
   const nextIdx = (curIdx + dir + tabs.length) % tabs.length;

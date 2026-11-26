@@ -9978,29 +9978,29 @@ body,
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
+.nav-menu .nav-item,
 .nav-menu .nav-btn {
   border-radius: 14px !important;
-  min-height: 46px !important;
-  padding: 0 14px !important;
   color: #b4bccd !important;
-  font-size: 14.5px !important;
-  font-weight: 500 !important;
   border: 1px solid transparent !important;
   box-shadow: inset 0 0 0 2px transparent !important;
   transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease !important;
 }
 
+.nav-menu .nav-item:hover,
 .nav-menu .nav-btn:hover {
   background: rgba(255, 255, 255, 0.06) !important;
   color: #f4f6fb !important;
 }
 
+.nav-menu .nav-item.active,
 .nav-menu .nav-btn.active {
   background: rgba(255, 255, 255, 0.13) !important;
   color: #ffffff !important;
   box-shadow: inset 0 0 0 2px #ffffff !important;
 }
 
+.nav-menu .nav-item.active::before,
 .nav-menu .nav-btn.active::before {
   display: none !important;
 }
