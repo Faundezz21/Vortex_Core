@@ -1,34 +1,73 @@
 :root {
-  --bg-app: #060a12;
-  --bg-sidebar: #090f1c;
-  --bg-card: rgba(12, 20, 36, 0.90);
-  --bg-card-hover: rgba(16, 28, 48, 0.95);
-  --bg-card-active: rgba(20, 35, 60, 0.98);
-  
-  --border-subtle: rgba(0, 240, 255, 0.12);
-  --border-focus: rgba(0, 240, 255, 0.58);
-  --border-highlight: rgba(0, 240, 255, 0.30);
-  
-  --accent-amber: #00f0ff;
-  --accent-cyan: #00f0ff;
-  --accent-blue: #0088ff;
+  --bg-app: #05060a;
+  --bg-sidebar: rgba(10, 12, 18, 0.78);
+  --bg-card: rgba(15, 18, 28, 0.72);
+  --bg-card-hover: rgba(22, 26, 40, 0.86);
+  --bg-card-active: rgba(28, 34, 52, 0.94);
+
+  --surface-1: #0b0d14;
+  --surface-2: #121520;
+  --surface-3: #191d2b;
+  --line: rgba(255, 255, 255, 0.08);
+
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-focus: rgba(34, 211, 238, 0.55);
+  --border-highlight: rgba(255, 255, 255, 0.14);
+
+  --thermal-accent: #22d3ee;
+  --thermal-secondary: #3b82f6;
+  --thermal-glow: rgba(34, 211, 238, 0.24);
+  --thermal-soft: rgba(34, 211, 238, 0.10);
+  --ambient-accent: var(--thermal-accent);
+  --ambient-soft: var(--thermal-soft);
+
+  --accent-amber: var(--thermal-accent);
+  --accent-cyan: var(--thermal-accent);
+  --accent-blue: #3b82f6;
   --accent-orange: #f59e0b;
   --accent-green: #10b981;
-  --accent-red: #ef4444;
+  --accent-red: #f43f5e;
   --accent-purple: #8b5cf6;
 
-  --text-primary: #f1f5f9;
+  --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
 
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Chakra Petch', 'Plus Jakarta Sans', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
 
-  --glow-cyan: 0 0 18px rgba(0, 240, 255, 0.32);
-  --glow-orange: 0 0 18px rgba(245, 158, 11, 0.28);
-  --glow-green: 0 0 18px rgba(16, 185, 129, 0.25);
-  --glow-blue: 0 0 18px rgba(0, 136, 255, 0.28);
+  --glow-cyan: 0 0 22px var(--thermal-glow);
+  --glow-orange: 0 0 20px rgba(245, 158, 11, 0.28);
+  --glow-green: 0 0 20px rgba(16, 185, 129, 0.25);
+  --glow-blue: 0 0 20px rgba(59, 130, 246, 0.28);
+}
+
+body.thermal-cool {
+  --thermal-accent: #22d3ee;
+  --thermal-secondary: #3b82f6;
+  --thermal-glow: rgba(34, 211, 238, 0.24);
+  --thermal-soft: rgba(34, 211, 238, 0.10);
+  --ambient-accent: var(--thermal-accent);
+  --ambient-soft: var(--thermal-soft);
+}
+
+body.thermal-warm {
+  --thermal-accent: #f59e0b;
+  --thermal-secondary: #f97316;
+  --thermal-glow: rgba(245, 158, 11, 0.26);
+  --thermal-soft: rgba(245, 158, 11, 0.11);
+  --ambient-accent: #f59e0b;
+  --ambient-soft: rgba(245, 158, 11, 0.13);
+}
+
+body.thermal-hot {
+  --thermal-accent: #f43f5e;
+  --thermal-secondary: #fb7185;
+  --thermal-glow: rgba(244, 63, 94, 0.28);
+  --thermal-soft: rgba(244, 63, 94, 0.12);
+  --ambient-accent: #f43f5e;
+  --ambient-soft: rgba(244, 63, 94, 0.15);
 }
 
 * {
@@ -48,30 +87,53 @@ body {
   position: relative;
 }
 
-/* EFECTOS AMBIENTALES DE ILUMINACIÓN SUTIL */
-.ambient-glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(140px);
+/* MESH GRADIENT AMBIENTAL VIVO (RESPONDE AL ESTADO TÉRMICO) */
+.ambient-mesh {
+  position: fixed;
+  inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.15;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 42% 22%, var(--ambient-soft) 0%, transparent 52%),
+    radial-gradient(circle at 84% 16%, rgba(59, 130, 246, 0.14) 0%, transparent 48%),
+    radial-gradient(circle at 72% 86%, rgba(139, 92, 246, 0.14) 0%, transparent 52%),
+    #05060a;
+  transition: background 0.9s ease;
 }
 
-.glow-cyan {
+.mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(125px);
+  opacity: 0.24;
+  transition: background 1.1s ease, transform 1.2s ease;
+}
+
+.mesh-orb-1 {
   width: 500px;
   height: 500px;
-  background: var(--accent-cyan);
-  top: -120px;
-  left: 220px;
+  background: var(--ambient-accent);
+  top: -150px;
+  left: 36%;
 }
 
-.glow-blue {
-  width: 550px;
-  height: 550px;
-  background: var(--accent-blue);
-  bottom: -150px;
-  right: 5%;
+.mesh-orb-2 {
+  width: 580px;
+  height: 580px;
+  background: var(--thermal-secondary);
+  bottom: -210px;
+  right: 2%;
+  opacity: 0.30;
+}
+
+.mesh-orb-3 {
+  width: 420px;
+  height: 420px;
+  background: #8b5cf6;
+  top: 38%;
+  right: 22%;
+  opacity: 0.20;
 }
 
 .app-layout {
@@ -82,16 +144,18 @@ body {
 }
 
 /* ==========================================================================
-   1. SIDEBAR LATERAL PROFESIONAL
+   1. SIDEBAR COMPACTA Y MODERNA (GLASS 2026)
    ========================================================================== */
 .sidebar {
-  width: 242px;
+  width: 214px;
+  flex-shrink: 0;
   background: var(--bg-sidebar);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  padding: 20px 14px;
-  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+  padding: 18px 12px;
 }
 
 .sidebar-brand {
@@ -1815,6 +1879,39 @@ body {
   color: var(--text-secondary);
 }
 
+/* tarjeta de pantalla */
+.display-monitor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.display-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+}
+.display-hero-info h2 { margin: 4px 0 10px; font-size: 24px; }
+.display-meta-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.display-hero-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hz-btn-group { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; max-width: 420px; }
+.hz-btn-group .clean-btn { min-width: 74px; }
+.display-auto-selects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.display-auto-selects label { display: flex; align-items: center; gap: 8px; }
+.audio-output-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.et-other-devices { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.et-device-block { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px; }
+.et-sub-master { margin-bottom: 10px; }
+.et-sub-apps { margin-top: 8px; }
+
 /* tarjeta de red */
 .net-summary {
   display: grid;
@@ -2119,14 +2216,14 @@ details[open] .net-boost-title::before {
 }
 
 .ov-switch.active .ov-switch-track {
-  background: rgba(0, 240, 255, 0.25);
+  background: var(--thermal-soft);
   border-color: var(--accent-cyan);
 }
 
 .ov-switch.active .ov-switch-thumb {
   transform: translateX(18px);
   background: var(--accent-cyan);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 10px var(--thermal-glow);
 }
 
 .ov-switch.active .ov-switch-label {
@@ -4249,7 +4346,7 @@ body {
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-y: auto;
   box-shadow: inset 0 0 24px rgba(0, 240, 255, 0.03);
 }
@@ -7217,3 +7314,2818 @@ button:active:not(:disabled),
 /* Tarjetas de RAM: el texto se ajusta al ancho en ventanas muy estrechas */
 .booster-item .bi-info { min-width: 0; flex-basis: 100%; }
 .booster-item { min-width: 0; }
+
+/* Pestaña Audio compacta */
+.audio-compact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ach-device {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.audio-active-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#tab-audio .audio-output-selector {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.eq-presets-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.audio-preset-card.compact {
+  flex: 1 1 130px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.audio-preset-card.compact .apc-icon {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+}
+.audio-preset-card.compact strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.eq-apo-bar[hidden],
+.eq-apo-bar [hidden] {
+  display: none !important;
+}
+.eq-apo-bar {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.eq-apo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.eq-apo-info strong {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.eq-apo-info small {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.et-other-collapse {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.et-other-collapse > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.et-other-collapse > summary::before {
+  content: "▸";
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.et-other-collapse[open] > summary::before {
+  transform: rotate(90deg);
+}
+.et-other-collapse > summary:hover {
+  color: var(--text-primary);
+}
+.et-other-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.et-mic-row[hidden] {
+  display: none !important;
+}
+.ds-controls-box[hidden] {
+  display: none !important;
+}
+.ds-controls-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ds-ctrl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ds-ctrl-label {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.ds-ctrl-label strong {
+  color: var(--text-primary);
+}
+.ds-mode-pills {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.ds-mode-btn {
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ds-mode-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.ds-mode-btn.active {
+  background: rgba(0, 240, 255, 0.14);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+.ds-dz-slider {
+  max-width: 150px;
+}
+.ds-led-select {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.dev-cfg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.dev-cfg-btn:hover {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 240, 255, 0.45);
+}
+
+/* Gamepad Studio Modal (2026 Bento Glass) */
+.gs-modal-backdrop[hidden] { display: none !important; }
+.gs-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: rgba(4, 6, 12, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.gs-modal {
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 24% 20%, rgba(34, 211, 238, 0.12), transparent 50%),
+    linear-gradient(165deg, rgba(20, 25, 38, 0.94) 0%, rgba(9, 12, 20, 0.97) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  padding: 22px 24px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 28px 80px rgba(0, 0, 0, 0.72);
+}
+.gs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.gs-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gs-title-wrap h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0;
+}
+.gs-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border-radius: 99px;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  color: #22d3ee;
+}
+.gs-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.18s ease;
+}
+.gs-close-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.gs-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: start;
+}
+.gs-config-panel {
+  max-height: calc(88vh - 96px);
+  overflow-y: auto;
+  padding-right: 12px;
+}
+.gs-config-panel::-webkit-scrollbar { width: 4px; }
+.gs-config-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+@media (max-width: 860px) {
+  .gs-body {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 12px;
+  }
+  .gs-modal { padding: 16px 18px; }
+}
+@media (max-width: 640px) {
+  .gs-body { grid-template-columns: 1fr; }
+  .gs-config-panel { max-height: none; overflow-y: visible; }
+  .gs-3d-svg { max-height: 175px; width: auto !important; margin: 0 auto; }
+  .gs-modal-backdrop { padding: 10px; }
+  .gs-modal { padding: 14px; border-radius: 16px; }
+  .gs-drift-strip, .gs-actions-row { grid-template-columns: 1fr; }
+}
+.gs-panel {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.gs-live-panel {
+  justify-content: space-between;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(34, 211, 238, 0.10), transparent 65%),
+    rgba(255, 255, 255, 0.025);
+}
+.gs-triggers-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.gs-trig-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gs-trig-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.gs-trig-head span.pressed {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+.gs-trig-bar {
+  height: 7px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.gs-trig-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-cyan);
+  transition: width 0.04s linear;
+}
+.gs-buttons-stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px;
+}
+.gs-dpad, .gs-face-btns {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  grid-template-rows: repeat(3, 32px);
+  gap: 4px;
+  align-items: center;
+  justify-items: center;
+}
+.gs-dpad-center {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+.gs-center-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.gs-pad-btn {
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  pointer-events: none;
+}
+.gs-pad-btn.face {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  padding: 0;
+}
+.gs-pad-btn.touch {
+  grid-column: 1 / -1;
+  height: 34px;
+}
+.gs-pad-btn.ps {
+  grid-column: 1 / -1;
+}
+.gs-pad-btn.pressed, .gs-l3-pill.pressed {
+  background: rgba(0, 240, 255, 0.22);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+}
+.gs-3d-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  transition: transform 0.14s ease-out;
+  transform-style: preserve-3d;
+}
+.gs-3d-svg[hidden] {
+  display: none !important;
+}
+#gs-dualsense-only[hidden],
+#gs-rainbow-row[hidden] {
+  display: none !important;
+}
+.gs-ds-only {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.gs-3d-svg {
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  display: block;
+}
+.gs-svg-btn {
+  fill: rgba(32, 42, 60, 0.9);
+  transition: fill 0.06s ease, filter 0.06s ease;
+}
+.gs-svg-btn.pressed {
+  fill: rgba(0, 240, 255, 0.55) !important;
+  stroke: #00f0ff !important;
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.85));
+}
+.gs-svg-txt {
+  fill: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+.gs-svg-txt.mini {
+  font-size: 8.5px;
+}
+.gs-svg-face {
+  fill: #e2e8f0;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+  font-family: var(--font-sans);
+  pointer-events: none;
+}
+.gs-drift-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.gs-drift-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.gs-drift-item small {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+.gs-sticks-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.gs-stick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.gs-stick-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-primary);
+}
+.gs-stick-meta small {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+.gs-l3-pill {
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.gs-drift-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.gs-drift-badge.ok { color: #6ee7b7; background: rgba(16, 185, 129, 0.14); }
+.gs-drift-badge.warn { color: #fcd34d; background: rgba(245, 158, 11, 0.14); }
+.gs-drift-badge.bad { color: #fca5a5; background: rgba(239, 68, 68, 0.16); }
+.gs-cfg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.028);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+}
+.gs-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.gs-cfg-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.gs-cfg-group small {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+.gs-cfg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gs-cfg-group .ds-mode-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gs-cfg-group .ds-mode-btn {
+  flex: 1 1 auto;
+  min-width: 92px;
+}
+.gs-led-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gs-led-row select { flex: 1; }
+#gs-led-picker {
+  width: 38px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-3);
+  cursor: pointer;
+  padding: 2px;
+}
+
+/* ==========================================================================
+   2026 BENTO GRID + HERO NUMBERS + MEDIDORES CIRCULARES + ACENTO TÉRMICO
+   ========================================================================== */
+.content-header {
+  background: rgba(10, 12, 18, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 24px;
+}
+
+.content-header h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.nav-menu {
+  gap: 3px;
+  width: 100%;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.nav-item:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--thermal-soft);
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 0 16px var(--thermal-glow) !important;
+  color: #ffffff;
+}
+
+.nav-item.active::before {
+  display: none;
+}
+
+.nav-icon-stroke {
+  width: 19px;
+  height: 19px;
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-item.active .nav-icon-stroke {
+  fill: none !important;
+  stroke: var(--thermal-accent);
+  filter: drop-shadow(0 0 6px var(--thermal-glow));
+}
+
+.nav-divider {
+  width: 34px;
+  height: 1px;
+  background: var(--line);
+  margin: 4px auto;
+  opacity: 0.75;
+}
+
+.bento-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bento-card {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04) 0%, rgba(12, 15, 24, 0.84) 38%, rgba(8, 10, 17, 0.92) 100%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 14px 17px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 14px 32px rgba(0, 0, 0, 0.45);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.bento-card:hover {
+  border-color: var(--border-highlight);
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 22px 48px rgba(0, 0, 0, 0.5);
+}
+
+.bento-hero {
+  grid-column: 1 / 9;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  text-align: left !important;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 15px 18px !important;
+  background:
+    radial-gradient(circle at 82% 18%, var(--thermal-glow), transparent 58%),
+    var(--bg-card);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.bento-hero-top {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.bento-hero-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bento-hero .ac-machine-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 6px;
+}
+
+.bento-hero-temp-box {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bento-giant-temp {
+  font-family: var(--font-display);
+  font-size: 3.35rem;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--thermal-accent);
+  text-shadow: 0 0 28px var(--thermal-glow);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.5s ease, text-shadow 0.5s ease;
+}
+
+.bento-giant-temp small {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.bento-hero-laptop-stage {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 80px;
+  padding: 2px 0;
+  position: relative;
+}
+
+.bento-hero-laptop-stage::before {
+  content: "";
+  position: absolute;
+  width: 240px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--thermal-glow) 0%, transparent 72%);
+  filter: blur(22px);
+  pointer-events: none;
+}
+
+.bento-hero .ac-laptop-visual {
+  flex: none !important;
+  width: 230px !important;
+  max-width: 100% !important;
+  margin: 0 auto;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.65));
+}
+
+.bento-hero-modes {
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 12px;
+}
+
+.bento-modes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bento-kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.bento-hero .ac-modes-bar {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bento-hero .ac-mode-item {
+  padding: 9px 6px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.bento-hero .ac-mode-item.active {
+  background: var(--thermal-soft) !important;
+  border-color: var(--thermal-accent) !important;
+  box-shadow: 0 0 18px var(--thermal-glow) !important;
+}
+
+.bento-gpu { grid-column: 1 / 4;  grid-row: 2; }
+.bento-cpu { grid-column: 4 / 7;  grid-row: 2; }
+.bento-ram { grid-column: 7 / 10; grid-row: 2; }
+.bento-fan { grid-column: 10 / 13; grid-row: 2; }
+
+.bento-devices {
+  grid-column: 9 / 13;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bento-devices .ac-devices-box {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: transparent;
+  border: none;
+  padding: 0 4px 0 0;
+}
+
+.bento-devices .ac-devices-box::-webkit-scrollbar { width: 4px; }
+.bento-devices .ac-devices-box::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+
+.bento-quick-dock {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bento-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.bento-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bento-quick-btn .i {
+  width: 14px;
+  height: 14px;
+  color: var(--thermal-accent);
+  flex-shrink: 0;
+}
+
+.bento-quick-btn:hover {
+  background: var(--thermal-soft);
+  border-color: var(--thermal-accent);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.bento-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.bento-metric-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bento-metric-title h2 {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 1px 0 3px;
+}
+
+.bento-hero-num {
+  font-family: var(--font-display);
+  font-size: 1.95rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.35s ease;
+}
+
+.bento-hero-num small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.bento-ring-wrap {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.bento-ring-svg {
+  width: 84px;
+  height: 84px;
+  transform: rotate(-90deg);
+}
+
+.bento-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 7.5;
+}
+
+.bento-ring-fill {
+  fill: none;
+  stroke-width: 7.5;
+  stroke-linecap: round;
+  stroke-dasharray: 235.6;
+  stroke-dashoffset: 235.6;
+  transition: stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 10px var(--thermal-glow));
+}
+
+.bento-ring-center {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.bento-metric .ac-bar-fill {
+  background: linear-gradient(90deg, var(--thermal-secondary), var(--thermal-accent));
+  box-shadow: 0 0 12px var(--thermal-glow);
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bento-metric .ac-kv-list {
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--thermal-accent);
+  box-shadow: 0 0 10px var(--thermal-accent);
+  animation: bento-pulse 2s infinite ease-in-out;
+}
+
+@keyframes bento-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+.card, .diag-card, .glass-panel, .gs-modal-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-color: var(--border-subtle);
+  border-radius: 18px;
+}
+
+@media (max-width: 1120px) {
+  .bento-grid {
+    grid-template-rows: auto;
+    grid-auto-rows: auto;
+  }
+  .bento-hero { grid-column: 1 / 13; grid-row: auto; }
+  .bento-gpu, .bento-cpu, .bento-ram, .bento-fan { grid-column: span 6; grid-row: auto; }
+  .bento-devices { grid-column: 1 / 13; grid-row: auto; max-height: 360px; }
+  .bento-hero .ac-modes-bar { grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .bento-gpu, .bento-cpu, .bento-ram, .bento-fan { grid-column: 1 / 13; }
+  .bento-hero-top { flex-direction: column; }
+  .bento-hero-temp-box { text-align: left; }
+  .bento-hero .ac-modes-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Selectores modernos Obsidian Glass (.ov-select, .net-dns-select) */
+.ov-select,
+.net-dns-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #0e1320;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 7px 30px 7px 12px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.ov-select:hover,
+.net-dns-select:hover {
+  background-color: #151c2e;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.ov-select:focus,
+.net-dns-select:focus {
+  border-color: var(--thermal-accent);
+  box-shadow: 0 0 0 2px var(--thermal-soft);
+}
+
+.ov-select option,
+.net-dns-select option {
+  background: #0e1320;
+  color: #f8fafc;
+}
+
+.disp-auto-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.disp-auto-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* =========================================================
+   HUB 2026 POLISH: Píldoras Hero, Sparklines en vivo y colores térmicos
+   ========================================================= */
+.bento-hero .ac-machine-title {
+  font-size: clamp(1.22rem, 1.65vw, 1.5rem);
+}
+
+.hero-live-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.hero-pill.on-battery {
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.hero-pill-toggle {
+  cursor: pointer;
+}
+
+.hero-pill-toggle:hover {
+  border-color: rgba(34, 211, 238, 0.4);
+  color: var(--text-primary);
+}
+
+.hero-pill-toggle .hp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #475569;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hero-pill-toggle.active {
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.38);
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.hero-pill-toggle.active .hp-dot {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+}
+
+.vc-spark-wrap {
+  width: 100%;
+  height: 32px;
+  margin: 6px 0 8px;
+  border-radius: 8px;
+  background: rgba(6, 10, 18, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  overflow: hidden;
+  padding: 2px 0 0;
+}
+
+.vc-sparkline {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.vc-spark-area {
+  fill: rgba(34, 211, 238, 0.13);
+  transition: fill 0.3s ease;
+}
+
+.vc-spark-line {
+  fill: none;
+  stroke: #22d3ee;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.3s ease;
+}
+
+.vc-spark-wrap.temp-warm .vc-spark-area { fill: rgba(245, 158, 11, 0.14); }
+.vc-spark-wrap.temp-warm .vc-spark-line { stroke: #f59e0b; }
+.vc-spark-wrap.temp-hot .vc-spark-area { fill: rgba(244, 63, 94, 0.16); }
+.vc-spark-wrap.temp-hot .vc-spark-line { stroke: #fb7185; }
+
+.temp-cool { color: #22d3ee !important; }
+.temp-warm { color: #fbbf24 !important; }
+.temp-hot  { color: #fb7185 !important; }
+
+.fan-diag-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.fan-diag-tile {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.fan-diag-tile span {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.fan-diag-tile strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.fan-diag-tile strong.ok { color: #34d399; }
+.fan-diag-tile strong.warn { color: #fbbf24; }
+
+.fan-diag-details {
+  margin-top: 12px;
+}
+
+.fan-diag-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+  padding: 4px 0;
+}
+
+.fan-diag-details summary:hover {
+  color: var(--accent-cyan);
+}
+
+.disp-layout-card {
+  padding: 16px 18px;
+}
+
+.disp-layout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.disp-layout-head h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+.disp-layout-head p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.disp-arrange-canvas {
+  position: relative;
+  width: 100%;
+  height: 164px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 45%, rgba(34, 211, 238, 0.05), rgba(6, 10, 18, 0.85));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.disp-arrange-box {
+  position: absolute;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.5px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, left 0.14s ease, top 0.14s ease;
+  padding: 8px;
+  text-align: center;
+}
+
+.disp-arrange-box.disconnected {
+  opacity: 0.62;
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.disp-arrange-box:hover {
+  border-color: rgba(34, 211, 238, 0.55);
+}
+
+.disp-arrange-box.active {
+  background: rgba(17, 38, 58, 0.94);
+  border-color: #22d3ee;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.22);
+}
+
+.disp-arrange-box.dragging {
+  cursor: grabbing;
+  z-index: 10;
+  transition: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+}
+
+.disp-arrange-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.disp-arrange-box.active .disp-arrange-num {
+  color: #22d3ee;
+}
+
+.disp-arrange-name {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disp-arrange-res {
+  font-size: 9.5px;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Selector de Color de Acento ---------- */
+body[data-accent="omen"],
+body[data-accent="omen"].thermal-cool,
+body[data-accent="omen"].thermal-warm,
+body[data-accent="omen"].thermal-hot {
+  --thermal-accent: #f43f5e;
+  --thermal-secondary: #e11d48;
+  --thermal-glow: rgba(244, 63, 94, 0.28);
+  --thermal-soft: rgba(244, 63, 94, 0.12);
+  --border-focus: rgba(244, 63, 94, 0.55);
+  --accent-cyan: var(--thermal-accent);
+  --accent-amber: var(--thermal-accent);
+}
+
+body[data-accent="violet"],
+body[data-accent="violet"].thermal-cool,
+body[data-accent="violet"].thermal-warm,
+body[data-accent="violet"].thermal-hot {
+  --thermal-accent: #a855f7;
+  --thermal-secondary: #8b5cf6;
+  --thermal-glow: rgba(168, 85, 247, 0.28);
+  --thermal-soft: rgba(168, 85, 247, 0.12);
+  --border-focus: rgba(168, 85, 247, 0.55);
+  --accent-cyan: var(--thermal-accent);
+  --accent-amber: var(--thermal-accent);
+}
+
+body[data-accent="emerald"],
+body[data-accent="emerald"].thermal-cool,
+body[data-accent="emerald"].thermal-warm,
+body[data-accent="emerald"].thermal-hot {
+  --thermal-accent: #10b981;
+  --thermal-secondary: #059669;
+  --thermal-glow: rgba(16, 185, 129, 0.26);
+  --thermal-soft: rgba(16, 185, 129, 0.11);
+  --border-focus: rgba(16, 185, 129, 0.55);
+  --accent-cyan: var(--thermal-accent);
+  --accent-amber: var(--thermal-accent);
+}
+
+body[data-accent="minimal"],
+body[data-accent="minimal"].thermal-cool,
+body[data-accent="minimal"].thermal-warm,
+body[data-accent="minimal"].thermal-hot {
+  --thermal-accent: #e2e8f0;
+  --thermal-secondary: #94a3b8;
+  --thermal-glow: rgba(226, 232, 240, 0.20);
+  --thermal-soft: rgba(226, 232, 240, 0.08);
+  --border-focus: rgba(226, 232, 240, 0.45);
+  --accent-cyan: var(--thermal-accent);
+  --accent-amber: var(--thermal-accent);
+}
+
+.setting-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.setting-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+body[data-accent] .clean-btn.primary:hover {
+  background: var(--accent-cyan) !important;
+  border-color: var(--accent-cyan) !important;
+  color: #05080d !important;
+  filter: brightness(1.12);
+}
+
+.accent-swatch-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.accent-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.accent-swatch:hover {
+  border-color: var(--border-highlight);
+  color: var(--text-primary);
+}
+
+.accent-swatch.active {
+  border-color: var(--accent-cyan);
+  background: var(--thermal-soft);
+  color: var(--text-primary);
+}
+
+.accent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- Salud de SSD NVMe ---------- */
+.sh-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.sh-drive-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.sh-drive-block:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.sh-drive-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.sh-drive-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Cabecera interactiva y vitales en vivo ---------- */
+.hs-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.hs-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hs-sep {
+  color: var(--text-tertiary);
+  opacity: 0.6;
+}
+
+.hdr-temp-val.warm {
+  color: var(--accent-orange);
+}
+
+.hdr-temp-val.hot {
+  color: var(--accent-red);
+}
+
+.hs-power {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 860px) {
+  .hs-vitals,
+  .hs-power {
+    display: none;
+  }
+}
+
+/* ---------- Pulido global (Inicio, Diagnóstico, Juego, Arranque, Limpieza) ---------- */
+.ic-status.red {
+  background: rgba(244, 63, 94, 0.14);
+  color: var(--accent-red);
+}
+
+#btn-purge {
+  white-space: nowrap;
+}
+
+.proc-row {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(90deg, var(--thermal-soft) var(--proc-pct, 0%), transparent var(--proc-pct, 0%));
+}
+
+.bento-devices {
+  align-self: stretch;
+  contain: size;
+  min-height: 0;
+}
+
+.vc-deep-monitor-grid {
+  gap: 10px !important;
+  padding: 0 0 14px !important;
+}
+
+.bento-devices .ac-devices-box {
+  flex: 1 1 0;
+  max-height: none;
+}
+
+.bento-card {
+  padding: 14px 16px !important;
+}
+
+.cpu-tz-details {
+  margin-top: 10px;
+}
+
+.cpu-tz-details summary {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cpu-tz-details[open] summary {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.ov-check-left {
+  margin-top: 10px;
+}
+
+.ov-field-trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 980px) {
+  .ov-field-trio {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ov-chip.active,
+.ov-pos button.active,
+.ov-themes button.active,
+.ov-segment button.active {
+  border-color: var(--accent-cyan) !important;
+  background: var(--thermal-soft) !important;
+  color: #ffffff !important;
+}
+
+.ov-segment button.active {
+  background: var(--accent-cyan) !important;
+  color: #05080d !important;
+}
+
+.startup-item-card.disabled {
+  opacity: 0.65;
+}
+
+.startup-item-card .sic-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.sic-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.cleanup-item-card.empty {
+  opacity: 0.62;
+}
+
+.cleanup-item-card:has(input:checked) {
+  border-color: var(--accent-cyan) !important;
+  background: var(--thermal-soft) !important;
+}
+
+.cleanup-item-card .cic-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cleanup-item-card .cic-size {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.safety-shield-inline {
+  color: var(--accent-green);
+  font-weight: 500;
+}
+
+/* ---------- Tarjetas métricas de Inicio más compactas ---------- */
+.bento-card.bento-metric {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px !important;
+}
+
+.bento-metric .ac-bar-group {
+  margin-bottom: 0;
+}
+
+.bento-metric .ac-bar-group + .ac-bar-group {
+  margin-top: 6px;
+}
+
+.bento-metric .ac-kv-list {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.bento-metric .vc-spark-wrap {
+  height: 26px;
+  margin: 2px 0;
+}
+
+.bento-metric .vc-spark-line {
+  stroke: var(--thermal-accent);
+}
+
+.bento-metric .vc-spark-area {
+  fill: var(--thermal-soft);
+}
+
+.bento-metric .bento-ring-fill {
+  stroke: var(--thermal-accent) !important;
+}
+
+.bento-metric .bento-ring-wrap,
+.bento-metric .bento-ring-svg {
+  width: 72px;
+  height: 72px;
+}
+
+.bento-metric .bento-hero-num {
+  font-size: 1.55rem;
+}
+
+/* ---------- Hero en una sola banda: info | laptop | temperatura ---------- */
+.bento-card.bento-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 18px;
+  row-gap: 12px;
+  align-items: start;
+  justify-content: stretch;
+}
+
+.bento-hero .bento-hero-top {
+  display: contents;
+}
+
+.bento-hero .ac-machine-meta {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.bento-hero .bento-hero-laptop-stage {
+  grid-column: 2;
+  grid-row: 1;
+  width: auto;
+  align-self: center;
+  min-height: 0;
+  padding: 0 8px;
+}
+
+.bento-hero .ac-laptop-visual {
+  width: 170px !important;
+}
+
+.bento-hero .bento-hero-temp-box {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.bento-hero .bento-hero-modes {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+@media (max-width: 720px) {
+  .bento-card.bento-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bento-hero .ac-machine-meta,
+  .bento-hero .bento-hero-laptop-stage,
+  .bento-hero .bento-hero-temp-box,
+  .bento-hero .bento-hero-modes {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .bento-hero .bento-hero-temp-box { text-align: left; }
+}
+
+/* ============================================================================
+   GAMEPAD STUDIO MODAL — PS5 / XBOX CONSOLE SETTINGS UI (dualsense-ui)
+   ============================================================================ */
+.gs-modal-backdrop {
+  background: rgba(4, 6, 12, 0.82) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  padding: clamp(10px, 2vw, 24px) !important;
+}
+
+#gamepad-studio-modal .p {
+  position: relative;
+  width: min(1320px, 96vw);
+  height: min(800px, 92vh);
+  display: flex;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 32px 96px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  color: #f4f6fb;
+}
+
+#gamepad-studio-modal .p * {
+  box-sizing: border-box;
+}
+
+#gamepad-studio-modal .gs-ps5-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #b4bccd;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+#gamepad-studio-modal .gs-ps5-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+
+#gamepad-studio-modal .tb {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+#gamepad-studio-modal .bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+#gamepad-studio-modal .bg1 {
+  background: linear-gradient(135deg, #0d1220 0%, #141b2f 55%, #0b0d14 100%);
+}
+
+#gamepad-studio-modal .bg2 {
+  display: none;
+  background: radial-gradient(80% 70% at 88% 25%, #10401a 0%, #0f1410 50%, #070807 100%);
+}
+
+#gamepad-studio-modal #dev2:checked ~ .bg2 {
+  display: block;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .bg1 {
+  display: none;
+}
+
+#gamepad-studio-modal .nav,
+#gamepad-studio-modal .main,
+#gamepad-studio-modal .aside {
+  position: relative;
+  z-index: 1;
+}
+
+#gamepad-studio-modal .ps {
+  display: contents;
+}
+
+#gamepad-studio-modal .xb {
+  display: none;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .main .xb,
+#gamepad-studio-modal #dev2:checked ~ .nav .xb,
+#gamepad-studio-modal #dev2:checked ~ .aside .xb {
+  display: contents;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .main .ps,
+#gamepad-studio-modal #dev2:checked ~ .nav .ps,
+#gamepad-studio-modal #dev2:checked ~ .aside .ps {
+  display: none;
+}
+
+#gamepad-studio-modal .nav {
+  width: 275px;
+  flex: none;
+  padding: 40px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid #ffffff12;
+}
+
+#gamepad-studio-modal .nav-cat-title {
+  font-size: 14px;
+  color: #9aa3b8;
+  margin: 0 0 14px 16px;
+}
+
+#gamepad-studio-modal .nv {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-size: 16.5px;
+  color: #b4bccd;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px transparent;
+  transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+#gamepad-studio-modal .nv:hover {
+  background: #ffffff0d;
+}
+
+#gamepad-studio-modal .nv svg {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+#gamepad-studio-modal #t1:checked ~ .nav .n1,
+#gamepad-studio-modal #t2:checked ~ .nav .n2,
+#gamepad-studio-modal #t3:checked ~ .nav .n3,
+#gamepad-studio-modal #t4:checked ~ .nav .n4 {
+  background: #ffffff1f;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 2px #ffffff;
+}
+
+#gamepad-studio-modal .nv:focus-visible,
+#gamepad-studio-modal #t1:focus-visible ~ .nav .n1,
+#gamepad-studio-modal #t2:focus-visible ~ .nav .n2,
+#gamepad-studio-modal #t3:focus-visible ~ .nav .n3,
+#gamepad-studio-modal #t4:focus-visible ~ .nav .n4 {
+  outline: 2px solid #6aa8ff;
+  outline-offset: 2px;
+}
+
+#gamepad-studio-modal .main {
+  --ac: #1f6fe0;
+  flex: 1;
+  min-width: 0;
+  padding: 40px 40px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  overflow-y: auto;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .main {
+  --ac: #107c10;
+}
+
+#gamepad-studio-modal .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+#gamepad-studio-modal .ttl small {
+  font-size: 14px;
+  color: #9aa3b8;
+}
+
+#gamepad-studio-modal .ttl h1 {
+  margin: 2px 0 0;
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  color: #f4f6fb;
+}
+
+#gamepad-studio-modal .devsw {
+  display: flex;
+  gap: 4px;
+  background: #ffffff14;
+  border-radius: 999px;
+  padding: 4px;
+  flex: none;
+}
+
+#gamepad-studio-modal .devsw label {
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 500;
+  color: #b4bccd;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#gamepad-studio-modal #dev1:checked ~ .main .dl1 {
+  background: #ffffff;
+  color: #0b0d14;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .main .dl2 {
+  background: #107c10;
+  color: #ffffff;
+}
+
+#gamepad-studio-modal .devsw label:focus-visible,
+#gamepad-studio-modal #dev1:focus-visible ~ .main .dl1,
+#gamepad-studio-modal #dev2:focus-visible ~ .main .dl2 {
+  outline: 2px solid #6aa8ff;
+  outline-offset: 2px;
+}
+
+#gamepad-studio-modal .pn {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#gamepad-studio-modal #t1:checked ~ .main .pn1,
+#gamepad-studio-modal #t2:checked ~ .main .pn2,
+#gamepad-studio-modal #t3:checked ~ .main .pn3,
+#gamepad-studio-modal #t4:checked ~ .main .pn4 {
+  display: flex;
+}
+
+#gamepad-studio-modal .pn h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 300;
+  color: #f4f6fb;
+}
+
+#gamepad-studio-modal .pn > p {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #9aa3b8;
+}
+
+#gamepad-studio-modal .row,
+#gamepad-studio-modal .blk {
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 2px transparent;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+#gamepad-studio-modal .row:hover,
+#gamepad-studio-modal .blk:hover {
+  background: #ffffff0d;
+}
+
+#gamepad-studio-modal .row:focus-within,
+#gamepad-studio-modal .blk:focus-within {
+  background: #ffffff17;
+  box-shadow: inset 0 0 0 2px #ffffff;
+}
+
+#gamepad-studio-modal .row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 78px;
+  cursor: pointer;
+}
+
+#gamepad-studio-modal .ic {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffffff14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#gamepad-studio-modal .ic svg,
+#gamepad-studio-modal .hd .ic svg {
+  stroke: #f4f6fb;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#gamepad-studio-modal .tx {
+  flex: 1;
+  min-width: 0;
+}
+
+#gamepad-studio-modal .tx b {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  color: #f4f6fb;
+}
+
+#gamepad-studio-modal .tx small {
+  display: block;
+  font-size: 13.5px;
+  color: #9aa3b8;
+  margin-top: 2px;
+}
+
+#gamepad-studio-modal .hd {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+#gamepad-studio-modal .hd .tx {
+  flex: 1;
+}
+
+#gamepad-studio-modal .val {
+  font-size: 16px;
+  font-weight: 500;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+#gamepad-studio-modal .gs-bat-track {
+  height: 10px;
+  border-radius: 5px;
+  background: #ffffff26;
+  overflow: hidden;
+}
+
+#gamepad-studio-modal .gs-bat-fill {
+  height: 100%;
+  background: #4ade80;
+  transition: width 0.25s ease, background 0.25s ease;
+}
+
+#gamepad-studio-modal .seg {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  background: #ffffff10;
+  border-radius: 14px;
+  padding: 4px;
+}
+
+#gamepad-studio-modal .seg input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+#gamepad-studio-modal .seg label {
+  flex: 1;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #b4bccd;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+#gamepad-studio-modal .seg label span {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+#gamepad-studio-modal .seg input:checked + label {
+  background: #ffffff;
+  color: #0b0d14;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .main .seg input:checked + label {
+  background: #107c10;
+  color: #ffffff;
+}
+
+#gamepad-studio-modal .seg input:focus-visible + label {
+  outline: 2px solid #6aa8ff;
+  outline-offset: 2px;
+}
+
+#gamepad-studio-modal .seg svg {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+#gamepad-studio-modal .sw {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 54px;
+  height: 32px;
+  border-radius: 16px;
+  background: #ffffff26;
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+  transition: background 0.15s;
+}
+
+#gamepad-studio-modal .sw::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s;
+}
+
+#gamepad-studio-modal .sw:checked {
+  background: var(--ac);
+}
+
+#gamepad-studio-modal .sw:checked::after {
+  transform: translateX(22px);
+}
+
+#gamepad-studio-modal .rg {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+
+#gamepad-studio-modal .rg::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #ffffff var(--v, 50%), #ffffff2e var(--v, 50%));
+}
+
+#gamepad-studio-modal .rg::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  margin-top: -9px;
+  box-shadow: 0 0 0 5px var(--ac), 0 2px 8px #0008;
+}
+
+#gamepad-studio-modal .rg::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #ffffff2e;
+}
+
+#gamepad-studio-modal .rg::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: #ffffff;
+}
+
+#gamepad-studio-modal .rg::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 5px var(--ac);
+}
+
+#gamepad-studio-modal .scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #9aa3b8;
+  margin-top: 2px;
+}
+
+#gamepad-studio-modal .sws {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px;
+  flex-wrap: wrap;
+}
+
+#gamepad-studio-modal .dot {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--c);
+  margin: 0;
+  cursor: pointer;
+  flex: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+#gamepad-studio-modal .dot:hover {
+  transform: scale(1.08);
+}
+
+#gamepad-studio-modal .dot:checked {
+  box-shadow: 0 0 0 3px #0b0d14, 0 0 0 5px #ffffff;
+}
+
+#gamepad-studio-modal .dot:focus-visible {
+  outline: 2px solid #6aa8ff;
+  outline-offset: 6px;
+}
+
+#gamepad-studio-modal .hint {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  gap: 28px;
+  font-size: 14px;
+  color: #b4bccd;
+  align-items: center;
+}
+
+#gamepad-studio-modal .hint span:not(.ps):not(.xb) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#gamepad-studio-modal .gs-hint-back {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+#gamepad-studio-modal .gs-hint-back:hover {
+  color: #ffffff;
+}
+
+#gamepad-studio-modal .hint i {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff1c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+}
+
+#gamepad-studio-modal .hint svg {
+  stroke: #ffffff;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+#gamepad-studio-modal .aside {
+  --gs-aside-glow: #3a1f6b66;
+  width: 400px;
+  flex: none;
+  padding: 56px 36px 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  background: radial-gradient(70% 45% at 50% 32%, var(--gs-aside-glow, #3a1f6b66), transparent 70%);
+  border-left: 1px solid #ffffff12;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .aside {
+  background: radial-gradient(70% 45% at 50% 32%, #107c1070, transparent 70%);
+}
+
+#gamepad-studio-modal .gs-aside-img-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease-out;
+  transform-style: preserve-3d;
+}
+
+#gamepad-studio-modal .gs-Interactive-pad {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+#gamepad-studio-modal .gs-pad-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+#gamepad-studio-modal .gs-led-groove {
+  mix-blend-mode: screen;
+  transition: stroke 0.2s ease, stroke-opacity 0.2s ease;
+}
+
+#gamepad-studio-modal .gs-ov-zone {
+  fill: rgba(255, 255, 255, 0);
+  stroke: rgba(255, 255, 255, 0);
+  stroke-width: 1.6;
+  transition: fill 0.08s ease, stroke 0.08s ease, filter 0.08s ease;
+}
+
+#gamepad-studio-modal .gs-ov-zone.pressed {
+  fill: rgba(255, 255, 255, 0.32);
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 10px #ffffff);
+}
+
+#gamepad-studio-modal .gs-ov-stick {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1.6;
+  transition: fill 0.08s ease, stroke 0.08s ease, filter 0.08s ease;
+}
+
+#gamepad-studio-modal .gs-ov-stick.moving {
+  fill: rgba(255, 255, 255, 0.12);
+  stroke: rgba(255, 255, 255, 0.72);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.45));
+}
+
+#gamepad-studio-modal .gs-ov-stick.pressed {
+  fill: rgba(255, 255, 255, 0.34);
+  stroke: #ffffff;
+  filter: drop-shadow(0 0 10px #ffffff);
+}
+
+#gamepad-studio-modal .gs-gp-focus {
+  background: #ffffff22 !important;
+  box-shadow: inset 0 0 0 2px #ffffff, 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+#gamepad-studio-modal .nav .nv.gs-gp-focus {
+  background: #ffffff2b !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 2.5px #ffffff, 0 0 18px rgba(255, 255, 255, 0.25) !important;
+}
+
+#gamepad-studio-modal .hint i.gs-hint-pill {
+  width: auto;
+  padding: 0 8px;
+  border-radius: 7px;
+  font: 700 11px Inter, system-ui, sans-serif;
+  letter-spacing: 0.03em;
+}
+
+#gamepad-studio-modal .gs-aside-img.ps5 {
+  width: 370px;
+  max-width: 100%;
+  height: 238px;
+  object-fit: contain;
+  margin: 0 0 4px;
+  filter: drop-shadow(0 14px 24px #0009);
+  transition: filter 0.2s ease;
+}
+
+#gamepad-studio-modal .gs-aside-img.xbox {
+  width: 360px;
+  max-width: 100%;
+  height: 254px;
+  object-fit: contain;
+  margin: 0 0 -6px;
+  filter: drop-shadow(0 14px 24px #0009);
+}
+
+#gamepad-studio-modal .gs-aside-name {
+  font-size: 22px;
+  font-weight: 300;
+  color: #f4f6fb;
+}
+
+#gamepad-studio-modal .gs-aside-conn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #b4bccd;
+}
+
+#gamepad-studio-modal .gs-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade8088;
+}
+
+#gamepad-studio-modal .gs-aside-telemetry {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+#gamepad-studio-modal .gs-tele-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+#gamepad-studio-modal .gs-tele-chip span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9aa3b8;
+}
+
+#gamepad-studio-modal .gs-tele-chip small {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+#gamepad-studio-modal .gs-tele-chip em {
+  font-style: normal;
+}
+
+#gamepad-studio-modal .gs-aside-btns {
+  margin-top: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#gamepad-studio-modal .btn {
+  flex: none;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 28px;
+  font: 600 15.5px Inter, system-ui, sans-serif;
+  cursor: pointer;
+  border: 0;
+  background: #ffffff1a;
+  color: #f4f6fb;
+  transition: background 0.15s, transform 0.12s;
+}
+
+#gamepad-studio-modal .btn:hover {
+  background: #ffffff26;
+}
+
+#gamepad-studio-modal .btn.pri {
+  background: #ffffff;
+  color: #0b0d14;
+}
+
+#gamepad-studio-modal .btn.pri:hover {
+  background: #e2e8f0;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .aside .btn.pri {
+  background: #107c10;
+  color: #ffffff;
+}
+
+#gamepad-studio-modal #dev2:checked ~ .aside .btn.pri:hover {
+  background: #159415;
+}
+
+#gamepad-studio-modal .btn:focus-visible {
+  outline: 2px solid #6aa8ff;
+  outline-offset: 3px;
+}
+
+/* Responsive Breakpoints para el diseño PS5 / Xbox */
+@media (max-width: 1120px) {
+  #gamepad-studio-modal .nav {
+    width: 225px;
+    padding: 32px 16px;
+  }
+  #gamepad-studio-modal .main {
+    padding: 32px 26px 22px;
+  }
+  #gamepad-studio-modal .aside {
+    width: 330px;
+    padding: 36px 22px 24px;
+  }
+  #gamepad-studio-modal .gs-aside-img.ps5,
+  #gamepad-studio-modal .gs-aside-img.xbox {
+    height: 190px;
+  }
+}
+
+@media (max-width: 880px) {
+  #gamepad-studio-modal .p {
+    flex-direction: column;
+    height: min(92vh, 880px);
+    overflow-y: auto;
+  }
+  #gamepad-studio-modal .nav {
+    width: 100%;
+    padding: 18px 18px 12px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: 0;
+    border-bottom: 1px solid #ffffff12;
+  }
+  #gamepad-studio-modal .nav-cat-title {
+    display: none;
+  }
+  #gamepad-studio-modal .nv {
+    flex: 1 1 160px;
+    height: 46px;
+    font-size: 14px;
+  }
+  #gamepad-studio-modal .main {
+    padding: 22px 20px;
+    overflow-y: visible;
+  }
+  #gamepad-studio-modal .aside {
+    width: 100%;
+    padding: 24px 20px;
+    border-left: 0;
+    border-top: 1px solid #ffffff12;
+  }
+  #gamepad-studio-modal .gs-aside-btns {
+    flex-direction: row;
+  }
+}
+
+/* ============================================================================
+   PLAYSTATION 5 CONSOLE UI THEME — GLOBAL APPLICATION STYLE & CONTROLLER FOCUS
+   ============================================================================ */
+body,
+.app-container {
+  background:
+    radial-gradient(circle at 18% 12%, var(--ambient-soft, rgba(31, 111, 224, 0.14)), transparent 48%),
+    radial-gradient(circle at 86% 82%, var(--thermal-soft, rgba(168, 85, 247, 0.10)), transparent 46%),
+    linear-gradient(135deg, #0d1220 0%, #141b2f 55%, #0b0d14 100%) !important;
+  font-family: Inter, system-ui, -apple-system, sans-serif !important;
+  color: #f4f6fb !important;
+}
+
+.sidebar {
+  background: rgba(11, 14, 24, 0.72) !important;
+  backdrop-filter: blur(22px) !important;
+  -webkit-backdrop-filter: blur(22px) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.nav-menu .nav-btn {
+  border-radius: 14px !important;
+  min-height: 46px !important;
+  padding: 0 14px !important;
+  color: #b4bccd !important;
+  font-size: 14.5px !important;
+  font-weight: 500 !important;
+  border: 1px solid transparent !important;
+  box-shadow: inset 0 0 0 2px transparent !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease !important;
+}
+
+.nav-menu .nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f4f6fb !important;
+}
+
+.nav-menu .nav-btn.active {
+  background: rgba(255, 255, 255, 0.13) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 2px #ffffff !important;
+}
+
+.nav-menu .nav-btn.active::before {
+  display: none !important;
+}
+
+/* Tarjetas, bloques y filas con estética de consola PS5 */
+.bento-card,
+.settings-card,
+.game-card,
+.diag-card,
+.cleanup-card,
+.startup-item,
+.ov-cfg-card,
+.dev-card-item {
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.042) !important;
+  border: 1px solid rgba(255, 255, 255, 0.075) !important;
+  box-shadow: inset 0 0 0 2px transparent, 0 12px 32px rgba(0, 0, 0, 0.28) !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+.bento-card:hover,
+.settings-card:hover,
+.game-card:hover,
+.diag-card:hover,
+.cleanup-card:hover,
+.startup-item:hover,
+.ov-cfg-card:hover,
+.dev-card-item:hover {
+  background: rgba(255, 255, 255, 0.068) !important;
+}
+
+/* Modos de energía y píldoras segmentadas al estilo PS5 */
+.ac-mode-card {
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: inset 0 0 0 2px transparent !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+.ac-mode-card:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+}
+
+.ac-mode-card.active {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 2px #ffffff, 0 10px 26px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Botones segmentados y píldoras activas en blanco PS5 */
+.ds-mode-btn,
+.fan-quick-btn,
+.ov-pos-btn,
+.ov-style-btn,
+.hz-pill-btn {
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, 0.065) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #b4bccd !important;
+  font-weight: 500 !important;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.ds-mode-btn:hover,
+.fan-quick-btn:hover,
+.ov-pos-btn:hover,
+.ov-style-btn:hover,
+.hz-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.ds-mode-btn.active,
+.fan-quick-btn.active,
+.ov-pos-btn.active,
+.ov-style-btn.active,
+.hz-pill-btn.active,
+.toggle-pill.active {
+  background: #ffffff !important;
+  color: #0b0d14 !important;
+  border-color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Botones principales cápsula estilo PS5 */
+.clean-btn {
+  border-radius: 999px !important;
+  font-weight: 600 !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease !important;
+}
+
+.clean-btn.primary {
+  background: #ffffff !important;
+  color: #0b0d14 !important;
+  border: 0 !important;
+}
+
+.clean-btn.primary:hover {
+  background: #e2e8f0 !important;
+}
+
+/* Sliders globales estilo PS5 */
+.et-slider::-webkit-slider-thumb {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 4px var(--accent-cyan, #1f6fe0), 0 2px 8px rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Anillo de foco blanco de 2px estilo PS5 al navegar con el mando en toda la app */
+.gp-app-focus,
+.bento-card.gp-app-focus,
+.ac-mode-card.gp-app-focus,
+.clean-btn.gp-app-focus,
+.nav-btn.gp-app-focus,
+.dev-cfg-btn.gp-app-focus {
+  background: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: inset 0 0 0 2px #ffffff, 0 0 22px rgba(255, 255, 255, 0.22) !important;
+  outline: none !important;
+}
+
+
+[hidden] {
+  display: none !important;
+}
