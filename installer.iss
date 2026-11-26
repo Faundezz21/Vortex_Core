@@ -47,6 +47,7 @@ Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "autostart"; Description: "Iniciar VortexCore Hub automáticamente al encender Windows"; GroupDescription: "Configuración de Inicio:"
+Name: "installapo"; Description: "Instalar motor de ecualización global (Equalizer APO) si falta"; GroupDescription: "Audio avanzado:"
 
 [Files]
 Source: "dist\VortexCoreHub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -64,6 +65,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 ; Auto-inicio: tarea programada "al iniciar sesión" con privilegios elevados (sin UAC en cada arranque)
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--set-autostart on"; StatusMsg: "Configurando inicio automático..."; Flags: runhidden waituntilterminated; Tasks: autostart
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--setup-apo"; StatusMsg: "Instalando motor de ecualización global (Equalizer APO)..."; Flags: runhidden waituntilterminated; Tasks: installapo
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--setup-vigem"; StatusMsg: "Configurando soporte de mando PS5 (ViGEmBus)..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: shellexec nowait postinstall skipifsilent
 
 [UninstallRun]

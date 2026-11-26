@@ -40,13 +40,20 @@ if not os.path.isfile(presentmon_exe) or _sha256(presentmon_exe) != PRESENTMON_S
         os.remove(presentmon_exe)
         raise SystemExit('presentmon descargado no coincide con el sha256 esperado')
 
-# Solo los archivos de la interfaz web (sin carpetas de desarrollo)
+# Solo los archivos de la interfaz web (incluyendo vortex-hub/assets)
 hub_dir = os.path.join(project_dir, 'vortex-hub')
 hub_files = [
     (os.path.join(hub_dir, f), 'vortex-hub')
     for f in os.listdir(hub_dir)
     if os.path.isfile(os.path.join(hub_dir, f))
 ]
+hub_assets_dir = os.path.join(hub_dir, 'assets')
+if os.path.isdir(hub_assets_dir):
+    hub_files += [
+        (os.path.join(hub_assets_dir, f), os.path.join('vortex-hub', 'assets'))
+        for f in os.listdir(hub_assets_dir)
+        if os.path.isfile(os.path.join(hub_assets_dir, f))
+    ]
 
 added_datas = hub_files + [
     (os.path.join(project_dir, 'hp_fan_controller.ps1'), '.'),
@@ -55,6 +62,7 @@ added_datas = hub_files + [
     (os.path.join(project_dir, 'vortex_icon.ico'), '.'),
     (os.path.join(project_dir, 'VERSION'), '.'),
     (presentmon_exe, 'tools'),
+    (os.path.join(project_dir, 'tools', 'ViGEmClient.dll'), 'tools'),
 ]
 
 a = Analysis(
@@ -65,11 +73,16 @@ a = Analysis(
     hiddenimports=[
         'hw_sensors',
         'tray_manager',
+        'tray_menu',
         'fps_monitor',
         'game_overlay',
         'net_monitor',
         'updater',
         'game_mode',
+        'display_manager',
+        'audio_devices',
+        'audio_flyout',
+        'dualsense_bridge',
         'psutil',
         'pycaw',
         'pycaw.pycaw',
