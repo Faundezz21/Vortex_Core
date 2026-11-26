@@ -1,5 +1,24 @@
 # Changelog
 
+## 7.13.3
+
+### Estudio del mando PS5 (DualSense) y Xbox + Estilo de consola
+- **Estudio interactivo del mando (PlayStation 5 / Xbox):** nueva ventana de configuración inspirada en la interfaz nativa de consola con 4 categorías (**Batería y energía**, **Sticks**, **Gatillos y extras** e **Iluminación**), vista previa fotorrealista interactiva a 60 FPS (ilumina botones presionados, movimiento de sticks e inclinación 3D en vivo) y porcentaje real de batería sincronizado.
+- **Control físico de iluminación RGB y LEDs de jugador (Bluetooth y USB):** permite elegir el color de los bordes luminosos del touchpad, nivel de brillo y configuración de los 5 LEDs blancos centrales bajo el touchpad (`○○●○○`, `○●●●○`, `●●●●●` o apagados) tanto por Bluetooth (`0x31`) como por cable USB (`0x02`).
+- **Puente nativo DualSense → Xbox 360 / DS4 y ajustes pro:** emulación mediante ViGEm con zona muerta anti-drift, curvas de respuesta (Lineal, Precisión, Rápida), inversión del eje Y, gatillos rápidos (hair-trigger), touchpad como ratón, micrófono, ahorro de energía, apagado por inactividad y prueba/intensidad de vibración.
+- **Navegación completa con el propio mando y teclado:** navegación en 2 zonas (menú lateral y panel central) dentro del estudio del mando con **D-Pad / Stick / Flechas**, `✕` para aceptar, `○` para volver atrás, `L1`/`R1` para cambiar de categoría y `△` para probar vibración, además de navegación con mando en toda la aplicación.
+- **Estilo visual de consola PS5 en toda la app:** fondo Indigo-Obsidian, tarjetas translúcidas con anillos de foco blancos de alto contraste (`2px`), píldoras activas estilo consola y controles unificados.
+- **Compatibilidad Bluetooth segura en Windows:** la lectura de batería por Bluetooth puede gestionarse sin romper juegos DirectInput, mientras que por USB o con el puente activo lee la batería en tiempo real.
+
+### Pantalla y bandeja
+- **Nueva pestaña Pantalla:** detecta todas las tasas de refresco reales del panel (48/60/120/144/165/180 Hz, etc.) para elegir la que quieras en 1 clic, permite configurar qué Hz usar automáticamente con **Cargador** y en **Batería**, e incluye control de brillo del panel del notebook.
+- **Temperatura en vivo en la bandeja:** muestra los grados del procesador directo en el ícono junto al reloj con color térmico (cian, ámbar o rojo) y tooltip con CPU/GPU; se puede activar o desactivar desde **Ajustes** o con clic derecho en la bandeja.
+- **Selector nativo de salida de audio y mezclador por app (estilo EarTrumpet):** con clic derecho en la bandeja (o en la pestaña **Audio**) puedes cambiar al instante entre tus altavoces, audífonos o monitores HDMI/DisplayPort y ajustar el volumen individual de cada aplicación abierta.
+
+### Interfaz e ícono
+- **Modo manual más limpio:** se quitaron los controles duplicados de procesador y planes de energía de la pestaña Manual, dejándolos gestionados desde los modos de **Inicio**.
+- **Ícono oficial actualizado:** el ejecutable y los accesos directos ahora usan el logo nuevo de VortexCore en lugar del ícono circular antiguo.
+
 ## 7.13.2
 
 ### Actualizaciones
