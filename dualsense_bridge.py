@@ -12,6 +12,7 @@
 import ctypes
 import json
 import os
+import socket
 import struct
 import subprocess
 import sys
@@ -26,6 +27,105 @@ import hw_sensors
 
 IS_WINDOWS = sys.platform == "win32"
 CREATE_NO_WINDOW = 0x08000000
+DSX_UDP_PORT = 6969
+TRIGGER_MODES = ("off", "weapon", "continuous", "machine", "bow", "hard")
+
+
+def encode_adaptive_trigger(mode: str, force_pct: int = 85, freq_hz: int = 25) -> bytes:
+    """Codifica los 11 bytes de efecto mecánico para los motores de gatillos adaptativos L2/R2 (estilo DualSenseX)."""
+    m = str(mode or "off").strip().lower()
+    f_scaled = max(20, min(255, int(round(255.0 * max(10, min(100, int(force_pct))) / 100.0))))
+    if m == "continuous":
+        # 0x01: Resistencia continua desde la posición 18 con fuerza constante
+        return bytes([0x01, 18, f_scaled, 0, 0, 0, 0, 0, 0, 0, 0])
+    if m == "weapon":
+        # 0x02: Resistencia por sección (gatillo de arma con punto de quiebre)
+        return bytes([0x02, 32, 152, f_scaled, 0, 0, 0, 0, 0, 0, 0])
+    if m == "machine":
+        # 0x06: Vibración automática de alta frecuencia (ametralladora / ABS)
+        freq = max(6, min(60, int(freq_hz)))
+        amp = max(12, min(63, int(round(63.0 * max(10, min(100, int(force_pct))) / 100.0))))
+        return bytes([0x06, freq, amp, 24, 0, 0, 0, 0, 0, 0, 0])
+    if m == "bow":
+        # 0x02 con recorrido extendido: tensión progresiva tipo cuerda de arco
+        return bytes([0x02, 16, 224, f_scaled, 0, 0, 0, 0, 0, 0, 0])
+    if m == "hard":
+        # 0x01 desde el inicio a máxima fuerza: bloqueo duro competitivo
+        return bytes([0x01, 4, 255, 0, 0, 0, 0, 0, 0, 0, 0])
+    # 0x05: Sin resistencia / gatillo libre (Normal)
+    return bytes([0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+
+_DSX_TRIGGER_MODE_MAP = {
+    0: ("off", 85),
+    1: ("weapon", 85),       # GameCube
+    2: ("continuous", 25),   # VerySoft
+    3: ("continuous", 45),   # Soft
+    4: ("continuous", 75),   # Hard
+    5: ("continuous", 92),   # VeryHard
+    6: ("hard", 100),        # Hardest
+    7: ("hard", 100),        # Rigid
+    8: ("machine", 85),      # VibrateTrigger
+    9: ("weapon", 75),       # Choppy
+    10: ("continuous", 60),  # Medium
+    11: ("machine", 90),     # VibrateTriggerPulse
+    12: ("continuous", 85),  # CustomTriggerValue
+    13: ("continuous", 80),  # Resistance
+    14: ("bow", 85),         # Bow
+    15: ("machine", 75),     # Galloping
+    16: ("weapon", 95),      # SemiAutomaticGun
+    17: ("machine", 95),     # AutomaticGun
+    18: ("machine", 100),    # Machine
+}
+
+
+def parse_dsx_udp_packet(payload: bytes) -> dict:
+    """Interpreta paquetes JSON del protocolo UDP de DualSenseX (puerto 6969) enviados por mods y juegos."""
+    patch: dict = {}
+    try:
+        data = json.loads(payload.decode("utf-8", errors="ignore"))
+        instructions = data.get("instructions") if isinstance(data, dict) else None
+        if not isinstance(instructions, list):
+            return patch
+        for inst in instructions:
+            if not isinstance(inst, dict):
+                continue
+            itype = inst.get("type")
+            params = inst.get("parameters")
+            if not isinstance(params, list) or len(params) < 2:
+                continue
+            if itype == 1 and len(params) >= 3:
+                # TriggerUpdate: [controllerIndex, triggerSide (1=Left/L2, 2=Right/R2), triggerMode, ...]
+                side = int(params[1])
+                tmode_id = int(params[2])
+                mapped_mode, mapped_force = _DSX_TRIGGER_MODE_MAP.get(tmode_id, ("off", 85))
+                if len(params) >= 5 and isinstance(params[4], (int, float)) and tmode_id in (13, 14, 16):
+                    mapped_force = max(10, min(100, int(round(float(params[4]) * 100.0 / 8.0))))
+                if side == 1:
+                    patch["trigger_l2_mode"] = mapped_mode
+                elif side == 2:
+                    patch["trigger_r2_mode"] = mapped_mode
+                patch["trigger_force"] = mapped_force
+            elif itype == 2 and len(params) >= 4:
+                # RGBUpdate: [controllerIndex, r, g, b]
+                r = max(0, min(255, int(params[1])))
+                g = max(0, min(255, int(params[2])))
+                b = max(0, min(255, int(params[3])))
+                patch["led_color"] = f"#{r:02x}{g:02x}{b:02x}"
+            elif itype == 3 and len(params) >= 6:
+                # PlayerLED: [controllerIndex, led1..led5 booleans]
+                cnt = sum(1 for x in params[1:6] if bool(x))
+                patch["player_leds"] = {0: "off", 1: "center", 2: "two", 3: "three", 4: "four"}.get(cnt, "all")
+            elif itype == 4 and len(params) >= 3:
+                # TriggerThreshold
+                thr = int(params[2])
+                patch["hair_triggers"] = (0 < thr < 140)
+            elif itype == 5 and len(params) >= 2:
+                # MicLED
+                patch["mic_mute"] = bool(int(params[1]))
+    except Exception:
+        pass
+    return patch
 
 VIGEM_BUS_GUID_BYTES = bytes.fromhex("222be496e9f5f842b043ed0f932f014f")
 VIGEM_INSTALLER_URL = "https://github.com/nefarius/ViGEmBus/releases/download/v1.22.0/ViGEmBus_1.22.0_x64_x86_arm64.exe"
@@ -206,6 +306,10 @@ def load_dualsense_config() -> dict:
         "power_save": True,
         "rumble_enabled": True,
         "rumble_intensity": 80,
+        "trigger_l2_mode": "off",
+        "trigger_r2_mode": "off",
+        "trigger_force": 85,
+        "dsx_udp_enabled": True,
     }
     try:
         with open(_ds_cfg_path(), encoding="utf-8") as f:
@@ -241,6 +345,14 @@ def load_dualsense_config() -> dict:
                 cfg["rumble_enabled"] = bool(raw["rumble_enabled"])
             if isinstance(raw.get("rumble_intensity"), (int, float)):
                 cfg["rumble_intensity"] = max(0, min(100, int(raw["rumble_intensity"])))
+            if raw.get("trigger_l2_mode") in TRIGGER_MODES:
+                cfg["trigger_l2_mode"] = raw["trigger_l2_mode"]
+            if raw.get("trigger_r2_mode") in TRIGGER_MODES:
+                cfg["trigger_r2_mode"] = raw["trigger_r2_mode"]
+            if isinstance(raw.get("trigger_force"), (int, float)):
+                cfg["trigger_force"] = max(10, min(100, int(raw["trigger_force"])))
+            if "dsx_udp_enabled" in raw:
+                cfg["dsx_udp_enabled"] = bool(raw["dsx_udp_enabled"])
     except Exception:
         pass
     return cfg
@@ -358,11 +470,23 @@ def _get_hid_output_len(h) -> int:
 def _populate_common_report(buf: bytearray, base: int, r: int, g: int, b: int,
                             light_out: bool = False, motor_left: int = 0, motor_right: int = 0,
                             rumble: bool = False, mic_mute: bool = False,
-                            player_leds: str = "center") -> None:
+                            player_leds: str = "center",
+                            trigger_l2_mode: str = "off", trigger_r2_mode: str = "off",
+                            trigger_force: int = 85) -> None:
+    flag0 = 0x00
     if rumble:
-        buf[base + 0] = 0x03  # valid_flag0: COMPATIBLE_VIBRATION (0x01) | HAPTICS_SELECT (0x02)
+        flag0 |= 0x03  # COMPATIBLE_VIBRATION (0x01) | HAPTICS_SELECT (0x02)
         buf[base + 2] = max(0, min(255, int(motor_right)))
         buf[base + 3] = max(0, min(255, int(motor_left)))
+    if not light_out:
+        # Motores de gatillos adaptativos R2 (0x04, offset 10..20) y L2 (0x08, offset 21..31)
+        flag0 |= 0x04 | 0x08
+        r2_eff = encode_adaptive_trigger(trigger_r2_mode, force_pct=trigger_force)
+        l2_eff = encode_adaptive_trigger(trigger_l2_mode, force_pct=trigger_force)
+        buf[base + 10 : base + 21] = r2_eff
+        buf[base + 21 : base + 32] = l2_eff
+    buf[base + 0] = flag0
+
     if light_out:
         # Paquete inicial que apaga el modo azul por defecto del firmware para habilitar control RGB
         buf[base + 1] = 0x00
@@ -385,6 +509,8 @@ def _populate_common_report(buf: bytearray, base: int, r: int, g: int, b: int,
 def _build_bt_led_packet(r: int, g: int, b: int, light_out: bool = False,
                          motor_left: int = 0, motor_right: int = 0, rumble: bool = False,
                          mic_mute: bool = False, player_leds: str = "center",
+                         trigger_l2_mode: str = "off", trigger_r2_mode: str = "off",
+                         trigger_force: int = 85,
                          report_len: int = 547) -> bytes:
     global _bt_seq
     size = max(78, int(report_len or 547))
@@ -397,6 +523,8 @@ def _build_bt_led_packet(r: int, g: int, b: int, light_out: bool = False,
         buf, 3, r, g, b, light_out=light_out,
         motor_left=motor_left, motor_right=motor_right,
         rumble=rumble, mic_mute=mic_mute, player_leds=player_leds,
+        trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+        trigger_force=trigger_force,
     )
     crc = zlib.crc32(b"\xA2" + bytes(buf[:74])) & 0xFFFFFFFF
     struct.pack_into("<I", buf, 74, crc)
@@ -406,6 +534,8 @@ def _build_bt_led_packet(r: int, g: int, b: int, light_out: bool = False,
 def _build_usb_led_packet(r: int, g: int, b: int, light_out: bool = False,
                           motor_left: int = 0, motor_right: int = 0, rumble: bool = False,
                           mic_mute: bool = False, player_leds: str = "center",
+                          trigger_l2_mode: str = "off", trigger_r2_mode: str = "off",
+                          trigger_force: int = 85,
                           report_len: int = 64) -> bytes:
     size = max(48, int(report_len or 64))
     buf = bytearray(size)
@@ -414,6 +544,8 @@ def _build_usb_led_packet(r: int, g: int, b: int, light_out: bool = False,
         buf, 1, r, g, b, light_out=light_out,
         motor_left=motor_left, motor_right=motor_right,
         rumble=rumble, mic_mute=mic_mute, player_leds=player_leds,
+        trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+        trigger_force=trigger_force,
     )
     return bytes(buf)
 
@@ -421,7 +553,9 @@ def _build_usb_led_packet(r: int, g: int, b: int, light_out: bool = False,
 def _write_dualsense_packet(k32, h, is_bt: bool, r: int, g: int, b: int,
                             light_out: bool = False, motor_left: int = 0, motor_right: int = 0,
                             rumble: bool = False, mic_mute: bool = False,
-                            player_leds: str = "center") -> bool:
+                            player_leds: str = "center",
+                            trigger_l2_mode: str = "off", trigger_r2_mode: str = "off",
+                            trigger_force: int = 85) -> bool:
     caps_len = _get_hid_output_len(h)
     if is_bt:
         candidates = []
@@ -442,7 +576,9 @@ def _write_dualsense_packet(k32, h, is_bt: bool, r: int, g: int, b: int,
     for size in candidates:
         pkt = (_build_bt_led_packet if is_bt else _build_usb_led_packet)(
             r, g, b, light_out=light_out, motor_left=motor_left, motor_right=motor_right,
-            rumble=rumble, mic_mute=mic_mute, player_leds=player_leds, report_len=size,
+            rumble=rumble, mic_mute=mic_mute, player_leds=player_leds,
+            trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+            trigger_force=trigger_force, report_len=size,
         )
         raw = (ctypes.c_ubyte * len(pkt)).from_buffer_copy(pkt)
         if k32.WriteFile(h, raw, len(pkt), ctypes.byref(written), None):
@@ -456,7 +592,9 @@ def _write_dualsense_packet(k32, h, is_bt: bool, r: int, g: int, b: int,
         base_len = 78 if is_bt else 48
         pkt = (_build_bt_led_packet if is_bt else _build_usb_led_packet)(
             r, g, b, light_out=light_out, motor_left=motor_left, motor_right=motor_right,
-            rumble=rumble, mic_mute=mic_mute, player_leds=player_leds, report_len=base_len,
+            rumble=rumble, mic_mute=mic_mute, player_leds=player_leds,
+            trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+            trigger_force=trigger_force, report_len=base_len,
         )
         raw = (ctypes.c_ubyte * len(pkt)).from_buffer_copy(pkt)
         return bool(hid.HidD_SetOutputReport(h, raw, len(pkt)))
@@ -556,8 +694,10 @@ def parse_dualsense_live_state(data: bytes, deadzone_pct: int = 0) -> dict | Non
 
 
 def send_dualsense_bt_led(bt_path: str, r: int, g: int, b: int, mic_mute: bool = False,
-                          player_leds: str = "center", force_reset: bool = False) -> bool:
-    """Envía el color de la barra LED central, LEDs de jugador y estado de micrófono (BT 0x31 o USB 0x02)."""
+                          player_leds: str = "center", force_reset: bool = False,
+                          trigger_l2_mode: str = "off", trigger_r2_mode: str = "off",
+                          trigger_force: int = 85) -> bool:
+    """Envía el color de la barra LED central, LEDs de jugador, estado de micrófono y gatillos adaptativos (BT 0x31 o USB 0x02)."""
     if not IS_WINDOWS or not bt_path:
         return False
     low = bt_path.lower()
@@ -581,12 +721,16 @@ def send_dualsense_bt_led(bt_path: str, r: int, g: int, b: int, mic_mute: bool =
                 _write_dualsense_packet(
                     k32, h, is_bt, r, g, b,
                     light_out=True, mic_mute=mic_mute, player_leds=player_leds,
+                    trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+                    trigger_force=trigger_force,
                 )
                 time.sleep(0.06)
                 _led_initialized_paths.add(low)
             return _write_dualsense_packet(
                 k32, h, is_bt, r, g, b,
                 light_out=False, mic_mute=mic_mute, player_leds=player_leds,
+                trigger_l2_mode=trigger_l2_mode, trigger_r2_mode=trigger_r2_mode,
+                trigger_force=trigger_force,
             )
         finally:
             k32.CloseHandle(h)
@@ -689,7 +833,7 @@ def _find_all_dualsense_paths() -> list[str]:
 
 
 class DualSenseBridge:
-    """Mantiene activo un mando virtual DualShock 4 (botones PS) o Xbox 360 cuando hay DualSense BT."""
+    """Mantiene activo un mando virtual DualShock 4 (botones PS) o Xbox 360 cuando hay DualSense BT + motor DualSenseX."""
 
     def __init__(self, enabled: bool = True):
         cfg = load_dualsense_config()
@@ -708,10 +852,16 @@ class DualSenseBridge:
         self.power_save = cfg.get("power_save", True)
         self.rumble_enabled = cfg.get("rumble_enabled", True)
         self.rumble_intensity = cfg.get("rumble_intensity", 80)
+        self.trigger_l2_mode = cfg.get("trigger_l2_mode", "off")
+        self.trigger_r2_mode = cfg.get("trigger_r2_mode", "off")
+        self.trigger_force = cfg.get("trigger_force", 85)
+        self.dsx_udp_enabled = cfg.get("dsx_udp_enabled", True)
+        self.dsx_udp_port = DSX_UDP_PORT
         self.enabled = bool(enabled) and self.mode != "off"
         self.active = False
         self._stop_ev = threading.Event()
         self._thread = None
+        self._udp_thread = None
         self._last_bt_path = None
         self._last_led_rgb = None
         self._led_dirty = True
@@ -725,9 +875,43 @@ class DualSenseBridge:
         self._stop_ev.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+        self._udp_thread = threading.Thread(target=self._run_dsx_udp_server, daemon=True)
+        self._udp_thread.start()
 
     def stop(self) -> None:
         self._stop_ev.set()
+
+    def _run_dsx_udp_server(self) -> None:
+        """Servidor UDP local en 127.0.0.1:6969 compatible con mods y juegos de DualSenseX."""
+        while not self._stop_ev.is_set():
+            if not self.dsx_udp_enabled:
+                self._stop_ev.wait(1.0)
+                continue
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(("127.0.0.1", self.dsx_udp_port))
+                sock.settimeout(0.5)
+                while not self._stop_ev.is_set() and self.dsx_udp_enabled:
+                    try:
+                        data, _ = sock.recvfrom(4096)
+                        if data:
+                            patch = parse_dsx_udp_packet(data)
+                            if patch:
+                                self.set_config(**patch)
+                    except socket.timeout:
+                        continue
+                    except OSError:
+                        break
+            except Exception:
+                self._stop_ev.wait(2.0)
+            finally:
+                if sock:
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
 
     def set_enabled(self, enabled: bool) -> None:
         if not enabled:
@@ -762,6 +946,9 @@ class DualSenseBridge:
             send_dualsense_bt_led(
                 p, *rgb, mic_mute=self.mic_mute,
                 player_leds=eff_pleds, force_reset=force_reset,
+                trigger_l2_mode=self.trigger_l2_mode,
+                trigger_r2_mode=self.trigger_r2_mode,
+                trigger_force=self.trigger_force,
             )
         self._last_led_rgb = rgb
         self._led_dirty = False
@@ -772,7 +959,9 @@ class DualSenseBridge:
                    curve: str = None, hair_triggers: bool = None, invert_y: bool = None,
                    touchpad_mouse: bool = None, mic_mute: bool = None,
                    idle_timeout: int = None, power_save: bool = None,
-                   rumble_enabled: bool = None, rumble_intensity: int = None) -> dict:
+                   rumble_enabled: bool = None, rumble_intensity: int = None,
+                   trigger_l2_mode: str = None, trigger_r2_mode: str = None,
+                   trigger_force: int = None, dsx_udp_enabled: bool = None) -> dict:
         self._last_activity_t = time.monotonic()
         if mode in ("ds4", "xbox"):
             self.mode = mode
@@ -803,6 +992,14 @@ class DualSenseBridge:
             self.rumble_enabled = bool(rumble_enabled)
         if rumble_intensity is not None:
             self.rumble_intensity = max(0, min(100, int(rumble_intensity)))
+        if trigger_l2_mode in TRIGGER_MODES:
+            self.trigger_l2_mode = trigger_l2_mode
+        if trigger_r2_mode in TRIGGER_MODES:
+            self.trigger_r2_mode = trigger_r2_mode
+        if trigger_force is not None:
+            self.trigger_force = max(10, min(100, int(trigger_force)))
+        if dsx_udp_enabled is not None:
+            self.dsx_udp_enabled = bool(dsx_udp_enabled)
         if led_color is not None:
             self.led_color = str(led_color)[:16] or "auto"
             self._last_led_rgb = None
@@ -822,8 +1019,12 @@ class DualSenseBridge:
             "power_save": self.power_save,
             "rumble_enabled": self.rumble_enabled,
             "rumble_intensity": self.rumble_intensity,
+            "trigger_l2_mode": self.trigger_l2_mode,
+            "trigger_r2_mode": self.trigger_r2_mode,
+            "trigger_force": self.trigger_force,
+            "dsx_udp_enabled": self.dsx_udp_enabled,
         })
-        if any(x is not None for x in (led_color, led_brightness, rainbow_speed, player_leds, mic_mute, power_save, idle_timeout)):
+        if any(x is not None for x in (led_color, led_brightness, rainbow_speed, player_leds, mic_mute, power_save, idle_timeout, trigger_l2_mode, trigger_r2_mode, trigger_force)):
             self._led_dirty = True
             self._apply_leds_now(force_reset=False)
         return self.status()
@@ -882,6 +1083,11 @@ class DualSenseBridge:
             "power_save": self.power_save,
             "rumble_enabled": self.rumble_enabled,
             "rumble_intensity": self.rumble_intensity,
+            "trigger_l2_mode": self.trigger_l2_mode,
+            "trigger_r2_mode": self.trigger_r2_mode,
+            "trigger_force": self.trigger_force,
+            "dsx_udp_enabled": self.dsx_udp_enabled,
+            "dsx_udp_port": self.dsx_udp_port,
             "battery_pct": bat_pct,
             "battery_charging": bat_charging,
         }

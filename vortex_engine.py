@@ -2769,7 +2769,7 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                 save_peripherals_config(peripherals_cfg)
                 if ds_bridge is not None:
                     ds_bridge.set_enabled(peripherals_cfg["dualsense_battery"])
-            if ds_bridge is not None and any(k in data for k in ("mode", "deadzone", "led_color", "led_brightness", "rainbow_speed", "player_leds", "curve", "hair_triggers", "invert_y", "touchpad_mouse", "mic_mute", "idle_timeout", "power_save", "rumble_enabled", "rumble_intensity")):
+            if ds_bridge is not None and any(k in data for k in ("mode", "deadzone", "led_color", "led_brightness", "rainbow_speed", "player_leds", "curve", "hair_triggers", "invert_y", "touchpad_mouse", "mic_mute", "idle_timeout", "power_save", "rumble_enabled", "rumble_intensity", "trigger_l2_mode", "trigger_r2_mode", "trigger_force", "dsx_udp_enabled")):
                 ds_bridge.set_config(
                     mode=data.get("mode"),
                     deadzone=data.get("deadzone"),
@@ -2786,6 +2786,10 @@ class VortexHttpHandler(SimpleHTTPRequestHandler):
                     power_save=data.get("power_save"),
                     rumble_enabled=data.get("rumble_enabled"),
                     rumble_intensity=data.get("rumble_intensity"),
+                    trigger_l2_mode=data.get("trigger_l2_mode"),
+                    trigger_r2_mode=data.get("trigger_r2_mode"),
+                    trigger_force=data.get("trigger_force"),
+                    dsx_udp_enabled=data.get("dsx_udp_enabled"),
                 )
             if "mic_mute" in data:
                 set_mic_volume_state(muted=bool(data["mic_mute"]))

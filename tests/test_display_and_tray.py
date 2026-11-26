@@ -89,15 +89,44 @@ class DualSenseBridgeTests(unittest.TestCase):
         self.assertEqual((bt_pkt[47], bt_pkt[48], bt_pkt[49]), (168, 85, 247))
 
         usb_pkt = dualsense_bridge._build_usb_led_packet(
-            0, 240, 255, light_out=False, mic_mute=False, player_leds="all", report_len=48
+            0, 240, 255, light_out=False, mic_mute=False, player_leds="all",
+            trigger_l2_mode="weapon", trigger_r2_mode="machine", trigger_force=90,
+            report_len=48
         )
         self.assertEqual(len(usb_pkt), 48)
         self.assertEqual(usb_pkt[0], 0x02)
+        self.assertEqual(usb_pkt[1] & 0x0C, 0x0C)  # R2 (0x04) | L2 (0x08) trigger motors enabled
         self.assertEqual(usb_pkt[2], 0x15)
+        self.assertEqual(usb_pkt[11], 0x06)  # R2 mode = machine (0x06)
+        self.assertEqual(usb_pkt[22], 0x02)  # L2 mode = weapon (0x02)
         self.assertEqual(usb_pkt[39], 0x01)
         self.assertEqual(usb_pkt[42], 0x00)
         self.assertEqual(usb_pkt[44], 0x1F)
         self.assertEqual((usb_pkt[45], usb_pkt[46], usb_pkt[47]), (0, 240, 255))
+
+    def test_dualsensex_adaptive_triggers_and_udp_parser(self):
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("off")[0], 0x05)
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("continuous", 80)[0], 0x01)
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("weapon", 85)[0], 0x02)
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("machine", 90)[0], 0x06)
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("bow", 85)[0], 0x02)
+        self.assertEqual(dualsense_bridge.encode_adaptive_trigger("hard", 100)[:3], bytes([0x01, 4, 255]))
+
+        dsx_payload = b'''{
+            "instructions": [
+                {"type": 1, "parameters": [0, 1, 16, 35, 7]},
+                {"type": 1, "parameters": [0, 2, 18, 25, 8]},
+                {"type": 2, "parameters": [0, 34, 211, 238]},
+                {"type": 3, "parameters": [0, false, true, true, true, false]},
+                {"type": 5, "parameters": [0, 1]}
+            ]
+        }'''
+        patch_cfg = dualsense_bridge.parse_dsx_udp_packet(dsx_payload)
+        self.assertEqual(patch_cfg["trigger_l2_mode"], "weapon")
+        self.assertEqual(patch_cfg["trigger_r2_mode"], "machine")
+        self.assertEqual(patch_cfg["led_color"], "#22d3ee")
+        self.assertEqual(patch_cfg["player_leds"], "three")
+        self.assertTrue(patch_cfg["mic_mute"])
 
 
 class LowBatteryAlertTests(unittest.TestCase):
