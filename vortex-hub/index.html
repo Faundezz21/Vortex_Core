@@ -1849,9 +1849,90 @@
         <!-- TAB 3: GATILLOS Y EXTRAS -->
         <section class="pn pn3">
           <h2>Gatillos y extras</h2>
-          <p>Funciones adicionales del mando.</p>
+          <p><span class="ps">Gatillos adaptativos DualSenseX, resistencia mecánica y funciones extra.</span><span class="xb">Funciones adicionales del mando.</span></p>
 
           <span class="ps">
+            <!-- DualSenseX: Gatillo Adaptativo Izquierdo (L2) -->
+            <div class="blk">
+              <div class="hd">
+                <span class="ic" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 4h9a3 3 0 013 3v4a8 8 0 01-8 8H6z"/></svg>
+                </span>
+                <span class="tx">
+                  <b>Gatillo adaptativo L2 (DualSenseX)</b>
+                  <small>Resistencia mecánica del motor izquierdo</small>
+                </span>
+              </div>
+              <div class="seg">
+                <input type="radio" name="gs_l2m" id="l2m_off" value="off" checked onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'off'})">
+                <label for="l2m_off">Normal</label>
+                <input type="radio" name="gs_l2m" id="l2m_weapon" value="weapon" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'weapon'})">
+                <label for="l2m_weapon">Arma</label>
+                <input type="radio" name="gs_l2m" id="l2m_cont" value="continuous" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'continuous'})">
+                <label for="l2m_cont">Continuo</label>
+                <input type="radio" name="gs_l2m" id="l2m_mach" value="machine" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'machine'})">
+                <label for="l2m_mach">Metralleta</label>
+                <input type="radio" name="gs_l2m" id="l2m_bow" value="bow" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'bow'})">
+                <label for="l2m_bow">Arco</label>
+                <input type="radio" name="gs_l2m" id="l2m_hard" value="hard" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'hard'})">
+                <label for="l2m_hard">Duro</label>
+              </div>
+            </div>
+
+            <!-- DualSenseX: Gatillo Adaptativo Derecho (R2) -->
+            <div class="blk">
+              <div class="hd">
+                <span class="ic" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 4h9a3 3 0 013 3v4a8 8 0 01-8 8H6z"/></svg>
+                </span>
+                <span class="tx">
+                  <b>Gatillo adaptativo R2 (DualSenseX)</b>
+                  <small>Resistencia mecánica del motor derecho</small>
+                </span>
+              </div>
+              <div class="seg">
+                <input type="radio" name="gs_r2m" id="r2m_off" value="off" checked onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'off'})">
+                <label for="r2m_off">Normal</label>
+                <input type="radio" name="gs_r2m" id="r2m_weapon" value="weapon" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'weapon'})">
+                <label for="r2m_weapon">Arma</label>
+                <input type="radio" name="gs_r2m" id="r2m_cont" value="continuous" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'continuous'})">
+                <label for="r2m_cont">Continuo</label>
+                <input type="radio" name="gs_r2m" id="r2m_mach" value="machine" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'machine'})">
+                <label for="r2m_mach">Metralleta</label>
+                <input type="radio" name="gs_r2m" id="r2m_bow" value="bow" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'bow'})">
+                <label for="r2m_bow">Arco</label>
+                <input type="radio" name="gs_r2m" id="r2m_hard" value="hard" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'hard'})">
+                <label for="r2m_hard">Duro</label>
+              </div>
+            </div>
+
+            <!-- Fuerza de resistencia de gatillos -->
+            <div class="blk">
+              <div class="hd" style="margin-bottom:6px">
+                <span class="ic" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 9v6M8 6v12M12 9v6M16 6v12M20 9v6"/></svg>
+                </span>
+                <span class="tx">
+                  <b>Fuerza de resistencia</b>
+                  <small>Potencia de los motores de L2 y R2</small>
+                </span>
+                <span class="val" id="gs-trig-force-val">85%</span>
+              </div>
+              <input class="rg" type="range" min="10" max="100" value="85" id="gs-trig-force-slider" aria-label="Fuerza de resistencia" style="--v:83.3%" oninput="_updateGsRange(this,'gs-trig-force-val','%')" onchange="setDualSenseConfig({trigger_force:Number(this.value)})">
+            </div>
+
+            <!-- Servidor UDP DualSenseX (Puerto 6969) -->
+            <label class="row">
+              <span class="ic" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>
+              </span>
+              <span class="tx">
+                <b>Servidor UDP DualSenseX (Puerto 6969)</b>
+                <small>Permite que mods de juegos controlen gatillos y LEDs en vivo</small>
+              </span>
+              <input class="sw" type="checkbox" id="gs-dsx-udp-sw" checked onchange="setDualSenseConfig({dsx_udp_enabled:this.checked})">
+            </label>
+
             <label class="row">
               <span class="ic" aria-hidden="true">
                 <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 4h9a3 3 0 013 3v4a8 8 0 01-8 8H6z"/></svg>

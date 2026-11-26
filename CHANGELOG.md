@@ -2,8 +2,9 @@
 
 ## 7.13.3
 
-### Estudio del mando PS5 (DualSense) y Xbox + Estilo de consola
+### Estudio del mando PS5 (DualSense) y Xbox + Motor DualSenseX integrado
 - **Estudio interactivo del mando (PlayStation 5 / Xbox):** nueva ventana de configuración inspirada en la interfaz nativa de consola con 4 categorías (**Batería y energía**, **Sticks**, **Gatillos y extras** e **Iluminación**), vista previa fotorrealista interactiva a 60 FPS (ilumina botones presionados, movimiento de sticks e inclinación 3D en vivo) y porcentaje real de batería sincronizado.
+- **Gatillos Adaptativos DualSenseX en L2 y R2 + Servidor UDP (Puerto 6969):** control físico directo de los motores de resistencia mecánica de `L2` y `R2` con 6 perfiles (**Normal**, **Arma** con punto de quiebre, **Continuo** tipo pedal, **Metralleta** con vibración de alta frecuencia, **Arco** progresivo y **Bloqueo Duro**), ajuste de fuerza de resistencia (`10–100%`) y **servidor UDP local compatible con DualSenseX en `127.0.0.1:6969`** para que los mods de juegos (Cyberpunk 2077, GTA V, Skyrim, Forza, etc.) controlen los gatillos adaptativos y LEDs automáticamente sin abrir DualSenseX.
 - **Control físico de iluminación RGB y LEDs de jugador (Bluetooth y USB):** permite elegir el color de los bordes luminosos del touchpad, nivel de brillo y configuración de los 5 LEDs blancos centrales bajo el touchpad (`○○●○○`, `○●●●○`, `●●●●●` o apagados) tanto por Bluetooth (`0x31`) como por cable USB (`0x02`).
 - **Puente nativo DualSense → Xbox 360 / DS4 y ajustes pro:** emulación mediante ViGEm con zona muerta anti-drift, curvas de respuesta (Lineal, Precisión, Rápida), inversión del eje Y, gatillos rápidos (hair-trigger), touchpad como ratón, micrófono, ahorro de energía, apagado por inactividad y prueba/intensidad de vibración.
 - **Navegación completa con el propio mando y teclado:** navegación en 2 zonas (menú lateral y panel central) dentro del estudio del mando con **D-Pad / Stick / Flechas**, `✕` para aceptar, `○` para volver atrás, `L1`/`R1` para cambiar de categoría y `△` para probar vibración, además de navegación con mando en toda la aplicación.

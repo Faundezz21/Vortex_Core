@@ -52,8 +52,9 @@ VortexCore Hub sigue dos reglas simples:
 
 ## Qué incluye
 
-- **Estudio del mando PS5 (DualSense) y Xbox + Puente ViGEm (`dualsense_bridge.py`):**
+- **Estudio del mando PS5 (DualSense) y Xbox + Motor DualSenseX y Puente ViGEm (`dualsense_bridge.py`):**
   - **Interfaz y navegación de consola:** ventana inspirada en la configuración nativa de PlayStation 5 y Xbox con 4 categorías (**Batería y energía**, **Sticks**, **Gatillos y extras** e **Iluminación**), navegable al 100 % con el propio mando (**D-Pad / Stick**, `✕` aceptar, `○` atrás, `L1`/`R1` categorías y `△` prueba de vibración) o teclado.
+  - **Gatillos Adaptativos DualSenseX (L2 / R2) y Servidor UDP (`127.0.0.1:6969`):** control físico de los motores de resistencia mecánica de `L2` y `R2` (**Normal**, **Arma**, **Continuo**, **Metralleta**, **Arco** y **Duro**), ajuste de fuerza de resistencia (`10–100 %`) y servidor UDP compatible con el protocolo de **DualSenseX** en el puerto `6969` para que mods de juegos controlen los gatillos y luces en tiempo real.
   - **Vista fotorrealista en vivo a 60 FPS:** ilumina sobre el mando cada botón presionado, muestra el desplazamiento real de los sticks analógicos, inclina el mando en 3D y sincroniza el porcentaje real de batería del DualSense por Bluetooth y USB.
   - **Iluminación física RGB y LEDs de jugador:** personaliza el color de los bordes luminosos del touchpad, el nivel de brillo y los **5 LEDs blancos centrales de jugador** (`○○●○○`, `○●●●○`, `●●●●●` o apagados) tanto por Bluetooth (`0x31`) como por USB (`0x02`).
   - **Emulación y ajustes competitivos:** conversión en tiempo real a mando **Xbox 360 (XInput)** o **DualShock 4** mediante ViGEm, con zona muerta anti-drift, curvas de respuesta (*Lineal*, *Precisión*, *Rápida*), inversión del eje Y, gatillos rápidos (*hair-trigger*), touchpad como ratón, micrófono, ahorro de energía y apagado por inactividad.
