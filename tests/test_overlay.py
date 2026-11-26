@@ -64,6 +64,9 @@ class PresentMonParsingTests(unittest.TestCase):
         self.assertTrue(fps_monitor.is_game({"fps": 144, "app": "RocketLeague.exe"}))
         self.assertFalse(fps_monitor.is_game({"fps": 120, "app": "Brave.exe"}))
         self.assertFalse(fps_monitor.is_game({"fps": 60, "app": "claude.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 60, "app": "Antigravity.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 60, "app": "OpenCode.exe"}))
+        self.assertFalse(fps_monitor.is_game({"fps": 60, "app": "Claude Desktop.exe"}))
         self.assertFalse(fps_monitor.is_game({"fps": 8, "app": "juego.exe"}))
         self.assertFalse(fps_monitor.is_game(None))
 
@@ -112,11 +115,28 @@ class OverlayRowsTests(unittest.TestCase):
 
     def test_old_config_gets_new_items(self):
         cfg = game_overlay.migrate_items(game_overlay.sanitize_config({"items": ["fps", "cpu"]}), 1)
-        self.assertEqual(cfg["items"], ["fps", "cpu", "vram", "sys"])
+        self.assertEqual(cfg["items"], ["fps", "cpu", "vram", "bat", "sys"])
         self.assertEqual(cfg["items_version"], game_overlay.ITEMS_VERSION)
         # si el usuario quita un dato nuevo despues de migrar no vuelve a aparecer
         cfg2 = game_overlay.migrate_items(game_overlay.sanitize_config({"items": ["fps"]}), game_overlay.ITEMS_VERSION)
         self.assertEqual(cfg2["items"], ["fps"])
+
+    def test_peripheral_batteries_in_overlay(self):
+        tel = {
+            "battery_devices": [
+                {"name": "Batería HP", "type": "battery", "percent": 80},
+                {"name": "DualSense Wireless Controller", "type": "gamepad", "percent": 35},
+                {"name": "Razer Barracuda X 2.4", "type": "headphone", "percent": 73},
+            ]
+        }
+        m = game_overlay.build_model(tel, None, ["bat"])
+        self.assertEqual(len(m["tiles"]), 1)
+        self.assertEqual(m["tiles"][0]["main"], "PS5 35%")
+        self.assertEqual(m["tiles"][0]["compact"], "PS5 35% · AURIC 73%")
+        segs = ["".join(r[0] for r in s) for s in game_overlay.compact_segments(m)]
+        self.assertEqual(segs, ["PERIF PS5 35% · AURIC 73%"])
+        isegs = ["".join(r[0] for r in s) for s in game_overlay.integrated_segments(m)]
+        self.assertEqual(isegs, ["PERIF PS5 35% · AURIC 73%"])
 
     def test_fans_named_cpu_and_gpu(self):
         m = game_overlay.build_model({"fan1_rpm": 5400, "fan2_rpm": 5200}, None, ["fan"])

@@ -28,12 +28,16 @@ NON_GAME_APPS = {
     "galaxyclient.exe", "obs64.exe", "nvcontainer.exe", "nvidia share.exe", "nvidia app.exe", "whatsapp.exe",
     "telegram.exe", "msedgewebview2.exe", "parsecd.exe", "lghub_agent.exe", "lghub.exe", "onedrive.exe",
     "dropbox.exe", "qbittorrent.exe", "utorrent.exe", "python.exe", "pythonw.exe", "vortexcorehub.exe",
-    "claude.exe", "code.exe", "cursor.exe", "notepad.exe", "notepad++.exe", "winword.exe", "excel.exe",
+    "claude.exe", "claude desktop.exe", "antigravity.exe", "opencode.exe", "opencode-desktop.exe",
+    "code.exe", "cursor.exe", "windsurf.exe", "zed.exe", "trae.exe", "chatgpt.exe", "codex.exe",
+    "electron.exe", "notepad.exe", "notepad++.exe", "winword.exe", "excel.exe",
     "powerpnt.exe", "outlook.exe", "olk.exe", "acrobat.exe", "acrord32.exe", "vlc.exe", "mpc-hc64.exe",
-    "photos.exe", "windowsterminal.exe", "cmd.exe", "powershell.exe", "taskmgr.exe", "systemsettings.exe",
+    "photos.exe", "windowsterminal.exe", "wt.exe", "cmd.exe", "powershell.exe", "pwsh.exe",
+    "alacritty.exe", "wezterm-gui.exe", "tabby.exe", "hyper.exe", "warp.exe", "taskmgr.exe", "systemsettings.exe",
     "notion.exe", "figma.exe", "obsidian.exe", "postman.exe", "phpstorm64.exe", "idea64.exe", "devenv.exe",
     "hp.omenhub.exe", "omen gaming hub.exe", "armoury crate.exe", "msiafterburner.exe", "rtss.exe",
 }
+_NON_GAME_KEYWORDS = ("antigravity", "claude", "opencode", "windsurf", "cursor", "vscode", "electron", "webview2")
 GAME_MIN_FPS = 15
 
 
@@ -41,7 +45,10 @@ GAME_MIN_FPS = 15
 def is_game(stats: dict | None) -> bool:
     if not stats or not stats.get("fps"):
         return False
-    return (stats.get("app") or "").lower() not in NON_GAME_APPS and stats["fps"] >= GAME_MIN_FPS
+    app = (stats.get("app") or "").lower()
+    if app in NON_GAME_APPS or any(k in app for k in _NON_GAME_KEYWORDS):
+        return False
+    return stats["fps"] >= GAME_MIN_FPS
 
 
 def find_presentmon(app_dir: str) -> str | None:

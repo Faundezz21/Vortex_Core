@@ -17,10 +17,10 @@ CORNERS = ("tl", "tc", "tr", "bl", "bc", "br")
 SIZES = {"s": 0.85, "m": 1.0, "l": 1.25}
 STYLES = ("integrated", "compact", "detailed")
 THEME_CHOICES = ("auto", "vortex", "tactico", "arena", "ops", "pixel", "competitivo")
-ITEMS = ("fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "sys")
+ITEMS = ("fps", "ping", "cpu", "gpu", "vram", "ram", "fan", "bat", "sys")
 # datos agregados en versiones nuevas que se activan solos en configuraciones antiguas
-ITEMS_VERSION = 2
-NEW_ITEMS = {2: ("vram", "sys")}
+ITEMS_VERSION = 3
+NEW_ITEMS = {2: ("vram", "sys"), 3: ("bat",)}
 DEFAULT_CONFIG = {
     "enabled": False,
     "corner": "tl",
@@ -237,7 +237,7 @@ def _app_title(app: str) -> str:
 
 
 # orden fijo de las tarjetas para que la grilla quede pareja
-TILE_ORDER = ("cpu", "gpu", "vram", "ram", "ping", "fan", "sys")
+TILE_ORDER = ("cpu", "gpu", "vram", "ram", "ping", "fan", "bat", "sys")
 FAN_MAX_RPM = 6000
 # limites termicos: desde aqui la cpu o la gpu empiezan a bajar su rendimiento
 TEMP_LIMITS = {"cpu": (85, 95), "gpu": (78, 87)}
@@ -251,7 +251,7 @@ def _w(v):
 # arma el modelo que dibuja el overlay a partir de la telemetria
 def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None, history=(), net=None,
                 clock: str | None = None) -> dict:
-    model = {"fps": None, "tiles": []}
+    model = {"fps": None, "tiles": [], "mic_muted": bool(tel.get("mic_muted"))}
     if "fps" in items:
         value = fps.get("fps") if fps else None
         model["fps"] = {
@@ -317,6 +317,38 @@ def build_model(tel: dict, fps: dict | None, items, fps_note: str | None = None,
             fans = [(name, int(r)) for name, r in (("CPU", _num(tel.get("fan1_rpm"))), ("GPU", _num(tel.get("fan2_rpm")))) if r]
             if fans:
                 model["tiles"].append({"kind": "fans", "label": "VENTILADORES", "fans": fans})
+        elif item == "bat":
+            periphs = [
+                d for d in (tel.get("battery_devices") or [])
+                if d.get("type") != "battery" and _num(d.get("percent")) is not None
+            ]
+            if periphs:
+                parts = []
+                min_pct = 100.0
+                for d in periphs[:3]:
+                    pct_v = _num(d.get("percent"))
+                    min_pct = min(min_pct, pct_v)
+                    dt = str(d.get("type") or "").lower()
+                    nm = str(d.get("name") or "").lower()
+                    if dt == "gamepad":
+                        tag = "PS5" if "dualsense" in nm else ("XBOX" if "xbox" in nm else "MANDO")
+                    elif dt == "headphone":
+                        tag = "AURIC"
+                    elif dt == "mouse":
+                        tag = "RATÓN"
+                    elif dt == "keyboard":
+                        tag = "TECL"
+                    else:
+                        tag = (str(d.get("name") or "DISP").strip()[:5]).upper()
+                    parts.append(f"{tag} {pct_v:.0f}%")
+                col = C_HOT if min_pct < 20 else (C_WARN if min_pct < 40 else C_OK)
+                model["tiles"].append({
+                    "kind": "ping", "label": "PERIFÉRICOS", "id": "bat",
+                    "main": parts[0], "main_color": col,
+                    "badge": (f"{min_pct:.0f}%", col),
+                    "foot": " · ".join(parts[1:]) if len(parts) > 1 else "batería inalámbrica",
+                    "compact": " · ".join(parts[:2]),
+                })
         elif item == "sys":
             pct = _num(tel.get("battery_pct"))
             on_bat = bool(tel.get("on_battery")) and pct is not None
@@ -807,8 +839,14 @@ def paint_model(p, model: dict, width: int, height: int, opacity: int):
     if fps is not None:
         # encabezado con marca y nombre del juego
         p.round_rect(pad, y + 3.5 * s, 6 * s, 6 * s, 3 * s, fill=_argb(fps["color"] if fps["value"] else C_MUTED))
-        p.text(_THEME.get("name", "Vortex").upper() if _THEME.get("name") != "Vortex" else "VORTEX",
-               p.font(8.5, True), _argb(C_LABEL), pad + 10 * s, y + 0.5 * s)
+        brand = _THEME.get("name", "Vortex").upper() if _THEME.get("name") != "Vortex" else "VORTEX"
+        bw_lbl = p.text(brand, p.font(8.5, True), _argb(C_LABEL), pad + 10 * s, y + 0.5 * s)
+        if model.get("mic_muted"):
+            mf = p.font(8, True)
+            mw, mh = p.measure("MIC MUTE", mf)
+            mx = pad + 16 * s + bw_lbl
+            p.round_rect(mx, y - 0.5 * s, mw + 10 * s, 13 * s, 6.5 * s, fill=_argb(C_CRIT, 56))
+            p.text("MIC MUTE", mf, _argb(C_CRIT), mx + (mw + 10 * s) / 2, y + (12 * s - mh) / 2, "center")
         if fps["app"]:
             p.text(fps["app"], p.font(9.5), _argb(C_MUTED), width - pad, y, "right")
         y += 16 * s
@@ -874,6 +912,8 @@ def compact_segments(model: dict) -> list:
             segs.append([label("VRAM"), (" " + t["short"], 11.5, True, t["main_color"], False)])
         elif tid == "ram":
             segs.append([label("RAM"), (" " + t["ring_text"], 11.5, True, t["main_color"], False)])
+        elif tid == "bat":
+            segs.append([label("PERIF"), (" " + t["compact"], 11.5, True, t["main_color"], False)])
         elif tid == "sys":
             seg = []
             if t["battery"] is not None:
@@ -885,6 +925,8 @@ def compact_segments(model: dict) -> list:
         elif t["kind"] == "fans":
             rpms = " · ".join(f"{rpm / 1000:.1f}k" for _, rpm in t["fans"])
             segs.append([label("FAN"), (" " + rpms, 11, True, C_TEXT, False)])
+    if model.get("mic_muted"):
+        segs.append([("MIC MUTE", 8.5, True, C_CRIT, True)])
     return segs
 
 
@@ -961,6 +1003,8 @@ def integrated_segments(model: dict) -> list:
             segs.append([label("VRAM"), (" " + t["short"], 11.5, True, _alert(t["main_color"]))])
         elif tid == "ram":
             segs.append([label("RAM"), (" " + t["ring_text"], 11.5, True, _alert(t["main_color"]))])
+        elif tid == "bat":
+            segs.append([label("PERIF"), (" " + t["compact"], 11.5, True, _alert(t["main_color"]))])
         elif tid == "sys":
             seg = []
             if t["battery"] is not None:
