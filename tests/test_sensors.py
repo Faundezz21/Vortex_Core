@@ -89,6 +89,11 @@ class PeripheralClassificationTests(unittest.TestCase):
         self.assertEqual(hw_sensors.pretty_device_name("", "USB DEVICE", "(Controladora de host USB estándar)", "keyboard"), "Teclado USB")
         self.assertEqual(hw_sensors.pretty_device_name(None, None, None, "gamepad"), "Mando USB")
 
+    def test_razer_barracuda_battery_parsing(self):
+        raw = bytes.fromhex("01 80 11 50 49 01 ec 6e 05 3a 00 07 00 06 82 00 8d 0f") + b"\x00" * 46
+        self.assertEqual(hw_sensors.parse_razer_barracuda_battery(raw), 76)
+        self.assertIsNone(hw_sensors.parse_razer_barracuda_battery(b"\x00" * 64))
+
 
 class BatteryHealthTests(unittest.TestCase):
     def test_missing_battery(self):

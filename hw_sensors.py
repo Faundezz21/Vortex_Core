@@ -21,6 +21,7 @@ import struct
 import subprocess
 import sys
 import threading
+import time
 from ctypes import wintypes
 
 try:
@@ -784,7 +785,7 @@ def dualsense_request_full_mode(path: str) -> bool:
         return False
 
 
-def read_dualsense_battery(max_age: float = 20.0, force_full: bool = False):
+def read_dualsense_battery(max_age: float = 5.0, force_full: bool = False):
     """devuelve la bateria del primer dualsense conectado, {"mode": "simple"} si no la informa, o none."""
     if not IS_WINDOWS:
         return None
@@ -816,6 +817,101 @@ def read_dualsense_battery(max_age: float = 20.0, force_full: bool = False):
         result = None
     _ds_cache.update(at=_t.time(), value=result)
     return result
+
+
+_razer_cache = {"at": 0.0, "value": None}
+
+
+def parse_razer_barracuda_battery(rep: bytes) -> int | None:
+    """Extrae el % de batería desde la respuesta RACE 0x06 0x82 del Razer Barracuda X (mV)."""
+    if not rep or len(rep) < 18:
+        return None
+    if rep[0] != 0x01 or rep[1] != 0x80 or rep[13] != 0x06 or rep[14] != 0x82 or rep[15] != 0x00:
+        return None
+    mv = rep[16] | (rep[17] << 8)
+    if mv < 2500 or mv > 4500:
+        return None
+    return max(0, min(100, int(round((mv - 3300) / (4200 - 3300) * 100))))
+
+
+def read_razer_headset_battery(max_age: float = 5.0) -> int | None:
+    """Consulta la batería real del Razer Barracuda X 2.4 GHz (PID 0552) vía HID."""
+    if not IS_WINDOWS:
+        return None
+    import time as _t
+    if _t.time() - _razer_cache["at"] < max_age:
+        return _razer_cache["value"]
+
+    pct = None
+    try:
+        path = next(
+            (p for p in _hid_interface_paths()
+             if "1532" in p.lower() and "0552" in p.lower() and "col01" in p.lower()),
+            None,
+        )
+        if path:
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.CreateFileW.restype = wintypes.HANDLE
+            k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+            k32.CreateEventW.restype = wintypes.HANDLE
+            k32.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p]
+            k32.WriteFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p]
+            k32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            k32.GetOverlappedResult.argtypes = [wintypes.HANDLE, ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), wintypes.BOOL]
+            k32.CancelIo.argtypes = [wintypes.HANDLE]
+            k32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+            class OVERLAPPED(ctypes.Structure):
+                _fields_ = [("Internal", ctypes.c_void_p), ("InternalHigh", ctypes.c_void_p),
+                            ("Offset", wintypes.DWORD), ("OffsetHigh", wintypes.DWORD), ("hEvent", wintypes.HANDLE)]
+
+            h = k32.CreateFileW(path, 0xC0000000, 0x3, None, 3, 0x40000000, None)
+            if h and h != wintypes.HANDLE(-1).value:
+                def _xfer(payload):
+                    buf = (ctypes.c_ubyte * 64)(*payload)
+                    ov = OVERLAPPED()
+                    ov.hEvent = k32.CreateEventW(None, True, False, None)
+                    w = wintypes.DWORD(0)
+                    try:
+                        if not k32.WriteFile(h, buf, 64, None, ctypes.byref(ov)) and ctypes.get_last_error() == 997:
+                            if k32.WaitForSingleObject(ov.hEvent, 300) != 0:
+                                k32.CancelIo(h)
+                                return b""
+                            k32.GetOverlappedResult(h, ctypes.byref(ov), ctypes.byref(w), False)
+                    finally:
+                        k32.CloseHandle(ov.hEvent)
+
+                    rbuf = ctypes.create_string_buffer(64)
+                    ov2 = OVERLAPPED()
+                    ov2.hEvent = k32.CreateEventW(None, True, False, None)
+                    got = wintypes.DWORD(0)
+                    try:
+                        if not k32.ReadFile(h, rbuf, 64, None, ctypes.byref(ov2)) and ctypes.get_last_error() != 997:
+                            return b""
+                        if k32.WaitForSingleObject(ov2.hEvent, 450) != 0:
+                            k32.CancelIo(h)
+                            return b""
+                        if k32.GetOverlappedResult(h, ctypes.byref(ov2), ctypes.byref(got), False):
+                            return rbuf.raw[:got.value]
+                        return b""
+                    finally:
+                        k32.CloseHandle(ov2.hEvent)
+
+                try:
+                    hs = _xfer([0x01, 0x40])
+                    if len(hs) >= 4 and hs[0] == 0x01 and hs[1] == 0x40:
+                        _xfer([0x01, 0x80, 0x07, 0x50, 0x41, 0x0E, 0x01, 0x02, 0xE1, 0x01])
+                        bat = _xfer([0x01, 0x80, 0x07, 0x50, 0x41, 0x06, 0x02, 0x01, 0x00, 0x31])
+                        pct = parse_razer_barracuda_battery(bat)
+                        _xfer([0x01, 0x80, 0x07, 0x50, 0x41, 0x0E, 0x03, 0x02, 0xE1, 0x00])
+                finally:
+                    k32.CloseHandle(h)
+    except Exception:
+        pct = None
+
+    _razer_cache.update(at=_t.time(), value=pct)
+    return pct
 
 
 def read_battery_health():
@@ -914,6 +1010,164 @@ def read_battery_health():
         manufacturer=manufacturer,
         chemistry=chemistry,
     )
+
+
+_STORAGE_HEALTH_CACHE: dict = {"ts": 0.0, "data": None}
+
+
+def _read_lhm_storage_fallback() -> dict[str, dict]:
+    """Lee temperatura y vida útil restante desde LibreHardwareMonitor si está disponible."""
+    out: dict[str, dict] = {}
+    try:
+        from HardwareMonitor.Hardware import Computer, SensorType
+        comp = Computer()
+        comp.IsStorageEnabled = True
+        comp.Open()
+        try:
+            for hw in comp.Hardware:
+                try:
+                    hw.Update()
+                    name = str(hw.Name or "").strip()
+                    temp_c = None
+                    life_pct = None
+                    for s in hw.Sensors:
+                        sname = str(s.Name or "").lower()
+                        val = s.Value
+                        if val is None:
+                            continue
+                        if s.SensorType == SensorType.Temperature and "warning" not in sname and "critical" not in sname:
+                            if temp_c is None or sname == "temperature":
+                                temp_c = int(round(float(val)))
+                        elif s.SensorType == SensorType.Level and ("remaining life" in sname or "life" in sname or "wear" in sname):
+                            v = int(round(float(val)))
+                            life_pct = max(0, min(100, 100 - v if "wear" in sname and "remaining" not in sname else v))
+                    if name:
+                        out[name.lower()] = {"temp_c": temp_c, "life_remaining_pct": life_pct}
+                except Exception:
+                    continue
+        finally:
+            try:
+                comp.Close()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return out
+
+
+def read_storage_health(force: bool = False) -> dict:
+    """Lee temperatura actual, vida útil restante (%) y estado SMART de los SSD/discos físicos."""
+    if not IS_WINDOWS:
+        return {"present": False, "disks": []}
+
+    now = time.time()
+    cached = _STORAGE_HEALTH_CACHE.get("data")
+    if not force and cached is not None and (now - float(_STORAGE_HEALTH_CACHE.get("ts") or 0)) < 5.0:
+        return cached
+
+    ps = (
+        "$ErrorActionPreference='SilentlyContinue';"
+        "$disks = Get-PhysicalDisk | ForEach-Object {"
+        "  $c = $null; try { $c = $_ | Get-StorageReliabilityCounter } catch {};"
+        "  [PSCustomObject]@{"
+        "    name = $_.FriendlyName;"
+        "    media = [string]$_.MediaType;"
+        "    bus = [string]$_.BusType;"
+        "    health = [string]$_.HealthStatus;"
+        "    op = [string]$_.OperationalStatus;"
+        "    size_gb = [math]::Round($_.Size / 1GB, 1);"
+        "    temp = if ($c) { $c.Temperature } else { $null };"
+        "    wear = if ($c) { $c.Wear } else { $null };"
+        "    hours = if ($c) { $c.PowerOnHours } else { $null };"
+        "    read_err = if ($c) { $c.ReadErrorsTotal } else { $null };"
+        "    write_err = if ($c) { $c.WriteErrorsTotal } else { $null }"
+        "  }"
+        "};"
+        "$disks | ConvertTo-Json -Compress"
+    )
+    raw_disks: list[dict] = []
+    code, out = _run(["powershell", "-NoProfile", "-Command", ps], timeout=8)
+    if code == 0 and out.strip():
+        try:
+            parsed = json.loads(out)
+            if isinstance(parsed, dict):
+                raw_disks = [parsed]
+            elif isinstance(parsed, list):
+                raw_disks = [d for d in parsed if isinstance(d, dict)]
+        except Exception:
+            raw_disks = []
+
+    needs_lhm = any(d.get("temp") is None or d.get("wear") is None for d in raw_disks) or not raw_disks
+    lhm_map = _read_lhm_storage_fallback() if needs_lhm else {}
+
+    disks: list[dict] = []
+    for d in raw_disks:
+        name = str(d.get("name") or "Disco").strip()
+        bus = str(d.get("bus") or "").strip()
+        media = str(d.get("media") or "").strip()
+        health_raw = str(d.get("health") or "Unknown").strip()
+        op_raw = str(d.get("op") or "").strip()
+
+        temp_c = int(round(float(d["temp"]))) if d.get("temp") is not None else None
+        wear_used = int(round(float(d["wear"]))) if d.get("wear") is not None else None
+        life_pct = max(0, min(100, 100 - wear_used)) if wear_used is not None else None
+
+        lhm_match = lhm_map.get(name.lower())
+        if not lhm_match and lhm_map:
+            for k, v in lhm_map.items():
+                if name.lower() in k or k in name.lower():
+                    lhm_match = v
+                    break
+        if lhm_match:
+            if temp_c is None and lhm_match.get("temp_c") is not None:
+                temp_c = lhm_match["temp_c"]
+            if life_pct is None and lhm_match.get("life_remaining_pct") is not None:
+                life_pct = lhm_match["life_remaining_pct"]
+
+        h_low = health_raw.lower()
+        if h_low == "healthy":
+            smart_label = "Saludable"
+            smart_level = "green"
+        elif h_low == "warning":
+            smart_label = "Advertencia"
+            smart_level = "orange"
+        elif h_low == "unhealthy":
+            smart_label = "Crítico"
+            smart_level = "red"
+        else:
+            smart_label = health_raw or "Desconocido"
+            smart_level = ""
+
+        if life_pct is not None:
+            if life_pct < 20:
+                smart_level = "red"
+            elif life_pct < 50 and smart_level == "green":
+                smart_level = "orange"
+
+        disks.append({
+            "name": name,
+            "bus_type": bus,
+            "media_type": media,
+            "is_nvme": "nvme" in bus.lower(),
+            "size_gb": d.get("size_gb"),
+            "temp_c": temp_c,
+            "life_remaining_pct": life_pct,
+            "wear_pct": (100 - life_pct) if life_pct is not None else None,
+            "smart_status": smart_label,
+            "smart_raw": health_raw,
+            "operational_status": op_raw,
+            "smart_level": smart_level,
+            "power_on_hours": d.get("hours"),
+            "read_errors": d.get("read_err"),
+            "write_errors": d.get("write_err"),
+        })
+
+    # Priorizar SSD NVMe primero en la lista
+    disks.sort(key=lambda x: (0 if x["is_nvme"] else (1 if "ssd" in x["media_type"].lower() else 2), x["name"]))
+    res = {"present": len(disks) > 0, "disks": disks}
+    _STORAGE_HEALTH_CACHE["ts"] = now
+    _STORAGE_HEALTH_CACHE["data"] = res
+    return res
 
 
 # ==============================================================================
