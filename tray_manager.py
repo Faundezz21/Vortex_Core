@@ -8,6 +8,7 @@
 ================================================================================
 """
 
+import json
 import os
 import sys
 import ctypes
@@ -18,6 +19,7 @@ from ctypes import wintypes
 user32 = ctypes.windll.user32
 shell32 = ctypes.windll.shell32
 kernel32 = ctypes.windll.kernel32
+gdi32 = ctypes.windll.gdi32
 
 # Definición precisa de tipos Win64 para evitar desbordamientos y fallos en WNDPROC
 user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
@@ -82,6 +84,7 @@ NIIF_WARNING = 2
 WM_USER = 0x0400
 WM_TRAYICON = WM_USER + 20
 WM_COMMAND = 0x0111
+WM_TIMER = 0x0113
 WM_LBUTTONUP = 0x0202
 WM_LBUTTONDBLCLK = 0x0203
 WM_RBUTTONUP = 0x0205
@@ -91,6 +94,7 @@ TPM_BOTTOMALIGN = 0x0020
 TPM_RIGHTALIGN = 0x0008
 
 MF_STRING = 0x0000
+MF_POPUP = 0x0010
 MF_SEPARATOR = 0x0800
 MF_CHECKED = 0x0008
 MF_UNCHECKED = 0x0000
@@ -105,6 +109,24 @@ CMD_FAN_AUTO = 1006
 CMD_PURGE_RAM = 1007
 CMD_AUTOSTART = 1008
 CMD_EXIT = 1009
+CMD_TEMP_ICON = 1010
+CMD_AUDIO_BASE = 2000
+CMD_HZ_BASE = 2100
+
+try:
+    import audio_devices
+except Exception:
+    audio_devices = None
+
+try:
+    import display_manager
+except Exception:
+    display_manager = None
+
+try:
+    import tray_menu
+except Exception:
+    tray_menu = None
 
 # Ubicaciones antiguas de auto-inicio (versiones <= 7.8.6). Se migran a la tarea programada.
 STARTUP_FILE = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\VortexCoreHub.vbs")
@@ -288,14 +310,210 @@ class NOTIFYICONDATAW(ctypes.Structure):
     ]
 
 
+def tray_config_path() -> str:
+    return os.path.join(
+        os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+        "VortexCoreHub",
+        "tray.json",
+    )
+
+
+def load_tray_config() -> dict:
+    cfg = {"temp_icon": False}
+    try:
+        with open(tray_config_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "temp_icon" in data:
+            cfg["temp_icon"] = bool(data["temp_icon"])
+    except (OSError, ValueError):
+        pass
+    return cfg
+
+
+def save_tray_config(cfg: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(tray_config_path()), exist_ok=True)
+        with open(tray_config_path(), "w", encoding="utf-8") as f:
+            json.dump({"temp_icon": bool(cfg.get("temp_icon", False))}, f, indent=2)
+    except OSError:
+        pass
+
+
+class _ICONINFO(ctypes.Structure):
+    _fields_ = [
+        ("fIcon", wintypes.BOOL),
+        ("xHotspot", wintypes.DWORD),
+        ("yHotspot", wintypes.DWORD),
+        ("hbmMask", wintypes.HBITMAP),
+        ("hbmColor", wintypes.HBITMAP),
+    ]
+
+
+class _BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", wintypes.DWORD),
+        ("biWidth", ctypes.c_long),
+        ("biHeight", ctypes.c_long),
+        ("biPlanes", wintypes.WORD),
+        ("biBitCount", wintypes.WORD),
+        ("biCompression", wintypes.DWORD),
+        ("biSizeImage", wintypes.DWORD),
+        ("biXPelsPerMeter", ctypes.c_long),
+        ("biYPelsPerMeter", ctypes.c_long),
+        ("biClrUsed", wintypes.DWORD),
+        ("biClrImportant", wintypes.DWORD),
+    ]
+
+
+class _BITMAPINFO(ctypes.Structure):
+    _fields_ = [("bmiHeader", _BITMAPINFOHEADER), ("bmiColors", wintypes.DWORD * 3)]
+
+
+def _create_temp_hicon(temp_c: float, size: int = 16) -> int:
+    """Dibuja la temperatura de CPU en un HICON GDI nativo para la bandeja."""
+    try:
+        val = max(0, min(99, int(round(float(temp_c)))))
+        text = str(val)
+    except (TypeError, ValueError):
+        val = 0
+        text = "--"
+
+    # COLORREF es 0x00BBGGRR
+    if val >= 82:
+        bg_color, border_color = 0x001B1B6B, 0x004444EF
+    elif val >= 65:
+        bg_color, border_color = 0x000B3B5C, 0x000B9EF5
+    else:
+        bg_color, border_color = 0x0033240D, 0x00FFCC00
+
+    hdc_screen = user32.GetDC(0)
+    hdc_mem = gdi32.CreateCompatibleDC(hdc_screen)
+
+    bmi = _BITMAPINFO()
+    bmi.bmiHeader.biSize = ctypes.sizeof(_BITMAPINFOHEADER)
+    bmi.bmiHeader.biWidth = size
+    bmi.bmiHeader.biHeight = -size
+    bmi.bmiHeader.biPlanes = 1
+    bmi.bmiHeader.biBitCount = 32
+
+    bits = ctypes.c_void_p()
+    hbm_color = gdi32.CreateDIBSection(hdc_mem, ctypes.byref(bmi), 0, ctypes.byref(bits), None, 0)
+    hbm_mask = gdi32.CreateBitmap(size, size, 1, 1, None)
+    if not hbm_color or not hbm_mask:
+        if hbm_color:
+            gdi32.DeleteObject(hbm_color)
+        if hbm_mask:
+            gdi32.DeleteObject(hbm_mask)
+        gdi32.DeleteDC(hdc_mem)
+        user32.ReleaseDC(0, hdc_screen)
+        return 0
+
+    old_bmp = gdi32.SelectObject(hdc_mem, hbm_color)
+    brush = gdi32.CreateSolidBrush(bg_color)
+    pen = gdi32.CreatePen(0, 1, border_color)
+    old_brush = gdi32.SelectObject(hdc_mem, brush)
+    old_pen = gdi32.SelectObject(hdc_mem, pen)
+
+    radius = max(3, size // 4)
+    gdi32.RoundRect(hdc_mem, 0, 0, size, size, radius, radius)
+
+    font_h = -int(size * 0.72)
+    hfont = gdi32.CreateFontW(
+        font_h, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 4, 0, "Segoe UI"
+    )
+    old_font = gdi32.SelectObject(hdc_mem, hfont)
+    gdi32.SetBkMode(hdc_mem, 1)  # TRANSPARENT
+    gdi32.SetTextColor(hdc_mem, 0x00FFFFFF)
+    rc = wintypes.RECT(0, 0, size, size)
+    user32.DrawTextW(hdc_mem, text, -1, ctypes.byref(rc), 0x00000025)  # DT_CENTER | DT_VCENTER | DT_SINGLELINE
+
+    # Forzar alfa opaco (0xFF) en todos los píxeles del DIB 32bpp
+    if bits.value:
+        buf_type = ctypes.c_uint32 * (size * size)
+        px = buf_type.from_address(bits.value)
+        for i in range(size * size):
+            px[i] |= 0xFF000000
+
+    gdi32.SelectObject(hdc_mem, old_font)
+    gdi32.SelectObject(hdc_mem, old_pen)
+    gdi32.SelectObject(hdc_mem, old_brush)
+    gdi32.SelectObject(hdc_mem, old_bmp)
+
+    ii = _ICONINFO()
+    ii.fIcon = True
+    ii.hbmMask = hbm_mask
+    ii.hbmColor = hbm_color
+    hicon = user32.CreateIconIndirect(ctypes.byref(ii))
+
+    gdi32.DeleteObject(hfont)
+    gdi32.DeleteObject(pen)
+    gdi32.DeleteObject(brush)
+    gdi32.DeleteObject(hbm_color)
+    gdi32.DeleteObject(hbm_mask)
+    gdi32.DeleteDC(hdc_mem)
+    user32.ReleaseDC(0, hdc_screen)
+    return hicon
+
+
 class SystemTrayApp:
-    def __init__(self, manager, on_open_callback, on_exit_callback):
+    def __init__(self, manager, on_open_callback, on_exit_callback, on_flyout_callback=None):
         self.manager = manager
         self.on_open = on_open_callback
         self.on_exit = on_exit_callback
+        self.on_flyout = on_flyout_callback
         self.hwnd = None
         self.nid = None
         self._pending_notice = None
+        self._base_hicon = 0
+        self._dyn_hicon = 0
+        self._icon_size = user32.GetSystemMetrics(49) or 16
+        self._last_drawn = None
+        self.temp_icon_enabled = load_tray_config()["temp_icon"]
+        self._tray_menu = tray_menu.TrayPopupMenu(self._get_menu_state, self._handle_menu_action) if tray_menu else None
+
+    def set_temp_icon(self, enabled: bool) -> None:
+        self.temp_icon_enabled = bool(enabled)
+        save_tray_config({"temp_icon": self.temp_icon_enabled})
+        self._last_drawn = None
+        if self.hwnd:
+            user32.PostMessageW(self.hwnd, WM_TIMER, 1, 0)
+
+    def _update_tray_visual(self) -> None:
+        if not self.nid:
+            return
+        tel = getattr(self.manager, "telemetry", {}) or {}
+        cpu_t = tel.get("cpu_temp")
+        gpu_t = tel.get("gpu_temp")
+
+        tip = "VortexCore Hub"
+        if isinstance(cpu_t, (int, float)) and cpu_t > 0:
+            tip += f" — CPU {int(round(cpu_t))}°C"
+        if isinstance(gpu_t, (int, float)) and gpu_t > 0:
+            tip += f" | GPU {int(round(gpu_t))}°C"
+        self.nid.szTip = tip[:127]
+
+        new_hicon = None
+        if self.temp_icon_enabled and isinstance(cpu_t, (int, float)) and cpu_t > 0:
+            rounded = int(round(cpu_t))
+            bucket = (rounded, "r" if rounded >= 82 else "a" if rounded >= 65 else "c")
+            if bucket != self._last_drawn:
+                created = _create_temp_hicon(rounded, self._icon_size)
+                if created:
+                    new_hicon = created
+                    self._last_drawn = bucket
+        elif self._dyn_hicon:
+            new_hicon = self._base_hicon
+            self._last_drawn = None
+
+        if new_hicon:
+            self.nid.hIcon = new_hicon
+        self.nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
+        shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(self.nid))
+
+        if new_hicon:
+            if self._dyn_hicon and self._dyn_hicon != new_hicon:
+                user32.DestroyIcon(self._dyn_hicon)
+            self._dyn_hicon = new_hicon if new_hicon != self._base_hicon else 0
 
     # muestra una notificacion de windows desde el icono de la bandeja
     def notify(self, title: str, message: str):
@@ -378,6 +596,7 @@ class SystemTrayApp:
             pass
 
         # Crear icono en la bandeja del sistema con el logo oficial
+        self._base_hicon = hicon
         self.nid = NOTIFYICONDATAW()
         self.nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
         self.nid.hWnd = self.hwnd
@@ -392,6 +611,9 @@ class SystemTrayApp:
             self.notify(*self._pending_notice)
             self._pending_notice = None
 
+        user32.SetTimer(self.hwnd, 1, 2500, None)
+        self._update_tray_visual()
+
         # Message loop
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) > 0:
@@ -399,9 +621,68 @@ class SystemTrayApp:
             user32.DispatchMessageW(ctypes.byref(msg))
 
         # Cleanup
+        user32.KillTimer(self.hwnd, 1)
         shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
+        if self._dyn_hicon:
+            user32.DestroyIcon(self._dyn_hicon)
+            self._dyn_hicon = 0
+
+    def _get_menu_state(self) -> dict:
+        tel = getattr(self.manager, "telemetry", {}) or {}
+        fan_mode = str(getattr(self.manager, "fan_mode", "auto")).lower()
+        ov = getattr(self.manager, "_overlay_ref", None)
+        gm = getattr(self.manager, "_gamemode_ref", None)
+        ov_on = bool(ov.get_config().get("enabled")) if ov and hasattr(ov, "get_config") else False
+        gm_on = bool(getattr(gm, "enabled", False)) if gm else False
+        return {
+            "cpu_temp": tel.get("cpu_temp"),
+            "gpu_temp": tel.get("gpu_temp"),
+            "profile": getattr(self.manager, "current_profile", "DEFAULT"),
+            "fan_turbo": ("max" in fan_mode or "turbo" in fan_mode),
+            "overlay_enabled": ov_on,
+            "gamemode_enabled": gm_on,
+            "temp_icon": self.temp_icon_enabled,
+        }
+
+    def _handle_menu_action(self, action: str, payload=None):
+        if action == "open_hub":
+            if self.on_open:
+                threading.Thread(target=self.on_open, daemon=True).start()
+        elif action == "set_audio" and audio_devices is not None and payload:
+            audio_devices.set_default_output_device(payload)
+        elif action == "set_profile" and payload:
+            self.manager.set_profile(payload)
+        elif action == "set_fan" and payload:
+            self.manager.set_fan(payload)
+        elif action == "set_hz" and display_manager is not None and payload:
+            display_manager.set_refresh_rate(payload)
+        elif action == "clean_ram":
+            self.manager.clean_ram()
+        elif action == "toggle_overlay":
+            ov = getattr(self.manager, "_overlay_ref", None)
+            if ov and hasattr(ov, "get_config") and hasattr(ov, "update_config"):
+                ov.update_config({"enabled": not bool(ov.get_config().get("enabled"))})
+        elif action == "toggle_gamemode":
+            gm = getattr(self.manager, "_gamemode_ref", None)
+            if gm and hasattr(gm, "set_enabled"):
+                gm.set_enabled(not bool(getattr(gm, "enabled", False)))
+        elif action == "toggle_autostart":
+            set_autostart(not is_autostart_enabled())
+        elif action == "toggle_temp_icon":
+            self.set_temp_icon(not self.temp_icon_enabled)
+        elif action == "exit_app":
+            if self.nid:
+                shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
+            if self.hwnd:
+                user32.PostMessageW(self.hwnd, 0x0012, 0, 0)
+            if self.on_exit:
+                self.on_exit()
 
     def _show_context_menu(self):
+        if self._tray_menu is not None:
+            user32.SetForegroundWindow(self.hwnd)
+            self._tray_menu.show()
+            return
         try:
             if uxtheme:
                 fn_flush_themes = ctypes.cast(uxtheme[136], ctypes.WINFUNCTYPE(None))
@@ -412,23 +693,65 @@ class SystemTrayApp:
         menu = user32.CreatePopupMenu()
 
         user32.AppendMenuW(menu, MF_STRING, CMD_OPEN, "Abrir VortexCore Hub")
+        try:
+            user32.SetMenuDefaultItem(menu, 0, True)
+        except Exception:
+            pass
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
+        # Salidas de audio en primer nivel (cambio en 1 clic, estilo EarTrumpet)
+        self._audio_menu_ids = {}
+        if audio_devices is not None:
+            devs = audio_devices.list_output_devices()[:20]
+            if devs:
+                for idx, dev in enumerate(devs):
+                    cmd_id = CMD_AUDIO_BASE + idx
+                    self._audio_menu_ids[cmd_id] = dev["id"]
+                    chk = MF_CHECKED if dev["is_default"] else MF_UNCHECKED
+                    user32.AppendMenuW(menu, chk | MF_STRING, cmd_id, dev["name"])
+                user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+
+        # Submenú: Modo de energía
         curr_prof = getattr(self.manager, "current_profile", "DEFAULT").upper()
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "ECO" else MF_UNCHECKED) | MF_STRING, CMD_ECO, "Modo Silencioso")
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof in ("DEFAULT", "BALANCED") else MF_UNCHECKED) | MF_STRING, CMD_BALANCED, "Modo Windows (por defecto)")
-        user32.AppendMenuW(menu, (MF_CHECKED if curr_prof == "PERFORMANCE" else MF_UNCHECKED) | MF_STRING, CMD_TURBO, "Modo Rendimiento")
-        user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+        prof_menu = user32.CreatePopupMenu()
+        user32.AppendMenuW(prof_menu, (MF_CHECKED if curr_prof == "ECO" else MF_UNCHECKED) | MF_STRING, CMD_ECO, "Silencioso (Eco)")
+        user32.AppendMenuW(prof_menu, (MF_CHECKED if curr_prof in ("DEFAULT", "BALANCED") else MF_UNCHECKED) | MF_STRING, CMD_BALANCED, "Equilibrado (Windows)")
+        user32.AppendMenuW(prof_menu, (MF_CHECKED if curr_prof == "PERFORMANCE" else MF_UNCHECKED) | MF_STRING, CMD_TURBO, "Rendimiento")
+        user32.AppendMenuW(menu, MF_POPUP, int(prof_menu), "Modo de energía")
 
+        # Submenú: Ventiladores
         fan_mode = str(getattr(self.manager, "fan_mode", "auto")).lower()
         is_turbo = "max" in fan_mode or "turbo" in fan_mode
-        user32.AppendMenuW(menu, (MF_CHECKED if is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_MAX, "Ventiladores al 100%")
-        user32.AppendMenuW(menu, (MF_CHECKED if not is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_AUTO, "Ventiladores en automático")
+        fan_menu = user32.CreatePopupMenu()
+        user32.AppendMenuW(fan_menu, (MF_CHECKED if not is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_AUTO, "Automático")
+        user32.AppendMenuW(fan_menu, (MF_CHECKED if is_turbo else MF_UNCHECKED) | MF_STRING, CMD_FAN_MAX, "Al 100% (Máximo)")
+        user32.AppendMenuW(menu, MF_POPUP, int(fan_menu), "Ventiladores")
+
+        # Submenú: Pantalla (Hz)
+        self._hz_menu_ids = {}
+        if display_manager is not None:
+            disp = display_manager.get_display_modes()
+            hz_list = disp.get("available_hz") or []
+            if hz_list:
+                hz_menu = user32.CreatePopupMenu()
+                for idx, hz in enumerate(hz_list[:20]):
+                    cmd_id = CMD_HZ_BASE + idx
+                    self._hz_menu_ids[cmd_id] = hz
+                    chk = MF_CHECKED if hz == disp.get("current_hz") else MF_UNCHECKED
+                    user32.AppendMenuW(hz_menu, chk | MF_STRING, cmd_id, f"{hz} Hz")
+                user32.AppendMenuW(menu, MF_POPUP, int(hz_menu), f"Pantalla ({disp.get('current_hz', '--')} Hz)")
+
         user32.AppendMenuW(menu, MF_STRING, CMD_PURGE_RAM, "Liberar memoria RAM")
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
 
+        # Submenú: Opciones de bandeja
+        opts_menu = user32.CreatePopupMenu()
         autostart_state = MF_CHECKED if is_autostart_enabled() else MF_UNCHECKED
-        user32.AppendMenuW(menu, autostart_state | MF_STRING, CMD_AUTOSTART, "Iniciar con Windows al encender")
+        user32.AppendMenuW(opts_menu, autostart_state | MF_STRING, CMD_AUTOSTART, "Iniciar con Windows al encender")
+        temp_state = MF_CHECKED if self.temp_icon_enabled else MF_UNCHECKED
+        user32.AppendMenuW(opts_menu, temp_state | MF_STRING, CMD_TEMP_ICON, "Mostrar temperatura en lugar del logo")
+        user32.AppendMenuW(menu, MF_POPUP, int(opts_menu), "Opciones de bandeja")
+
         user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
         user32.AppendMenuW(menu, MF_STRING, CMD_EXIT, "Salir de VortexCore")
 
@@ -442,10 +765,18 @@ class SystemTrayApp:
 
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
         if msg == WM_TRAYICON:
-            if lparam in (WM_LBUTTONUP, WM_LBUTTONDBLCLK):
+            if lparam == WM_LBUTTONUP:
+                if self.on_flyout:
+                    self.on_flyout()
+                elif self.on_open:
+                    import time
+                    now = time.time()
+                    if now - getattr(self, "_last_click_time", 0) > 0.7:
+                        self._last_click_time = now
+                        self.on_open()
+            elif lparam == WM_LBUTTONDBLCLK:
                 import time
                 now = time.time()
-                # Debounce de clics: ignora pulsaciones repetidas o ráfagas de doble-clic
                 if now - getattr(self, "_last_click_time", 0) > 0.7:
                     self._last_click_time = now
                     if self.on_open:
@@ -475,12 +806,22 @@ class SystemTrayApp:
                 self.manager.clean_ram()
             elif cmd == CMD_AUTOSTART:
                 set_autostart(not is_autostart_enabled())
+            elif cmd == CMD_TEMP_ICON:
+                self.set_temp_icon(not self.temp_icon_enabled)
+            elif cmd in getattr(self, "_audio_menu_ids", {}) and audio_devices is not None:
+                audio_devices.set_default_output_device(self._audio_menu_ids[cmd])
+            elif cmd in getattr(self, "_hz_menu_ids", {}) and display_manager is not None:
+                display_manager.set_refresh_rate(self._hz_menu_ids[cmd])
             elif cmd == CMD_EXIT:
                 if self.nid:
                     shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
                 user32.PostQuitMessage(0)
                 if self.on_exit:
                     self.on_exit()
+            return 0
+
+        elif msg == WM_TIMER:
+            self._update_tray_visual()
             return 0
 
         return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
