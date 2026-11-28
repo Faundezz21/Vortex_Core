@@ -112,6 +112,12 @@ class DualSenseBridgeTests(unittest.TestCase):
         self.assertEqual(dualsense_bridge.encode_adaptive_trigger("bow", 85)[0], 0x02)
         self.assertEqual(dualsense_bridge.encode_adaptive_trigger("hard", 100)[:3], bytes([0x01, 4, 255]))
 
+        # Configuración automática por género de juego
+        self.assertEqual(dualsense_bridge.resolve_auto_triggers(None)[:2], ("off", "off"))
+        self.assertEqual(dualsense_bridge.resolve_auto_triggers("TslGame.exe")[:2], ("bow", "weapon"))
+        self.assertEqual(dualsense_bridge.resolve_auto_triggers("RocketLeague.exe")[:2], ("continuous", "continuous"))
+        self.assertEqual(dualsense_bridge.resolve_auto_triggers("eldenring.exe")[:2], ("bow", "weapon"))
+
         dsx_payload = b'''{
             "instructions": [
                 {"type": 1, "parameters": [0, 1, 16, 35, 7]},

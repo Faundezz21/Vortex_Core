@@ -28,30 +28,89 @@ import hw_sensors
 IS_WINDOWS = sys.platform == "win32"
 CREATE_NO_WINDOW = 0x08000000
 DSX_UDP_PORT = 6969
-TRIGGER_MODES = ("off", "weapon", "continuous", "machine", "bow", "hard")
+TRIGGER_MODES = ("auto", "off", "weapon", "continuous", "machine", "bow", "hard")
+
+_SHOOTER_KEYWORDS = (
+    "pubg", "tslgame", "cod", "warzone", "modernwarfare", "blackops", "r5apex", "apex",
+    "fortnite", "cs2", "csgo", "valorant", "bf2042", "battlefield", "overwatch", "rainbowsix",
+    "r6", "halo", "destiny2", "helldivers", "thefinals", "xdefiant", "farlight", "deltaforce",
+    "stalker", "doom", "cyberpunk", "starfield", "re4", "re2", "re8", "alanwake", "left4dead",
+    "payday", "rust", "tarkov", "dayz", "arma", "sniper", "borderlands", "metro", "crysis",
+)
+_RACING_KEYWORDS = (
+    "rocketleague", "forza", "f1_", "assettocorsa", "acs", "nfs", "needforspeed", "dirt",
+    "wrc", "thecrew", "beamng", "eurotrucks", "amtrucks", "iracing", "kart", "gtav", "gta5",
+    "trackmania", "burnout", "grid", "motogp", "ride", "hotwheels", "projectcars", "automobilista",
+)
+_ACTION_KEYWORDS = (
+    "eldenring", "sekiro", "darksouls", "godofwar", "gow", "spider-man", "milesmorales",
+    "horizon", "witcher", "rdr2", "monsterhunter", "devilmaycry", "wukong", "b1-win64",
+    "fc24", "fc25", "fifa", "efootball", "nba2k", "mortal", "mk1", "streetfighter", "tekken",
+    "minecraft", "javaw", "genshin", "wuwa", "honkai", "hades", "hollowknight", "palworld",
+    "ark", "baldur", "bg3", "diablo", "assassin", "ghostoftsushima", "batman",
+)
+
+
+def resolve_auto_triggers(game_exe: str | None) -> tuple[str, str, str]:
+    """Determina automáticamente los efectos de L2 y R2 según el juego activo en primer plano."""
+    if not game_exe:
+        return ("off", "off", "Auto · En espera de juego")
+    low = str(game_exe).strip().lower()
+    base_name = low[:-4] if low.endswith(".exe") else low
+    if any(k in low for k in _SHOOTER_KEYWORDS):
+        return ("bow", "weapon", f"Auto · Shooter ({base_name})")
+    if any(k in low for k in _RACING_KEYWORDS):
+        return ("continuous", "continuous", f"Auto · Conducción ({base_name})")
+    if any(k in low for k in _ACTION_KEYWORDS):
+        return ("bow", "weapon", f"Auto · Acción ({base_name})")
+    return ("continuous", "weapon", f"Auto · Juego ({base_name})")
+
+
+def detect_active_game_exe() -> str | None:
+    """Detecta si la ventana en primer plano pertenece a un juego conocido o activo."""
+    if not IS_WINDOWS:
+        return None
+    try:
+        import fps_monitor
+        pid = fps_monitor.foreground_pid()
+        if not pid:
+            return None
+        exe = (fps_monitor.process_exe_name(pid) or "").strip()
+        if not exe:
+            return None
+        low = exe.lower()
+        if low in fps_monitor._IGNORED_APPS or low in fps_monitor.NON_GAME_APPS:
+            return None
+        if any(k in low for k in fps_monitor._NON_GAME_KEYWORDS):
+            return None
+        if any(k in low for k in (_SHOOTER_KEYWORDS + _RACING_KEYWORDS + _ACTION_KEYWORDS)):
+            return exe
+    except Exception:
+        pass
+    return None
 
 
 def encode_adaptive_trigger(mode: str, force_pct: int = 85, freq_hz: int = 25) -> bytes:
     """Codifica los 11 bytes de efecto mecánico para los motores de gatillos adaptativos L2/R2 (estilo DualSenseX)."""
     m = str(mode or "off").strip().lower()
-    f_scaled = max(20, min(255, int(round(255.0 * max(10, min(100, int(force_pct))) / 100.0))))
+    f_scaled = max(25, min(255, int(round(255.0 * max(10, min(100, int(force_pct))) / 100.0))))
     if m == "continuous":
-        # 0x01: Resistencia continua desde la posición 18 con fuerza constante
-        return bytes([0x01, 18, f_scaled, 0, 0, 0, 0, 0, 0, 0, 0])
+        # 0x01: Resistencia continua tipo pedal desde el inicio del recorrido
+        return bytes([0x01, 0x00, f_scaled, 0, 0, 0, 0, 0, 0, 0, 0])
     if m == "weapon":
-        # 0x02: Resistencia por sección (gatillo de arma con punto de quiebre)
-        return bytes([0x02, 32, 152, f_scaled, 0, 0, 0, 0, 0, 0, 0])
+        # 0x02: Resistencia por sección (gatillo de arma con punto de quiebre claro)
+        return bytes([0x02, 0x15, 0x68, f_scaled, 0, 0, 0, 0, 0, 0, 0])
     if m == "machine":
-        # 0x06: Vibración automática de alta frecuencia (ametralladora / ABS)
-        freq = max(6, min(60, int(freq_hz)))
-        amp = max(12, min(63, int(round(63.0 * max(10, min(100, int(force_pct))) / 100.0))))
-        return bytes([0x06, freq, amp, 24, 0, 0, 0, 0, 0, 0, 0])
+        # 0x06: Vibración automática de alta frecuencia (ráfaga / metralleta)
+        freq = max(8, min(60, int(freq_hz)))
+        amp = max(16, min(63, int(round(63.0 * max(10, min(100, int(force_pct))) / 100.0))))
+        return bytes([0x06, freq, amp, 0x10, 0, 0, 0, 0, 0, 0, 0])
     if m == "bow":
-        # 0x02 con recorrido extendido: tensión progresiva tipo cuerda de arco
-        return bytes([0x02, 16, 224, f_scaled, 0, 0, 0, 0, 0, 0, 0])
+        # 0x02 con recorrido extendido: tensión progresiva tipo cuerda de arco / apuntado ADS
+        return bytes([0x02, 0x10, 0xC0, f_scaled, 0, 0, 0, 0, 0, 0, 0])
     if m == "hard":
         # 0x01 desde el inicio a máxima fuerza: bloqueo duro competitivo
-        return bytes([0x01, 4, 255, 0, 0, 0, 0, 0, 0, 0, 0])
+        return bytes([0x01, 0x04, 255, 0, 0, 0, 0, 0, 0, 0, 0])
     # 0x05: Sin resistencia / gatillo libre (Normal)
     return bytes([0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
@@ -306,10 +365,11 @@ def load_dualsense_config() -> dict:
         "power_save": True,
         "rumble_enabled": True,
         "rumble_intensity": 80,
-        "trigger_l2_mode": "off",
-        "trigger_r2_mode": "off",
+        "trigger_l2_mode": "auto",
+        "trigger_r2_mode": "auto",
         "trigger_force": 85,
         "dsx_udp_enabled": True,
+        "auto_triggers_v2": True,
     }
     try:
         with open(_ds_cfg_path(), encoding="utf-8") as f:
@@ -345,10 +405,11 @@ def load_dualsense_config() -> dict:
                 cfg["rumble_enabled"] = bool(raw["rumble_enabled"])
             if isinstance(raw.get("rumble_intensity"), (int, float)):
                 cfg["rumble_intensity"] = max(0, min(100, int(raw["rumble_intensity"])))
-            if raw.get("trigger_l2_mode") in TRIGGER_MODES:
-                cfg["trigger_l2_mode"] = raw["trigger_l2_mode"]
-            if raw.get("trigger_r2_mode") in TRIGGER_MODES:
-                cfg["trigger_r2_mode"] = raw["trigger_r2_mode"]
+            if raw.get("auto_triggers_v2"):
+                if raw.get("trigger_l2_mode") in TRIGGER_MODES:
+                    cfg["trigger_l2_mode"] = raw["trigger_l2_mode"]
+                if raw.get("trigger_r2_mode") in TRIGGER_MODES:
+                    cfg["trigger_r2_mode"] = raw["trigger_r2_mode"]
             if isinstance(raw.get("trigger_force"), (int, float)):
                 cfg["trigger_force"] = max(10, min(100, int(raw["trigger_force"])))
             if "dsx_udp_enabled" in raw:
@@ -852,11 +913,14 @@ class DualSenseBridge:
         self.power_save = cfg.get("power_save", True)
         self.rumble_enabled = cfg.get("rumble_enabled", True)
         self.rumble_intensity = cfg.get("rumble_intensity", 80)
-        self.trigger_l2_mode = cfg.get("trigger_l2_mode", "off")
-        self.trigger_r2_mode = cfg.get("trigger_r2_mode", "off")
+        self.trigger_l2_mode = cfg.get("trigger_l2_mode", "auto")
+        self.trigger_r2_mode = cfg.get("trigger_r2_mode", "auto")
         self.trigger_force = cfg.get("trigger_force", 85)
         self.dsx_udp_enabled = cfg.get("dsx_udp_enabled", True)
         self.dsx_udp_port = DSX_UDP_PORT
+        self.active_game_exe: str | None = None
+        self.trigger_auto_label = "Auto · En espera de juego"
+        self._last_game_check_t = 0.0
         self.enabled = bool(enabled) and self.mode != "off"
         self.active = False
         self._stop_ev = threading.Event()
@@ -868,6 +932,18 @@ class DualSenseBridge:
         self._last_activity_t = time.monotonic()
         self._idle_dimmed = False
         self.live_state = None
+
+    def _poll_auto_game_triggers(self) -> None:
+        now = time.monotonic()
+        if now - self._last_game_check_t < 1.5:
+            return
+        self._last_game_check_t = now
+        cur_game = detect_active_game_exe()
+        if cur_game != self.active_game_exe:
+            self.active_game_exe = cur_game
+            _, _, self.trigger_auto_label = resolve_auto_triggers(cur_game)
+            if self.trigger_l2_mode == "auto" or self.trigger_r2_mode == "auto":
+                self._led_dirty = True
 
     def start(self) -> None:
         if not IS_WINDOWS or self._thread is not None:
@@ -942,12 +1018,16 @@ class DualSenseBridge:
             self.led_color, battery_pct=battery_pct,
             brightness=eff_brightness, speed=self.rainbow_speed,
         )
+        auto_l2, auto_r2, auto_lbl = resolve_auto_triggers(self.active_game_exe)
+        self.trigger_auto_label = auto_lbl
+        eff_l2 = auto_l2 if self.trigger_l2_mode == "auto" else self.trigger_l2_mode
+        eff_r2 = auto_r2 if self.trigger_r2_mode == "auto" else self.trigger_r2_mode
         for p in paths:
             send_dualsense_bt_led(
                 p, *rgb, mic_mute=self.mic_mute,
                 player_leds=eff_pleds, force_reset=force_reset,
-                trigger_l2_mode=self.trigger_l2_mode,
-                trigger_r2_mode=self.trigger_r2_mode,
+                trigger_l2_mode=eff_l2,
+                trigger_r2_mode=eff_r2,
                 trigger_force=self.trigger_force,
             )
         self._last_led_rgb = rgb
@@ -1023,6 +1103,7 @@ class DualSenseBridge:
             "trigger_r2_mode": self.trigger_r2_mode,
             "trigger_force": self.trigger_force,
             "dsx_udp_enabled": self.dsx_udp_enabled,
+            "auto_triggers_v2": True,
         })
         if any(x is not None for x in (led_color, led_brightness, rainbow_speed, player_leds, mic_mute, power_save, idle_timeout, trigger_l2_mode, trigger_r2_mode, trigger_force)):
             self._led_dirty = True
@@ -1052,6 +1133,7 @@ class DualSenseBridge:
         return st
 
     def status(self) -> dict:
+        self._poll_auto_game_triggers()
         cached = (hw_sensors._ds_cache or {}).get("value") or {}
         cache_age = time.time() - float((hw_sensors._ds_cache or {}).get("at") or 0.0)
         if (cached.get("percent") is None or cache_age > 8.0) and not self.active:
@@ -1086,6 +1168,7 @@ class DualSenseBridge:
             "trigger_l2_mode": self.trigger_l2_mode,
             "trigger_r2_mode": self.trigger_r2_mode,
             "trigger_force": self.trigger_force,
+            "trigger_auto_label": self.trigger_auto_label,
             "dsx_udp_enabled": self.dsx_udp_enabled,
             "dsx_udp_port": self.dsx_udp_port,
             "battery_pct": bat_pct,
@@ -1094,6 +1177,7 @@ class DualSenseBridge:
 
     def _run(self) -> None:
         while not self._stop_ev.is_set():
+            self._poll_auto_game_triggers()
             dll_path = find_vigem_dll()
             bt_path = _find_bt_dualsense_path()
             if not self.enabled or self.mode == "off" or not is_vigembus_installed() or not dll_path or not bt_path:
@@ -1256,6 +1340,7 @@ class DualSenseBridge:
                             vigem.vigem_target_x360_update(client, target, xusb)
 
                     parsed = hw_sensors.parse_dualsense_report(rep, bluetooth=True)
+                    self._poll_auto_game_triggers()
                     if parsed and parsed.get("mode") == "full":
                         parsed["bluetooth"] = True
                         hw_sensors._ds_cache.update(at=time.time(), value=parsed)

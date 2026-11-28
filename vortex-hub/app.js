@@ -1273,15 +1273,21 @@ function _applyDualSenseUi(cfg) {
   if (psSw) psSw.checked = psOn;
   if (xbDimSw) xbDimSw.checked = psOn;
 
-  const l2Mode = cfg.trigger_l2_mode || "off";
+  const l2Mode = cfg.trigger_l2_mode || "auto";
   document.querySelectorAll('input[name="gs_l2m"]').forEach(r => {
     r.checked = (r.value === l2Mode);
   });
 
-  const r2Mode = cfg.trigger_r2_mode || "off";
+  const r2Mode = cfg.trigger_r2_mode || "auto";
   document.querySelectorAll('input[name="gs_r2m"]').forEach(r => {
     r.checked = (r.value === r2Mode);
   });
+
+  const autoLbl = cfg.trigger_auto_label || "Auto · En espera de juego";
+  const l2Sub = document.getElementById("gs-l2-auto-sub");
+  const r2Sub = document.getElementById("gs-r2-auto-sub");
+  if (l2Sub) l2Sub.textContent = (l2Mode === "auto") ? autoLbl : "Resistencia manual del motor izquierdo";
+  if (r2Sub) r2Sub.textContent = (r2Mode === "auto") ? autoLbl : "Resistencia manual del motor derecho";
 
   const trigForceSlider = document.getElementById("gs-trig-force-slider");
   if (trigForceSlider && typeof cfg.trigger_force === "number") {
@@ -1367,8 +1373,8 @@ function resetDualSenseDefaults() {
     power_save: true,
     rumble_enabled: true,
     rumble_intensity: 80,
-    trigger_l2_mode: "off",
-    trigger_r2_mode: "off",
+    trigger_l2_mode: "auto",
+    trigger_r2_mode: "auto",
     trigger_force: 85,
     dsx_udp_enabled: true
   });

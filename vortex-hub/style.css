@@ -9604,6 +9604,12 @@ body[data-accent] .clean-btn.primary:hover {
   margin-top: 2px;
 }
 
+#gamepad-studio-modal .seg.seg-compact label {
+  font-size: 13px;
+  padding: 0 4px;
+  min-width: 0;
+}
+
 #gamepad-studio-modal .sws {
   display: flex;
   justify-content: space-between;

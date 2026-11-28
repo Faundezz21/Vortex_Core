@@ -1860,22 +1860,22 @@
                 </span>
                 <span class="tx">
                   <b>Gatillo adaptativo L2 (DualSenseX)</b>
-                  <small>Resistencia mecánica del motor izquierdo</small>
+                  <small id="gs-l2-auto-sub">Automático según el juego o mod activo</small>
                 </span>
               </div>
-              <div class="seg">
-                <input type="radio" name="gs_l2m" id="l2m_off" value="off" checked onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'off'})">
+              <div class="seg seg-compact">
+                <input type="radio" name="gs_l2m" id="l2m_auto" value="auto" checked onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'auto'})">
+                <label for="l2m_auto">Auto</label>
+                <input type="radio" name="gs_l2m" id="l2m_off" value="off" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'off'})">
                 <label for="l2m_off">Normal</label>
                 <input type="radio" name="gs_l2m" id="l2m_weapon" value="weapon" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'weapon'})">
                 <label for="l2m_weapon">Arma</label>
                 <input type="radio" name="gs_l2m" id="l2m_cont" value="continuous" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'continuous'})">
-                <label for="l2m_cont">Continuo</label>
+                <label for="l2m_cont">Pedal</label>
                 <input type="radio" name="gs_l2m" id="l2m_mach" value="machine" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'machine'})">
-                <label for="l2m_mach">Metralleta</label>
+                <label for="l2m_mach">Ráfaga</label>
                 <input type="radio" name="gs_l2m" id="l2m_bow" value="bow" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'bow'})">
                 <label for="l2m_bow">Arco</label>
-                <input type="radio" name="gs_l2m" id="l2m_hard" value="hard" onchange="if(this.checked) setDualSenseConfig({trigger_l2_mode:'hard'})">
-                <label for="l2m_hard">Duro</label>
               </div>
             </div>
 
@@ -1887,22 +1887,22 @@
                 </span>
                 <span class="tx">
                   <b>Gatillo adaptativo R2 (DualSenseX)</b>
-                  <small>Resistencia mecánica del motor derecho</small>
+                  <small id="gs-r2-auto-sub">Automático según el juego o mod activo</small>
                 </span>
               </div>
-              <div class="seg">
-                <input type="radio" name="gs_r2m" id="r2m_off" value="off" checked onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'off'})">
+              <div class="seg seg-compact">
+                <input type="radio" name="gs_r2m" id="r2m_auto" value="auto" checked onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'auto'})">
+                <label for="r2m_auto">Auto</label>
+                <input type="radio" name="gs_r2m" id="r2m_off" value="off" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'off'})">
                 <label for="r2m_off">Normal</label>
                 <input type="radio" name="gs_r2m" id="r2m_weapon" value="weapon" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'weapon'})">
                 <label for="r2m_weapon">Arma</label>
                 <input type="radio" name="gs_r2m" id="r2m_cont" value="continuous" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'continuous'})">
-                <label for="r2m_cont">Continuo</label>
+                <label for="r2m_cont">Pedal</label>
                 <input type="radio" name="gs_r2m" id="r2m_mach" value="machine" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'machine'})">
-                <label for="r2m_mach">Metralleta</label>
+                <label for="r2m_mach">Ráfaga</label>
                 <input type="radio" name="gs_r2m" id="r2m_bow" value="bow" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'bow'})">
                 <label for="r2m_bow">Arco</label>
-                <input type="radio" name="gs_r2m" id="r2m_hard" value="hard" onchange="if(this.checked) setDualSenseConfig({trigger_r2_mode:'hard'})">
-                <label for="r2m_hard">Duro</label>
               </div>
             </div>
 
